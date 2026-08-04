@@ -279,7 +279,11 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
 	// .test.mts uses) rather than a real cluster.
 	it('wires the Koa ctx into the resolver context, so an authenticated query sees ctx.state.user', async () => {
 		const OID = '507f1f77bcf86cd799439011'
-		hGetAll.mockReset().mockResolvedValueOnce(Object.assign(Object.create(null), { _id: OID, email: 'operator@marketplace.test' }))
+		// `tier` is not decoration: the auth middleware refuses a session that does not carry
+		// `admin`, so without it this whole assembly answers 403 instead of reaching the resolver.
+		hGetAll
+			.mockReset()
+			.mockResolvedValueOnce(Object.assign(Object.create(null), { _id: OID, email: 'operator@marketplace.test', tier: 'admin' }))
 
 		const res = await fetch(`${base}${ENDPOINT}`, {
 			method: 'POST',
