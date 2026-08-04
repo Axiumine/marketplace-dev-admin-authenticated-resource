@@ -4,6 +4,11 @@ import { adminUpdatePwd } from './mutations/adminUpdatePwd.mjs'
 import { companyAdd } from './mutations/companyAdd.mjs'
 import { companyDel } from './mutations/companyDel.mjs'
 import { companyUpdate } from './mutations/companyUpdate.mjs'
+import { itemCategoryAdd } from './mutations/itemCategoryAdd.mjs'
+import { itemCategoryDel } from './mutations/itemCategoryDel.mjs'
+import { itemCategoryUpdate } from './mutations/itemCategoryUpdate.mjs'
+import { itemDel } from './mutations/itemDel.mjs'
+import { itemUpdatePublished } from './mutations/itemUpdatePublished.mjs'
 import { shopOwnerAdd } from './mutations/shopOwnerAdd.mjs'
 import { shopOwnerDel } from './mutations/shopOwnerDel.mjs'
 import { shopOwnerUpdate } from './mutations/shopOwnerUpdate.mjs'
@@ -25,7 +30,12 @@ const MutationsApi = new GraphQLObjectType({
 		shopOwnerUpdateStatus,
 		companyAdd,
 		companyDel,
-		companyUpdate
+		companyUpdate,
+		itemCategoryAdd,
+		itemCategoryDel,
+		itemCategoryUpdate,
+		itemDel,
+		itemUpdatePublished
 	}
 })
 

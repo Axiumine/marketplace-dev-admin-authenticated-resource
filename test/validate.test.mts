@@ -261,7 +261,7 @@ describe('birthDate', () => {
 
 	it('refuses someone whose eighteenth birthday is tomorrow', () => {
 		expect(reason(() => birthDate(new Date('2008-08-03T00:00:00.000Z'), 'birth.date', today))).toBe(
-			"birth.date: the shopOwner must be of age (at least 18)"
+			'birth.date: the shopOwner must be of age (at least 18)'
 		)
 		expect(MIN_AGE).toBe(18)
 	})
@@ -287,7 +287,7 @@ describe('birthDate', () => {
 
 		it('refuses the day the rollover would have let through', () => {
 			expect(reason(() => birthDate(new Date('2006-03-01T00:00:00.000Z'), 'birth.date', leapYear))).toBe(
-				"birth.date: the shopOwner must be of age (at least 18)"
+				'birth.date: the shopOwner must be of age (at least 18)'
 			)
 		})
 	})
@@ -368,7 +368,7 @@ describe('validateShopOwnerPersonalData', () => {
 		[
 			'birth.date',
 			{ birth: { date: new Date('2020-01-01T00:00:00.000Z') } },
-			"birth.date: the shopOwner must be of age (at least 18)"
+			'birth.date: the shopOwner must be of age (at least 18)'
 		]
 	])('refuses a bad %s', (_desc, patch, expected) => {
 		expect(reason(() => validateShopOwnerPersonalData({ ...(validate as object), ...patch } as never, today))).toBe(expected)
@@ -475,14 +475,14 @@ describe('validateShopOwnerNote', () => {
 	// The collection caps `notes` at 2000; over it the driver would answer with an opaque validation
 	// failure, so the bound is restated here to name the field.
 	it('refuses a note over the cap', () => {
-		expect(reason(() => validateShopOwnerNote('a'.repeat(2001)))).toBe('note: max 2000 characters')
+		expect(reason(() => validateShopOwnerNote('a'.repeat(2001)))).toBe('notes: max 2000 characters')
 	})
 
 	it('raises a 400 rather than a generic failure', () => {
 		expect(failure(() => validateShopOwnerNote('a'.repeat(2001)))).toEqual({
 			message: 'Bad Request',
 			http: { status: 400 },
-			description: 'note: max 2000 characters'
+			description: 'notes: max 2000 characters'
 		})
 	})
 })
@@ -563,7 +563,11 @@ describe('validateCompany', () => {
 		uniqueCode: ' ABC1234 ',
 		certifiedEmail: ' pizzeria@pec.test ',
 		address,
-		registryExtract: ' registryExtract-2026 '
+		registryExtract: ' registryExtract-2026 ',
+		// Present and `false`, because `GraphQLInputCompany` declares it `Boolean!` — the resolver is
+		// never handed a company without it, and the validator passes it straight through. The three
+		// public fields beside it are genuinely optional and are exercised on their own below.
+		published: false
 	} as never
 
 	it('returns a trimmed copy, with the seat normalised like any other address', () => {
@@ -582,7 +586,8 @@ describe('validateCompany', () => {
 				province: 'MI',
 				position: { type: 'Point', coordinates: [9.19, 45.46] }
 			},
-			registryExtract: 'registryExtract-2026'
+			registryExtract: 'registryExtract-2026',
+			published: false
 		})
 	})
 
@@ -596,16 +601,27 @@ describe('validateCompany', () => {
 		const result = validateCompany({ ...(validate as object), ...patch } as never)
 
 		expect(Object.keys(result)).toEqual(
-			['legalName', 'vatNumber', 'taxCode', 'contactPerson', 'administrator', 'uniqueCode', 'certifiedEmail', 'address', 'registryExtract'].filter(
-				(k) => !(k in patch)
-			)
+			[
+				'legalName',
+				'vatNumber',
+				'taxCode',
+				'contactPerson',
+				'administrator',
+				'uniqueCode',
+				'certifiedEmail',
+				'address',
+				'registryExtract',
+				'published'
+			].filter((k) => !(k in patch))
 		)
 	})
 
 	// ⚠️ 1000, and it is the collection's cap rather than an invented one — the field was the single
 	// unbounded string on the embedded shape until 20260803000000 put a `maxLength` on it.
 	it('accepts a registryExtract of exactly 1000 characters and refuses 1001', () => {
-		expect(validateCompany({ ...(validate as object), registryExtract: 'x'.repeat(1000) } as never).registryExtract).toHaveLength(1000)
+		expect(
+			validateCompany({ ...(validate as object), registryExtract: 'x'.repeat(1000) } as never).registryExtract
+		).toHaveLength(1000)
 		expect(reason(() => validateCompany({ ...(validate as object), registryExtract: 'x'.repeat(1001) } as never))).toBe(
 			'company.registryExtract: max 1000 characters'
 		)

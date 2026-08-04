@@ -85,18 +85,20 @@ describe('funCompanyAdd', () => {
 		const [doc] = create.mock.calls[0]
 		expect(doc._id).toBeInstanceOf(Types.ObjectId)
 		expect(doc.idShopOwner).toBe(idShopOwner)
+		// Sorted, because the assertion sorts: the literal has to be in the same order or the comparison
+		// fails on ordering alone while the two sets are identical.
 		expect(Object.keys(doc).sort()).toEqual([
 			'_id',
-			'administrator',
-			'taxCode',
-			'idShopOwner',
 			'address',
+			'administrator',
 			'certifiedEmail',
-			'vatNumber',
-			'legalName',
 			'contactPerson',
+			'idShopOwner',
+			'legalName',
+			'registryExtract',
+			'taxCode',
 			'uniqueCode',
-			'registryExtract'
+			'vatNumber'
 		])
 	})
 

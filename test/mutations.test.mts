@@ -184,7 +184,9 @@ describe('shopOwnerAdd', () => {
 	// The validator raising is a 400 the operator can act on, and it must not reach `create` at all —
 	// nor Sentry, which is for bugs and not for a mistyped form.
 	it('refuses an invalid personalData without touching the database', async () => {
-		expect(await rejection(shopOwnerAdd.resolve(null, { login, personalData: { ...personalDataFields, firstName: '   ' } as never }))).toEqual({
+		expect(
+			await rejection(shopOwnerAdd.resolve(null, { login, personalData: { ...personalDataFields, firstName: '   ' } as never }))
+		).toEqual({
 			message: 'Bad Request',
 			http: { status: 400 },
 			description: 'firstName: field required'
@@ -387,7 +389,7 @@ describe('shopOwnerUpdateNote', () => {
 		expect(await rejection(shopOwnerUpdateNote.resolve(null, { _id, notes: 'N'.repeat(2001) }))).toEqual({
 			message: 'Bad Request',
 			http: { status: 400 },
-			description: 'note: max 2000 characters'
+			description: 'notes: max 2000 characters'
 		})
 
 		expect(funShopOwnerUpdateNote).not.toHaveBeenCalled()
@@ -453,7 +455,6 @@ describe('shopOwnerUpdatePreferences', () => {
 	})
 })
 
-
 describe('companyAdd', () => {
 	beforeEach(() => {
 		funCompanyAdd.mockReset().mockResolvedValue(undefined)
@@ -488,7 +489,9 @@ describe('companyAdd', () => {
 	// reach Sentry: a company already registered is a normal outcome, not a platform failure.
 	it('preserves the status of a GraphQLError raised downstream', async () => {
 		const { throwAlreadyTakenError } = await import('@axiumine/koa-utils/graphQL/throw/throwAlreadyTakenError')
-		funCompanyAdd.mockImplementationOnce(() => throwAlreadyTakenError('VAT number or certified email already registered by another company'))
+		funCompanyAdd.mockImplementationOnce(() =>
+			throwAlreadyTakenError('VAT number or certified email already registered by another company')
+		)
 
 		expect(await rejection(companyAdd.resolve(null, { idShopOwner: _id, company }))).toEqual({
 			message: 'Conflict',
@@ -579,4 +582,3 @@ describe('companyDel', () => {
 		await expect(companyDel.resolve(null, { _id })).rejects.toThrow('Internal Server Error')
 	})
 })
-

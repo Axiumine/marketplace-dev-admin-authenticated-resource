@@ -1,11 +1,13 @@
 import {
-	requiredEmail,
-	SHAPE_VAT_NUMBER,
-	SHAPE_UNIQUE_CODE,
-	textWithFormat,
-	requiredText,
+	optionalSlug,
+	optionalText,
+	optionalTextExactLength,
 	optionalTextWithFormat,
-	optionalTextExactLength
+	requiredEmail,
+	requiredText,
+	SHAPE_UNIQUE_CODE,
+	SHAPE_VAT_NUMBER,
+	textWithFormat
 } from '@lib/validate/fields.mjs'
 import { IAddressInput, validateAddress } from '@lib/validate/validateAddress.mjs'
 import { ICompanySchema } from '@thedoctorweb_agency/marketplace-common/models/MongoDBInterfaces/ICompanySchema'
@@ -27,6 +29,14 @@ const MAX_CONTACT_PERSON = 50
 const MAX_ADMINISTRATOR = 50
 const MAX_REGISTRY_EXTRACT = 1000
 const TAX_CODE_LENGTH = 11
+
+/*
+ * The shop listing, from 20260804000200-alter-company-public-fields.js. `description` shares its 2000
+ * with `item.description` and `shopOwner.notes`, so the platform's three long-text fields agree.
+ */
+const MAX_PUBLIC_NAME = 100
+const MAX_SLUG = 120
+const MAX_DESCRIPTION = 2000
 
 /** What the `GraphQLInputCompany` argument carries: the stored document minus the fields nobody sends. */
 export type ICompanyInput = Omit<ICompanySchema, '_id' | 'idShopOwner' | 'address' | '__v'> & {
@@ -51,9 +61,19 @@ export type ICompanyValidated = Omit<ICompanySchema, '_id' | 'idShopOwner' | '__
  *
  * The path prefix is `company.` throughout because the fields arrive inside one input object, which is
  * the argument the operator's form maps onto.
+ *
+ * ⚠️ `published` is passed through untouched and is **not** checked against `slug` and `publicName`
+ * here. The collection's `$expr` refuses `published: true` without both, and that is where the rule
+ * belongs: an `$expr` runs on updates as well as inserts, so it holds for every write that will ever
+ * reach the collection, including the ones written after this file is forgotten. Restating it here
+ * would add a second copy that can drift from the first — and the copy in the database is the one that
+ * cannot be bypassed.
  */
 export const validateCompany = (company: ICompanyInput): ICompanyValidated => {
 	const taxCode = optionalTextExactLength(company.taxCode, 'company.taxCode', TAX_CODE_LENGTH)
+	const publicName = optionalText(company.publicName, 'company.publicName', MAX_PUBLIC_NAME)
+	const slug = optionalSlug(company.slug, 'company.slug', MAX_SLUG)
+	const description = optionalText(company.description, 'company.description', MAX_DESCRIPTION)
 	const uniqueCode = optionalTextWithFormat(
 		company.uniqueCode,
 		'company.uniqueCode',
@@ -70,6 +90,10 @@ export const validateCompany = (company: ICompanyInput): ICompanyValidated => {
 		...(uniqueCode === undefined ? {} : { uniqueCode }),
 		certifiedEmail: requiredEmail(company.certifiedEmail, 'company.certifiedEmail'),
 		address: validateAddress(company.address, 'company.address'),
-		registryExtract: requiredText(company.registryExtract, 'company.registryExtract', MAX_REGISTRY_EXTRACT)
+		registryExtract: requiredText(company.registryExtract, 'company.registryExtract', MAX_REGISTRY_EXTRACT),
+		...(publicName === undefined ? {} : { publicName }),
+		...(slug === undefined ? {} : { slug }),
+		...(description === undefined ? {} : { description }),
+		published: company.published
 	}
 }

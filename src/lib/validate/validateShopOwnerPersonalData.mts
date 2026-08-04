@@ -1,16 +1,16 @@
 import {
-	coordinate,
 	birthDate,
+	coordinate,
+	optionalText,
 	requiredEmail,
+	requiredText,
 	SHAPE_CAP,
 	SHAPE_PROVINCE,
-	textWithFormat,
-	requiredText,
-	optionalText
+	textWithFormat
 } from '@lib/validate/fields.mjs'
 import {
-	IShopOwnerPersonalData,
-	IShopOwnerAddress
+	IShopOwnerAddress,
+	IShopOwnerPersonalData
 } from '@thedoctorweb_agency/marketplace-common/models/MongoDBInterfaces/IShopOwnerPersonalData'
 
 /*
@@ -55,7 +55,10 @@ export type IShopOwnerPersonalDataInput = Omit<IShopOwnerPersonalData, 'address'
  * `today` is threaded in rather than read from the clock here so the majority boundary is testable from
  * both sides without freezing time.
  */
-export const validateShopOwnerPersonalData = (personalData: IShopOwnerPersonalDataInput, today: Date): IShopOwnerPersonalData => {
+export const validateShopOwnerPersonalData = (
+	personalData: IShopOwnerPersonalDataInput,
+	today: Date
+): IShopOwnerPersonalData => {
 	const landline = optionalText(personalData.contacts.landline, 'contacts.landline', MAX_PHONE)
 
 	// `== null` on purpose: absent and explicitly null both mean "this address has no point", and the

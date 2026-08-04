@@ -25,8 +25,8 @@ function group(format: string) {
 	}
 }
 
-function rows(rows: Array<{ _id: string; total: number }>) {
-	aggregate.mockResolvedValueOnce(rows)
+function rows(groups: Array<{ _id: string; total: number }>) {
+	aggregate.mockResolvedValueOnce(groups)
 }
 
 function pipeline() {

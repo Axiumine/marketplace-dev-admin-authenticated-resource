@@ -36,6 +36,24 @@ export const SHAPE_PROVINCE = /^[A-Za-z]{2}$/
 export const SHAPE_VAT_NUMBER = /^\d{11}$/
 export const SHAPE_UNIQUE_CODE = /^[A-Za-z0-9]{7}$/
 
+/**
+ * A URL segment: lowercase letters, digits, single hyphens between them.
+ *
+ * The exact pattern the three slug-bearing collections carry (`company.slug`, `item.slug`,
+ * `itemCategory.slug`) — copied from the migrations, like every other bound in this file, and not
+ * loosened. No leading, trailing or doubled hyphen, no uppercase, no dot and no slash: a slug lands in
+ * a public route, where an uppercase letter is a different URL after normalisation and a slash is a
+ * different route altogether. Both are worse than a rejected write, because they surface as a 404 on a
+ * page an operator believed they had published.
+ *
+ * `minLength: 2` in all three collections, so the pattern alone is not enough — the length helpers
+ * below carry it.
+ */
+export const SHAPE_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+/** Every slug on the platform, shortest first: two characters. */
+export const MIN_SLUG = 2
+
 /** Italian age of majority. An shopOwner signs contracts, so the platform has no under-18 accounts. */
 export const MIN_AGE = 18
 
@@ -96,11 +114,7 @@ export const textWithFormat = (value: string, field: string, shape: RegExp, expe
  * Blank comes back `undefined`, like every other optional field: a cleared box has to be absent from
  * the `$set`, not present as an empty string that fails `minLength: 11`.
  */
-export const optionalTextExactLength = (
-	value: string | null | undefined,
-	field: string,
-	length: number
-): string | undefined => {
+export const optionalTextExactLength = (value: string | null | undefined, field: string, length: number): string | undefined => {
 	const clean = (value ?? '').trim()
 
 	if (clean.length === 0) return undefined
@@ -122,6 +136,29 @@ export const optionalTextWithFormat = (
 	if (!shape.test(clean)) throwErrorWrongUserInput(`${field}: ${expected}`)
 
 	return clean
+}
+
+/**
+ * A required slug: trimmed, within the collection's bounds, shaped like a URL segment.
+ *
+ * Not lowercased for the caller. An operator who typed `Margherita` is told the slug is lowercase
+ * rather than having it silently rewritten — the slug is the permanent address of a public page, and a
+ * value that differs from what was typed is the kind of surprise that gets noticed only after the link
+ * has been shared.
+ */
+export const requiredSlug = (value: string, field: string, max: number): string => {
+	const clean = requiredText(value, field, max)
+
+	if (clean.length < MIN_SLUG) throwErrorWrongUserInput(`${field}: min ${MIN_SLUG} characters`)
+
+	return textWithFormat(clean, field, SHAPE_SLUG, 'lowercase letters, digits and single hyphens only')
+}
+
+/** As above, for a slug that may be left blank — `company.slug` is the only one. */
+export const optionalSlug = (value: string | null | undefined, field: string, max: number): string | undefined => {
+	const clean = optionalText(value, field, max)
+
+	return clean === undefined ? undefined : requiredSlug(clean, field, max)
 }
 
 export const requiredEmail = (value: string, field: string): string =>
