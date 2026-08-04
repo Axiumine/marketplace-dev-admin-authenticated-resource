@@ -52,7 +52,7 @@ export default {
 		// `new GraphQLObjectType({ name, fields: () => ({...}) })` — field names, GraphQLNonNull
 		// wrapping and scalar choices, with no resolver of its own and no branching. Verified
 		// by reading every file in the directory (GraphQLAdminInfoAfterLogin,
-		// GraphQLImprenditoreAttiviTbl, GraphQLImprenditoreById, GraphQLIndirizzoImprenditore,
+		// GraphQLShopOwnerActiveTbl, GraphQLShopOwnerById, GraphQLShopOwnerAddress,
 		// GraphQLPuntiVendita — none defines a `resolve`). test/schema.test.mts already asserts
 		// the field *names* of every one of these types via introspection, which is what schema
 		// drift should be caught by; it has no reason to assert the GraphQLNonNull wrapping or

@@ -1,7 +1,7 @@
 import type { GraphQLError } from 'graphql'
 import { expect } from 'vitest'
 
-type Esito = { message: string; http: { status: number }; description: string }
+type Outcome = { message: string; http: { status: number }; description: string }
 
 /**
  * A thrown koa-utils error, flattened into a plain object.
@@ -18,14 +18,14 @@ type Esito = { message: string; http: { status: number }; description: string }
  * Not a `*.test.mts` file on purpose: the unit project collects `test/*.test.mts`, so this sits beside
  * the suites without becoming one.
  */
-function unpack(e: unknown): Esito {
+function unpack(e: unknown): Outcome {
 	const { message, extensions } = e as GraphQLError
 
-	return { message, ...(extensions as Omit<Esito, 'message'>) }
+	return { message, ...(extensions as Omit<Outcome, 'message'>) }
 }
 
 /** The rejection of an async call. */
-export async function rejection(promise: Promise<unknown>): Promise<Esito> {
+export async function rejection(promise: Promise<unknown>): Promise<Outcome> {
 	try {
 		await promise
 	} catch (e) {
@@ -36,7 +36,7 @@ export async function rejection(promise: Promise<unknown>): Promise<Esito> {
 }
 
 /** As above, for the validators, which throw synchronously. */
-export function failure(fn: () => unknown): Esito {
+export function failure(fn: () => unknown): Outcome {
 	try {
 		fn()
 	} catch (e) {
@@ -54,11 +54,11 @@ export function failure(fn: () => unknown): Esito {
  * this is for the long `it.each` tables, where repeating the constant pair on every row hides the one
  * value that varies.
  */
-export function motivo(fn: () => unknown): string {
-	const esito = failure(fn)
+export function reason(fn: () => unknown): string {
+	const outcome = failure(fn)
 
-	expect(esito.message).toBe('Bad Request')
-	expect(esito.http).toEqual({ status: 400 })
+	expect(outcome.message).toBe('Bad Request')
+	expect(outcome.http).toEqual({ status: 400 })
 
-	return esito.description
+	return outcome.description
 }

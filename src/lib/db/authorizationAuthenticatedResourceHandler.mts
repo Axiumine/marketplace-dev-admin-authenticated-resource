@@ -14,7 +14,7 @@ export const authorizationAuthenticatedResourceHandler = () => async (ctx: ICont
 	/***************************
 	 * CLIENT: Invia opaque token
 	 * - in authorization: ctx.request.header.authorization =  'Bearer TOKEN_HERE
-	 * - in cookie: ctx.request.header.cookie = nome_cookie=TOKEN_HERE
+	 * - in cookie: ctx.request.header.cookie = firstName_cookie=TOKEN_HERE
 	 */
 	//console.debug('[authorizationAuthenticatedResourceHandler]')
 

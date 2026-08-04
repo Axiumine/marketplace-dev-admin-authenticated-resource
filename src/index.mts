@@ -241,7 +241,7 @@ export async function start() {
 		return { httpServer, apolloServer }
 	} catch (error) {
 		console.error('error', error)
-		Sentry.captureException(error) // @fixme non si verifica !
+		Sentry.captureException(error) // @fixme never fires!
 		await disconnectAllDatabases(1)
 	}
 }

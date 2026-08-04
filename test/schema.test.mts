@@ -80,68 +80,52 @@ describe('schema', () => {
 		expect(result.errors).toBeUndefined()
 	})
 
-	it('exposes the seven admin queries', () => {
+	it('exposes the six admin queries', () => {
 		expect(fieldsOf('QueriesApi')).toEqual([
 			'infoAdminAfterLogin',
-			'imprenditoriAttiviTbl',
-			'imprenditoriStats',
-			'imprenditoriPerPeriodo',
-			'imprenditoreById',
-			'imprenditorePuntiVendita',
-			'imprenditoreAziende'
+			'shopOwnersActiveTbl',
+			'shopOwnersStats',
+			'shopOwnersPerPeriod',
+			'shopOwnerById',
+			'shopOwnerCompanies'
 		])
 	})
 
-	it('exposes the fifteen mutations', () => {
+	it('exposes the eleven mutations', () => {
 		expect(fieldsOf('MutationsApi')).toEqual([
 			'adminUpdatePwd',
-			'imprenditoreAdd',
-			'imprenditoreDel',
-			'imprenditoreUpdate',
-			'imprenditoreUpdateEmail',
-			'imprenditoreUpdateNote',
-			'imprenditoreUpdatePreferenze',
-			'imprenditoreUpdateStato',
-			'aziendaAdd',
-			'aziendaDel',
-			'aziendaUpdate',
-			'puntoVenditaAdd',
-			'puntoVenditaDel',
-			'puntoVenditaUpdate',
-			'puntoVenditaUpdateStato'
+			'shopOwnerAdd',
+			'shopOwnerDel',
+			'shopOwnerUpdate',
+			'shopOwnerUpdateEmail',
+			'shopOwnerUpdateNote',
+			'shopOwnerUpdatePreferences',
+			'shopOwnerUpdateStatus',
+			'companyAdd',
+			'companyDel',
+			'companyUpdate'
 		])
 	})
 
 	it.each([
-		['adminUpdatePwd', ['passwordOld', 'passwordNew'], 'aggiorna la password del proprio account admin'],
-		['imprenditoreAdd', ['login', 'anagrafica'], 'aggiunge imprenditore'],
-		['imprenditoreDel', ['_id'], 'elimina imprenditore'],
-		['imprenditoreUpdate', ['_id', 'anagrafica'], 'aggiorna imprenditore'],
-		['imprenditoreUpdateEmail', ['_id', 'email'], "aggiorna l'email di login dell'imprenditore"],
-		['imprenditoreUpdateNote', ['_id', 'note'], "aggiorna la nota interna sull'imprenditore"],
+		['adminUpdatePwd', ['passwordOld', 'passwordNew'], 'updates the password of the signed-in admin account'],
+		['shopOwnerAdd', ['login', 'personalData'], 'adds a shopOwner'],
+		['shopOwnerDel', ['_id'], 'deletes a shopOwner'],
+		['shopOwnerUpdate', ['_id', 'personalData'], 'updates a shopOwner'],
+		['shopOwnerUpdateEmail', ['_id', 'email'], 'updates the login email of the shopOwner'],
+		['shopOwnerUpdateNote', ['_id', 'notes'], 'updates the internal note about the shopOwner'],
 		[
-			'imprenditoreUpdatePreferenze',
+			'shopOwnerUpdatePreferences',
 			['_id', 'rememberMe', 'onboardingDone', 'onboardingStep'],
-			"aggiorna le preferenze di login dell'imprenditore"
+			'updates the login preferences of the shopOwner'
 		],
-		['imprenditoreUpdateStato', ['_id', 'disabled', 'waitApprov'], "aggiorna lo stato dell'account imprenditore"],
-		// `idImprenditore` sits beside the input object on the create, and is absent from the update: a
+		['shopOwnerUpdateStatus', ['_id', 'disabled', 'waitApprov'], 'updates the status of the shopOwner account'],
+		// `idShopOwner` sits beside the input object on the create, and is absent from the update: a
 		// company cannot be handed to another owner by saving its card. The schema is where that is
 		// enforced — the resolver never sees an argument the type system does not declare.
-		['aziendaAdd', ['idImprenditore', 'azienda'], 'aggiunge un’azienda a un imprenditore'],
-		['aziendaDel', ['_id'], 'elimina un’azienda'],
-		['aziendaUpdate', ['_id', 'azienda'], 'aggiorna un’azienda'],
-		// ⚠️ `idAzienda` on both shop writes, `azienda` on both company writes, and the two are not the same
-		// thing: the shop argument is the ObjectId the document stores under that exact name since
-		// 20260803000100, the company one is the input object carrying the ragione sociale and the rest.
-		[
-			'puntoVenditaAdd',
-			['idImprenditore', 'nome', 'idAzienda', 'indirizzo', 'contatti', 'orari'],
-			'aggiunge un punto vendita a un imprenditore'
-		],
-		['puntoVenditaDel', ['_id'], 'elimina un punto vendita'],
-		['puntoVenditaUpdate', ['_id', 'nome', 'idAzienda', 'indirizzo', 'contatti', 'orari'], 'aggiorna un punto vendita'],
-		['puntoVenditaUpdateStato', ['_id', 'disabledByAdmin'], 'aggiorna lo stato di un punto vendita']
+		['companyAdd', ['idShopOwner', 'company'], 'adds a company to a shopOwner'],
+		['companyDel', ['_id'], 'deletes a company'],
+		['companyUpdate', ['_id', 'company'], 'updates a company']
 	])('%s takes the arguments the resolver reads', (name, expected, description) => {
 		const field = types.get('MutationsApi')?.fields?.find((f) => f.name === name)
 		expect(field?.args.map((a) => a.name)).toEqual(expected)
@@ -157,12 +141,11 @@ describe('schema', () => {
 	})
 
 	it.each([
-		['imprenditoreAziende', ['idImprenditore'], 'Get aziende imprenditore'],
-		['imprenditoreById', ['idImprenditore'], 'Get imprenditori per tabella'],
-		['imprenditorePuntiVendita', ['idImprenditore'], 'Get punti vendita imprenditore per tabella'],
-		['imprenditoriAttiviTbl', ['offset', 'limit', 'search', 'sortBy', 'sortDir'], 'Get imprenditori per tabella'],
-		['imprenditoriPerPeriodo', ['periodo'], 'Serie temporale degli imprenditori iscritti'],
-		['imprenditoriStats', [], 'Imprenditori stats'],
+		['shopOwnerCompanies', ['idShopOwner'], 'Get the companies of a shopOwner'],
+		['shopOwnerById', ['idShopOwner'], 'Get a shopOwner by id'],
+		['shopOwnersActiveTbl', ['offset', 'limit', 'search', 'sortBy', 'sortDir'], 'Get shopOwners for the table'],
+		['shopOwnersPerPeriod', ['period'], 'Time series of registered shopOwners'],
+		['shopOwnersStats', [], 'ShopOwners stats'],
 		['infoAdminAfterLogin', [], 'Info after login']
 	])('%s takes the arguments the resolver reads', (name, expected, description) => {
 		const field = types.get('QueriesApi')?.fields?.find((f) => f.name === name)
@@ -171,13 +154,13 @@ describe('schema', () => {
 	})
 })
 
-describe('imprenditoriAttiviTbl paging contract', () => {
+describe('shopOwnersActiveTbl paging contract', () => {
 	// The defaults are part of the public contract: a client that sends none of these still gets a
 	// bounded page, which is the whole reason the unbounded list query could be removed. Read from
 	// the assembled schema rather than from the resolver's source, so the constant the resolver
 	// imports for `limit` is checked at the value it actually reaches the client with.
 	it('defaults to the newest 25, and to no search', () => {
-		const defaults = Object.fromEntries(argsOf('QueriesApi', 'imprenditoriAttiviTbl').map((a) => [a.name, a.defaultValue]))
+		const defaults = Object.fromEntries(argsOf('QueriesApi', 'shopOwnersActiveTbl').map((a) => [a.name, a.defaultValue]))
 
 		expect(defaults).toEqual({
 			offset: '0',
@@ -185,7 +168,7 @@ describe('imprenditoriAttiviTbl paging contract', () => {
 			// null, not a string: `search` is the one nullable argument, because "not searching" is a
 			// real state of the table and a distinct one from searching for the empty string.
 			search: null,
-			sortBy: 'ISCRIZIONE',
+			sortBy: 'REGISTERED_AT',
 			sortDir: 'DESC'
 		})
 	})
@@ -194,42 +177,42 @@ describe('imprenditoriAttiviTbl paging contract', () => {
 	// ordering by an arbitrary field — every value below has a matching index in marketplace-db-setup,
 	// and a free String here would let anyone turn the query into a blocking in-memory sort.
 	it('offers exactly the four sortable columns and two directions', () => {
-		expect(enumValuesOf('GraphQLImprenditoriTblSortField')).toEqual(['ISCRIZIONE', 'NOME', 'COGNOME', 'COMUNE'])
+		expect(enumValuesOf('GraphQLShopOwnersTblSortField')).toEqual(['REGISTERED_AT', 'FIRST_NAME', 'LAST_NAME', 'CITY'])
 		expect(enumValuesOf('GraphQLSortDirection')).toEqual(['ASC', 'DESC'])
 	})
 
 	it('returns a page, not a list', () => {
-		expect(fieldsOf('GraphQLImprenditoriAttiviTblPage')).toEqual(['items', 'total'])
+		expect(fieldsOf('GraphQLShopOwnersActiveTblPage')).toEqual(['items', 'total'])
 	})
 })
 
-describe('imprenditoriPerPeriodo contract', () => {
-	// `TUTTO` is the default because it is the only range that answers "how did we get here" without
+describe('shopOwnersPerPeriod contract', () => {
+	// `ALL` is the default because it is the only range that answers "how did we get here" without
 	// the caller already knowing the shape of the data. Read from the assembled schema, so what is
 	// checked is the value a client that sends no argument actually gets.
 	it('defaults to the whole history', () => {
-		const defaults = Object.fromEntries(argsOf('QueriesApi', 'imprenditoriPerPeriodo').map((a) => [a.name, a.defaultValue]))
+		const defaults = Object.fromEntries(argsOf('QueriesApi', 'shopOwnersPerPeriod').map((a) => [a.name, a.defaultValue]))
 
-		expect(defaults).toEqual({ periodo: 'TUTTO' })
+		expect(defaults).toEqual({ period: 'ALL' })
 	})
 
 	// Enumerated for the same reason `sortBy` is: the value picks a range start AND a bucket width,
 	// so a free Int here would let a caller ask for a hundred years of day buckets — one `$group` per
 	// day, gap-filled into an array the browser then has to draw.
 	it('offers exactly the three ranges', () => {
-		expect(enumValuesOf('GraphQLPeriodoImprenditori')).toEqual(['TUTTO', 'TRE_MESI', 'UN_MESE'])
+		expect(enumValuesOf('GraphQLShopOwnersPeriod')).toEqual(['ALL', 'THREE_MONTHS', 'ONE_MONTH'])
 	})
 
-	// Reported, never requested — there is no `granularita` argument anywhere. The bucket width is a
+	// Reported, never requested — there is no `granularity` argument anywhere. The bucket width is a
 	// consequence of the range, and this is the assertion that keeps it one.
 	it('reports the granularity it chose, and takes no say in it', () => {
-		expect(fieldsOf('GraphQLImprenditoriPerPeriodo')).toEqual(['granularita', 'punti'])
-		expect(enumValuesOf('GraphQLGranularitaPeriodo')).toEqual(['GIORNO', 'MESE'])
-		expect(argsOf('QueriesApi', 'imprenditoriPerPeriodo').map((a) => a.name)).not.toContain('granularita')
+		expect(fieldsOf('GraphQLShopOwnersPerPeriod')).toEqual(['granularity', 'points'])
+		expect(enumValuesOf('GraphQLPeriodGranularity')).toEqual(['DAY', 'MONTH'])
+		expect(argsOf('QueriesApi', 'shopOwnersPerPeriod').map((a) => a.name)).not.toContain('granularity')
 	})
 
 	it('carries a bucket key and a count per point', () => {
-		expect(fieldsOf('GraphQLImprenditoriPerPeriodoPunto')).toEqual(['data', 'totale'])
+		expect(fieldsOf('GraphQLShopOwnersPerPeriodPoint')).toEqual(['date', 'total'])
 	})
 })
 
@@ -238,19 +221,19 @@ describe('object types', () => {
 		expect(fieldsOf('GraphQLAdminInfoAfterLogin')).toEqual(['_id', 'email'])
 	})
 
-	it('GraphQLImprenditoreById mirrors the projection of its query', () => {
-		expect(fieldsOf('GraphQLImprenditoreById')).toEqual([
+	it('GraphQLShopOwnerById mirrors the projection of its query', () => {
+		expect(fieldsOf('GraphQLShopOwnerById')).toEqual([
 			'_id',
 			'login',
-			'anagrafica',
-			'iscrizione',
+			'personalData',
+			'registeredAt',
 			'deleted',
 			'disabled',
 			'waitApprov',
-			'note',
+			'notes',
 			'resetPwd'
 		])
-		expect(fieldsOf('GraphQLImprenditoreLogin')).toEqual([
+		expect(fieldsOf('GraphQLShopOwnerLogin')).toEqual([
 			'email',
 			'firstLogin',
 			'lastLogin',
@@ -258,149 +241,98 @@ describe('object types', () => {
 			'onboardingDone',
 			'rememberMe'
 		])
-		expect(fieldsOf('GraphQLAnagraficaImprenditoreById')).toEqual(['nome', 'cognome', 'indirizzo', 'nascita', 'contatti'])
-		expect(fieldsOf('GraphQLImprenditoreContatti')).toEqual(['email', 'fisso', 'cellulare'])
+		expect(fieldsOf('GraphQLShopOwnerPersonalDataById')).toEqual(['firstName', 'lastName', 'address', 'birth', 'contacts'])
+		expect(fieldsOf('GraphQLShopOwnerContacts')).toEqual(['email', 'landline', 'mobile'])
 		expect(fieldsOf('GraphQLResetPwd')).toEqual(['resetDateReq', 'resetHash'])
-		expect(fieldsOf('GraphQLDataNascita')).toEqual(['data'])
+		expect(fieldsOf('GraphQLBirth')).toEqual(['date'])
 	})
 
-	it('GraphQLImprenditoreAttiviTbl stays a narrow table projection', () => {
-		expect(fieldsOf('GraphQLImprenditoreAttiviTbl')).toEqual(['_id', 'iscrizione', 'anagrafica'])
-		expect(fieldsOf('GraphQLAnagrafica')).toEqual(['nome', 'cognome', 'indirizzo'])
+	it('GraphQLShopOwnerActiveTbl stays a narrow table projection', () => {
+		expect(fieldsOf('GraphQLShopOwnerActiveTbl')).toEqual(['_id', 'registeredAt', 'personalData'])
+		expect(fieldsOf('GraphQLPersonalData')).toEqual(['firstName', 'lastName', 'address'])
 	})
 
 	// Both address types spread the same shared fragment from marketplace-common, so the four address
 	// fields must stay identical — a drift there means the fragment was edited in one place only. The
 	// detail type carries one field more: the table never draws a map, so it does not ask for the point.
 	it('spreads the shared address fragment in both address types', () => {
-		const tabella = fieldsOf('GraphQLIndirizzoImprenditoreTbl')
-		expect(tabella.length).toBeGreaterThan(0)
-		expect(fieldsOf('GraphQLIndirizzoImprenditore')).toEqual([...tabella, 'position'])
+		const table = fieldsOf('GraphQLShopOwnerAddressTbl')
+		expect(table.length).toBeGreaterThan(0)
+		expect(fieldsOf('GraphQLShopOwnerAddress')).toEqual([...table, 'position'])
 	})
 
-	// ⚠️ Nullable here, non-null on the shop. Every imprenditore stored before
-	// 20260802000300-alter-imprenditore-position-note has an address and no coordinates, and there is
+	// ⚠️ Nullable here, non-null on the company seat. Every shopOwner stored before
+	// 20260802000300-alter-shopOwner-position-note has an address and no coordinates, and there is
 	// nothing to derive them from — a GraphQLNonNull would turn each of those accounts into a query
 	// that errors instead of a map that is simply not drawn yet. The wrapper `kind` is what is
 	// asserted, not just the name: a name-only check reads the same on both shapes, which is the
 	// mistake this pins.
-	it('leaves the imprenditore point nullable, unlike the shop one', () => {
-		expect(typeOfField('GraphQLIndirizzoImprenditore', 'position')).toEqual({
+	it('leaves the shopOwner point nullable, unlike the company one', () => {
+		expect(typeOfField('GraphQLShopOwnerAddress', 'position')).toEqual({
 			kind: 'OBJECT',
-			name: 'GraphQLPosizioneImprenditore',
+			name: 'GraphQLPositionShopOwner',
 			ofType: null
 		})
-		expect(typeOfField('GraphQLPVIndirizzo', 'position')).toEqual({
+		expect(typeOfField('GraphQLCompanyAddress', 'position')).toEqual({
 			kind: 'NON_NULL',
 			name: null,
-			ofType: { kind: 'OBJECT', name: 'GraphQLPVPosition', ofType: null }
+			ofType: { kind: 'OBJECT', name: 'GraphQLCompanyPosition', ofType: null }
 		})
 	})
 
 	it('carries the same point shape on both, once unwrapped', () => {
-		expect(fieldsOf('GraphQLPosizioneImprenditore')).toEqual(fieldsOf('GraphQLPVPosition'))
-		expect(fieldsOf('GraphQLPosizioneImprenditore').length).toBeGreaterThan(0)
+		expect(fieldsOf('GraphQLPositionShopOwner')).toEqual(fieldsOf('GraphQLCompanyPosition'))
+		expect(fieldsOf('GraphQLPositionShopOwner').length).toBeGreaterThan(0)
 	})
 
-	it('GraphQLPuntoVendita carries the insegna and nests azienda, indirizzo, contatti and the opening hours', () => {
-		// `nome` is the shop's own insegna and sits beside `azienda`, not inside it: the ragione sociale
-		// under `azienda` names the company that owns the shop, so a chain's branches share it and none
-		// of them is called by it. The card title reads `nome`.
-		//
-		// `disabled` and `disabledByAdmin` close the list: the two independent disable switches, both
-		// nullable Boolean, absent when the shop is open. The read query serves them straight from the
-		// stored document (`.lean()`), which is why the type has to declare them or they never ship.
-		expect(fieldsOf('GraphQLPuntoVendita')).toEqual([
-			'_id',
-			'nome',
-			'azienda',
-			'indirizzo',
-			'contatti',
-			'inserted',
-			'orari',
-			'disabled',
-			'disabledByAdmin'
-		])
-		expect(fieldsOf('GraphQLPVContatti')).toEqual(['cellulare', 'email', 'web', 'pec', 'fisso'])
-		expect(fieldsOf('GraphQLOrario')).toEqual(['giorno', 'da', 'a'])
-		// The punto vendita address adds the geo position on top of the shared fragment.
-		expect(fieldsOf('GraphQLPVIndirizzo')).toEqual([...fieldsOf('GraphQLIndirizzoImprenditoreTbl'), 'position'])
-		expect(fieldsOf('GraphQLPVPosition').length).toBeGreaterThan(0)
-	})
-
-	// ⚠️ An OBJECT, not the ID the document stores. `puntoVendita.idAzienda` has been an ObjectId since
-	// 20260803000100 and the field is resolved through `funAziendaById`, so a client reading a shop still
-	// gets the whole company inline and never has to make the second round-trip itself — which is also
-	// why the output field keeps the bare name while the stored path took the `id` prefix. Asserting the
-	// wrapper chain rather than the name is what separates this from the shape it would have if the
-	// resolver were dropped and the raw id shipped instead — `GraphQLID!` reads as "non-null azienda" to
-	// a name-only check just as convincingly.
-	it('resolves the shop’s azienda to the company itself, not to its id', () => {
-		expect(typeOfField('GraphQLPuntoVendita', 'azienda')).toEqual({
-			kind: 'NON_NULL',
-			name: null,
-			ofType: { kind: 'OBJECT', name: 'GraphQLAzienda', ofType: null }
-		})
-	})
-
-	it('GraphQLAzienda carries the company, its owner and its legal seat', () => {
-		// `idImprenditore` is second, right after the id: it is the field every read of a company is
+	it('GraphQLCompany carries the company, its owner and its legal seat', () => {
+		// `idShopOwner` is second, right after the id: it is the field every read of a company is
 		// scoped by, and the operator app reaches one only through its owner's page.
-		expect(fieldsOf('GraphQLAzienda')).toEqual([
+		expect(fieldsOf('GraphQLCompany')).toEqual([
 			'_id',
-			'idImprenditore',
-			'ragionesociale',
-			'piva',
-			'cf',
-			'referente',
-			'amministratore',
-			'univoco',
-			'pec',
-			'indirizzo',
-			'visura'
+			'idShopOwner',
+			'legalName',
+			'vatNumber',
+			'taxCode',
+			'contactPerson',
+			'administrator',
+			'uniqueCode',
+			'certifiedEmail',
+			'address',
+			'registryExtract'
 		])
-		// Same shared fragments as the shop's address, so the four base fields cannot drift apart, and the
-		// position is non-null on both — unlike the imprenditore's, every company seat is geocoded at
-		// creation because the collection has no rows predating the requirement.
-		expect(fieldsOf('GraphQLAziendaIndirizzo')).toEqual(fieldsOf('GraphQLPVIndirizzo'))
-		expect(fieldsOf('GraphQLAziendaPosition')).toEqual(fieldsOf('GraphQLPVPosition'))
-		expect(typeOfField('GraphQLAziendaIndirizzo', 'position')).toEqual({
+		// Same shared fragment as the shopOwner's address, so the four base fields cannot drift apart. The
+		// position is non-null here and nullable there: unlike the shopOwner's, every company seat is
+		// geocoded at creation because the collection has no rows predating the requirement.
+		expect(fieldsOf('GraphQLCompanyAddress')).toEqual(fieldsOf('GraphQLShopOwnerAddress'))
+		expect(typeOfField('GraphQLCompanyAddress', 'position')).toEqual({
 			kind: 'NON_NULL',
 			name: null,
-			ofType: { kind: 'OBJECT', name: 'GraphQLAziendaPosition', ofType: null }
+			ofType: { kind: 'OBJECT', name: 'GraphQLCompanyPosition', ofType: null }
 		})
 	})
 
-	// The two nullable fields, and the only two. They mirror the collection's `required` array — `cf`
+	// The two nullable fields, and the only two. They mirror the collection's `required` array — `taxCode`
 	// did not exist before the extraction, so no stored company carries one, and a GraphQLNonNull on
 	// either would turn every one of those rows into a query that errors.
-	it('leaves cf and univoco nullable, and nothing else', () => {
-		const nonNull = (types.get('GraphQLAzienda')?.fields ?? []).filter((f) => f.type.kind !== 'NON_NULL').map((f) => f.name)
+	it('leaves taxCode and uniqueCode nullable, and nothing else', () => {
+		const nonNull = (types.get('GraphQLCompany')?.fields ?? []).filter((f) => f.type.kind !== 'NON_NULL').map((f) => f.name)
 
-		expect(nonNull).toEqual(['cf', 'univoco'])
+		expect(nonNull).toEqual(['taxCode', 'uniqueCode'])
 	})
 })
 
 describe('input types', () => {
-	// The write side of the punto vendita, and the one place the read and write shapes are compared.
-	// They are not identical and must not be assumed to be: `inserted` is stamped once and never
-	// edited, so it is on the output type and absent here.
-	it('mirrors the editable sub-documents of a punto vendita', () => {
-		expect(inputFieldsOf('GraphQLInputPuntoVenditaContatti')).toEqual(fieldsOf('GraphQLPVContatti'))
-		expect(inputFieldsOf('GraphQLInputPuntoVenditaOrari')).toEqual(fieldsOf('GraphQLOrario'))
-		expect(inputFieldsOf('GraphQLInputPuntoVenditaIndirizzo')).toEqual(fieldsOf('GraphQLPVIndirizzo'))
-	})
-
 	// The write shape of a company is the read shape minus the two fields the client does not get to
-	// choose: `_id` is minted by the lib, `idImprenditore` is a separate argument on the create and is
+	// choose: `_id` is minted by the lib, `idShopOwner` is a separate argument on the create and is
 	// nowhere at all on the update. Derived from the output type rather than spelled out, so a field
 	// added to one and forgotten on the other fails here instead of surfacing as a form that silently
 	// drops what the operator typed.
 	it('mirrors the company, minus the two fields the operator cannot set', () => {
-		expect(inputFieldsOf('GraphQLInputAzienda')).toEqual(
-			fieldsOf('GraphQLAzienda').filter((f) => f !== '_id' && f !== 'idImprenditore')
+		expect(inputFieldsOf('GraphQLInputCompany')).toEqual(
+			fieldsOf('GraphQLCompany').filter((f) => f !== '_id' && f !== 'idShopOwner')
 		)
-		expect(inputFieldsOf('GraphQLInputAziendaIndirizzo')).toEqual(fieldsOf('GraphQLAziendaIndirizzo'))
+		expect(inputFieldsOf('GraphQLInputCompanyAddress')).toEqual(fieldsOf('GraphQLCompanyAddress'))
 	})
 
 	// Asserted as an absence, like adminUpdatePwd's missing `_id` above. A GeoJSON `type` has exactly
@@ -409,7 +341,6 @@ describe('input types', () => {
 	// document that fails validation naming a field the operator never saw. The resolver writes the
 	// literal instead; putting `type` back would silently hand that decision to the client.
 	it('gives the position inputs no way to name a geometry other than Point', () => {
-		expect(inputFieldsOf('GraphQLInputPuntoVenditaPosition')).toEqual(['coordinates'])
-		expect(inputFieldsOf('GraphQLInputAziendaPosition')).toEqual(['coordinates'])
+		expect(inputFieldsOf('GraphQLInputCompanyPosition')).toEqual(['coordinates'])
 	})
 })

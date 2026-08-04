@@ -1,31 +1,31 @@
 import { GraphQLObjectType } from 'graphql'
 
 import { adminUpdatePwd } from './mutations/adminUpdatePwd.mjs'
-import { aziendaAdd } from './mutations/aziendaAdd.mjs'
-import { aziendaDel } from './mutations/aziendaDel.mjs'
-import { aziendaUpdate } from './mutations/aziendaUpdate.mjs'
-import { imprenditoreAdd } from './mutations/imprenditoreAdd.mjs'
-import { imprenditoreDel } from './mutations/imprenditoreDel.mjs'
-import { imprenditoreUpdate } from './mutations/imprenditoreUpdate.mjs'
-import { imprenditoreUpdateEmail } from './mutations/imprenditoreUpdateEmail.mjs'
-import { imprenditoreUpdateNote } from './mutations/imprenditoreUpdateNote.mjs'
-import { imprenditoreUpdatePreferenze } from './mutations/imprenditoreUpdatePreferenze.mjs'
-import { imprenditoreUpdateStato } from './mutations/imprenditoreUpdateStato.mjs'
+import { companyAdd } from './mutations/companyAdd.mjs'
+import { companyDel } from './mutations/companyDel.mjs'
+import { companyUpdate } from './mutations/companyUpdate.mjs'
+import { shopOwnerAdd } from './mutations/shopOwnerAdd.mjs'
+import { shopOwnerDel } from './mutations/shopOwnerDel.mjs'
+import { shopOwnerUpdate } from './mutations/shopOwnerUpdate.mjs'
+import { shopOwnerUpdateEmail } from './mutations/shopOwnerUpdateEmail.mjs'
+import { shopOwnerUpdateNote } from './mutations/shopOwnerUpdateNote.mjs'
+import { shopOwnerUpdatePreferences } from './mutations/shopOwnerUpdatePreferences.mjs'
+import { shopOwnerUpdateStatus } from './mutations/shopOwnerUpdateStatus.mjs'
 
 const MutationsApi = new GraphQLObjectType({
 	name: 'MutationsApi',
 	fields: {
 		adminUpdatePwd,
-		imprenditoreAdd,
-		imprenditoreDel,
-		imprenditoreUpdate,
-		imprenditoreUpdateEmail,
-		imprenditoreUpdateNote,
-		imprenditoreUpdatePreferenze,
-		imprenditoreUpdateStato,
-		aziendaAdd,
-		aziendaDel,
-		aziendaUpdate
+		shopOwnerAdd,
+		shopOwnerDel,
+		shopOwnerUpdate,
+		shopOwnerUpdateEmail,
+		shopOwnerUpdateNote,
+		shopOwnerUpdatePreferences,
+		shopOwnerUpdateStatus,
+		companyAdd,
+		companyDel,
+		companyUpdate
 	}
 })
 

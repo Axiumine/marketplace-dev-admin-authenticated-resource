@@ -10,7 +10,7 @@ interface IArgs {
 
 export const adminUpdatePwd = {
 	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'aggiorna la password del proprio account admin',
+	description: 'updates the password of the signed-in admin account',
 	// There is deliberately no `_id` argument. The account being changed is the one the request is
 	// authenticated as, taken from the Redis session below — accepting an id from the client would
 	// make this "change any operator's password", since every admin authenticates against the same

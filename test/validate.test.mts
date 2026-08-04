@@ -1,130 +1,132 @@
 import { describe, expect, it } from 'vitest'
 
-import { failure, motivo } from './errors.mts'
+import { failure, reason } from './errors.mts'
 
 const {
 	coordinate,
-	dataNascita,
-	emailObbligatoria,
-	ETA_MINIMA,
-	FORMA_CAP,
-	FORMA_EMAIL,
-	FORMA_PIVA,
-	FORMA_PROVINCIA,
-	FORMA_UNIVOCO,
+	birthDate,
+	requiredEmail,
+	MIN_AGE,
+	SHAPE_CAP,
+	SHAPE_EMAIL,
+	SHAPE_VAT_NUMBER,
+	SHAPE_PROVINCE,
+	SHAPE_UNIQUE_CODE,
 	MAX_EMAIL,
-	testoConFormato,
-	testoObbligatorio,
-	testoOpzionale,
-	testoOpzionaleConFormato,
-	testoOpzionaleLunghezzaEsatta
-} = await import('../src/lib/validate/campi.mts')
+	textWithFormat,
+	requiredText,
+	optionalText,
+	optionalTextWithFormat,
+	optionalTextExactLength
+} = await import('../src/lib/validate/fields.mts')
 
-const { validaAnagraficaImprenditore } = await import('../src/lib/validate/validaAnagraficaImprenditore.mts')
+const { validateShopOwnerPersonalData } = await import('../src/lib/validate/validateShopOwnerPersonalData.mts')
 
-const { validaNotaImprenditore } = await import('../src/lib/validate/validaNotaImprenditore.mts')
+const { validateShopOwnerNote } = await import('../src/lib/validate/validateShopOwnerNote.mts')
 
-const { validaAzienda } = await import('../src/lib/validate/validaAzienda.mts')
+const { validateCompany } = await import('../src/lib/validate/validateCompany.mts')
 
-const { validaIndirizzo } = await import('../src/lib/validate/validaIndirizzo.mts')
+const { validateAddress } = await import('../src/lib/validate/validateAddress.mts')
 
 /** An address of exactly `MAX_EMAIL` characters: 244 of local part, plus the six of `@ex.it`. */
-const emailAlLimite = `${'a'.repeat(MAX_EMAIL - 6)}@ex.it`
+const emailAtLimit = `${'a'.repeat(MAX_EMAIL - 6)}@ex.it`
 
-describe('testoObbligatorio', () => {
+describe('requiredText', () => {
 	it('trims before measuring, so trailing spaces are neither content nor overflow', () => {
-		expect(testoObbligatorio('  Mario  ', 'nome', 5)).toBe('Mario')
+		expect(requiredText('  Mario  ', 'firstName', 5)).toBe('Mario')
 	})
 
 	it.each([
-		['an empty string', '', 'nome: campo obbligatorio'],
-		['a box holding only spaces', '     ', 'nome: campo obbligatorio'],
-		['one character over the cap', 'abcdef', 'nome: massimo 5 caratteri'],
-		['a long value whose trailing spaces do not save it', '  abcdef  ', 'nome: massimo 5 caratteri']
-	])('refuses %s', (_desc, valore, atteso) => {
-		expect(motivo(() => testoObbligatorio(valore, 'nome', 5))).toBe(atteso)
+		['an empty string', '', 'firstName: field required'],
+		['a box holding only spaces', '     ', 'firstName: field required'],
+		['one character over the cap', 'abcdef', 'firstName: max 5 characters'],
+		['a long value whose trailing spaces do not save it', '  abcdef  ', 'firstName: max 5 characters']
+	])('refuses %s', (_desc, value, expected) => {
+		expect(reason(() => requiredText(value, 'firstName', 5))).toBe(expected)
 	})
 
 	// The cap is inclusive: `maxLength: 5` in the collection accepts five characters, so the validator
 	// that guards it has to accept them too, or it rejects values the database would have taken.
 	it('accepts a value of exactly the maximum length', () => {
-		expect(testoObbligatorio('abcde', 'nome', 5)).toBe('abcde')
+		expect(requiredText('abcde', 'firstName', 5)).toBe('abcde')
 	})
 })
 
-describe('testoOpzionaleLunghezzaEsatta', () => {
+describe('optionalTextExactLength', () => {
 	it('trims and returns a value of exactly the required length', () => {
-		expect(testoOpzionaleLunghezzaEsatta('  12345678901  ', 'azienda.cf', 11)).toBe('12345678901')
+		expect(optionalTextExactLength('  12345678901  ', 'company.taxCode', 11)).toBe('12345678901')
 	})
 
 	// Same absence rule as every other optional field: a cleared box has to be *absent* from the `$set`,
 	// not present as an empty string that fails the collection's `minLength: 11`.
-	it.each([[null], [undefined], [''], ['    ']])('reads %p as not given', (valore) => {
-		expect(testoOpzionaleLunghezzaEsatta(valore, 'azienda.cf', 11)).toBeUndefined()
+	it.each([[null], [undefined], [''], ['    ']])('reads %p as not given', (value) => {
+		expect(optionalTextExactLength(value, 'company.taxCode', 11)).toBeUndefined()
 	})
 
 	// One character on either side, because a `!==` written as `<` or `>` passes half the cases.
 	it.each([
 		['one character short', '1234567890'],
 		['one character over', '123456789012']
-	])('refuses %s', (_desc, valore) => {
-		expect(motivo(() => testoOpzionaleLunghezzaEsatta(valore, 'azienda.cf', 11))).toBe('azienda.cf: esattamente 11 caratteri')
+	])('refuses %s', (_desc, value) => {
+		expect(reason(() => optionalTextExactLength(value, 'company.taxCode', 11))).toBe('company.taxCode: exactly 11 characters')
 	})
 
 	// No alphabet: the collection constrains `minLength`/`maxLength` and nothing else, and a pattern
 	// invented here would reject a value the database takes. A newline counts as a character for the
-	// same reason — which is why this is its own helper rather than `testoOpzionaleConFormato` with a
+	// same reason — which is why this is its own helper rather than `optionalTextWithFormat` with a
 	// `/^.{11}$/`, since `.` does not match one.
-	it.each([['ABCDEFGHIJK'], ['12345\n67890']])('accepts %p, since only the length is pinned', (valore) => {
-		expect(testoOpzionaleLunghezzaEsatta(valore, 'azienda.cf', 11)).toHaveLength(11)
+	it.each([['ABCDEFGHIJK'], ['12345\n67890']])('accepts %p, since only the length is pinned', (value) => {
+		expect(optionalTextExactLength(value, 'company.taxCode', 11)).toHaveLength(11)
 	})
 })
 
-describe('testoOpzionale', () => {
+describe('optionalText', () => {
 	// All three spellings of "not given" have to collapse to `undefined`, because that is the only one
 	// the caller can leave out of the `$set` document — `null` and `''` both reach a `bsonType: 'string'`
 	// property and fail the whole write.
-	it.each([[null], [undefined], [''], ['    ']])('reads %p as not given', (valore) => {
-		expect(testoOpzionale(valore, 'fisso', 12)).toBeUndefined()
+	it.each([[null], [undefined], [''], ['    ']])('reads %p as not given', (value) => {
+		expect(optionalText(value, 'landline', 12)).toBeUndefined()
 	})
 
 	it('trims a value that was given', () => {
-		expect(testoOpzionale('  0212345  ', 'fisso', 12)).toBe('0212345')
+		expect(optionalText('  0212345  ', 'landline', 12)).toBe('0212345')
 	})
 
 	it('accepts a value of exactly the maximum length', () => {
-		expect(testoOpzionale('123456789012', 'fisso', 12)).toBe('123456789012')
+		expect(optionalText('123456789012', 'landline', 12)).toBe('123456789012')
 	})
 
 	it('refuses one character over the cap', () => {
-		expect(motivo(() => testoOpzionale('1234567890123', 'fisso', 12))).toBe('fisso: massimo 12 caratteri')
+		expect(reason(() => optionalText('1234567890123', 'landline', 12))).toBe('landline: max 12 characters')
 	})
 })
 
-describe('testoConFormato', () => {
+describe('textWithFormat', () => {
 	it('trims and returns a value that matches', () => {
-		expect(testoConFormato('  20100  ', 'cap', FORMA_CAP, 'il CAP è di 5 cifre')).toBe('20100')
+		expect(textWithFormat('  20100  ', 'postalCode', SHAPE_CAP, 'the postal code is 5 digits')).toBe('20100')
 	})
 
 	// No separate empty test in the source: every pattern is anchored and matches at least one
-	// character, so a blank field gets the shape message rather than "campo obbligatorio".
+	// character, so a blank field gets the shape message rather than "field required".
 	it('refuses a blank value with the shape message, not an obligatory one', () => {
-		expect(motivo(() => testoConFormato('   ', 'cap', FORMA_CAP, 'il CAP è di 5 cifre'))).toBe('cap: il CAP è di 5 cifre')
+		expect(reason(() => textWithFormat('   ', 'postalCode', SHAPE_CAP, 'the postal code is 5 digits'))).toBe(
+			'postalCode: the postal code is 5 digits'
+		)
 	})
 })
 
-describe('testoOpzionaleConFormato', () => {
-	it.each([[null], [undefined], ['   ']])('reads %p as not given, without running the pattern', (valore) => {
-		expect(testoOpzionaleConFormato(valore, 'univoco', FORMA_UNIVOCO, 'sette caratteri')).toBeUndefined()
+describe('optionalTextWithFormat', () => {
+	it.each([[null], [undefined], ['   ']])('reads %p as not given, without running the pattern', (value) => {
+		expect(optionalTextWithFormat(value, 'uniqueCode', SHAPE_UNIQUE_CODE, 'seven characters')).toBeUndefined()
 	})
 
 	it('trims and returns a value that matches', () => {
-		expect(testoOpzionaleConFormato(' ABC1234 ', 'univoco', FORMA_UNIVOCO, 'sette caratteri')).toBe('ABC1234')
+		expect(optionalTextWithFormat(' ABC1234 ', 'uniqueCode', SHAPE_UNIQUE_CODE, 'seven characters')).toBe('ABC1234')
 	})
 
 	it('refuses a value that was given and does not match', () => {
-		expect(motivo(() => testoOpzionaleConFormato('ABC12', 'univoco', FORMA_UNIVOCO, 'sette caratteri'))).toBe(
-			'univoco: sette caratteri'
+		expect(reason(() => optionalTextWithFormat('ABC12', 'uniqueCode', SHAPE_UNIQUE_CODE, 'seven characters'))).toBe(
+			'uniqueCode: seven characters'
 		)
 	})
 })
@@ -150,8 +152,8 @@ describe('the field patterns', () => {
 		['x20100', false],
 		['20100x', false],
 		[' 20100', false]
-	])('FORMA_CAP accepts %p: %s', (valore, atteso) => {
-		expect(FORMA_CAP.test(valore)).toBe(atteso)
+	])('SHAPE_CAP accepts %p: %s', (value, expected) => {
+		expect(SHAPE_CAP.test(value)).toBe(expected)
 	})
 
 	it.each([
@@ -166,8 +168,8 @@ describe('the field patterns', () => {
 		['xMI', false],
 		['MIx', false],
 		['M I', false]
-	])('FORMA_PROVINCIA accepts %p: %s', (valore, atteso) => {
-		expect(FORMA_PROVINCIA.test(valore)).toBe(atteso)
+	])('SHAPE_PROVINCE accepts %p: %s', (value, expected) => {
+		expect(SHAPE_PROVINCE.test(value)).toBe(expected)
 	})
 
 	it.each([
@@ -179,8 +181,8 @@ describe('the field patterns', () => {
 		['', false],
 		['x12345678901', false],
 		['12345678901x', false]
-	])('FORMA_PIVA accepts %p: %s', (valore, atteso) => {
-		expect(FORMA_PIVA.test(valore)).toBe(atteso)
+	])('SHAPE_VAT_NUMBER accepts %p: %s', (value, expected) => {
+		expect(SHAPE_VAT_NUMBER.test(value)).toBe(expected)
 	})
 
 	it.each([
@@ -194,8 +196,8 @@ describe('the field patterns', () => {
 		['', false],
 		['xABC1234', false],
 		['ABC1234x', false]
-	])('FORMA_UNIVOCO accepts %p: %s', (valore, atteso) => {
-		expect(FORMA_UNIVOCO.test(valore)).toBe(atteso)
+	])('SHAPE_UNIQUE_CODE accepts %p: %s', (value, expected) => {
+		expect(SHAPE_UNIQUE_CODE.test(value)).toBe(expected)
 	})
 
 	// Deliberately loose — one `@`, a dot after it, no whitespace. The rows below are the rubbish it is
@@ -214,39 +216,39 @@ describe('the field patterns', () => {
 		['mario@marketplace.test ', false],
 		[' mario@marketplace.test', false],
 		['', false]
-	])('FORMA_EMAIL accepts %p: %s', (valore, atteso) => {
-		expect(FORMA_EMAIL.test(valore)).toBe(atteso)
+	])('SHAPE_EMAIL accepts %p: %s', (value, expected) => {
+		expect(SHAPE_EMAIL.test(value)).toBe(expected)
 	})
 })
 
 describe('emailObbligatoria', () => {
 	it('trims and returns a well-formed address', () => {
-		expect(emailObbligatoria('  mario@marketplace.test ', 'contatti.email')).toBe('mario@marketplace.test')
+		expect(requiredEmail('  mario@marketplace.test ', 'contacts.email')).toBe('mario@marketplace.test')
 	})
 
 	// The cap is the collection's 250, not koa-utils' platform-wide 255: validating against the wrong
 	// one would pass a 253-character address into a driver rejection with no readable message.
 	it('accepts an address of exactly 250 characters', () => {
-		expect(emailObbligatoria(emailAlLimite, 'contatti.email')).toBe(emailAlLimite)
+		expect(requiredEmail(emailAtLimit, 'contacts.email')).toBe(emailAtLimit)
 		expect(MAX_EMAIL).toBe(250)
 	})
 
 	it.each([
-		['a blank box', '   ', 'contatti.email: campo obbligatorio'],
-		['one character over the cap', `x${emailAlLimite}`, 'contatti.email: massimo 250 caratteri'],
-		['a malformed address', 'mario@marketplace', 'contatti.email: indirizzo email non valido']
-	])('refuses %s', (_desc, valore, atteso) => {
-		expect(motivo(() => emailObbligatoria(valore, 'contatti.email'))).toBe(atteso)
+		['a blank box', '   ', 'contacts.email: field required'],
+		['one character over the cap', `x${emailAtLimit}`, 'contacts.email: max 250 characters'],
+		['a malformed address', 'mario@marketplace', 'contacts.email: invalid email address']
+	])('refuses %s', (_desc, value, expected) => {
+		expect(reason(() => requiredEmail(value, 'contacts.email'))).toBe(expected)
 	})
 })
 
-describe('dataNascita', () => {
-	const oggi = new Date('2026-08-02T00:00:00.000Z')
+describe('birthDate', () => {
+	const today = new Date('2026-08-02T00:00:00.000Z')
 
 	it('accepts a date comfortably in the past', () => {
 		const data = new Date('1990-05-17T00:00:00.000Z')
 
-		expect(dataNascita(data, 'nascita.data', oggi)).toBe(data)
+		expect(birthDate(data, 'birth.date', today)).toBe(data)
 	})
 
 	// Inclusive on purpose: someone turning 18 today is 18 today. This is also the row that dies if the
@@ -254,18 +256,18 @@ describe('dataNascita', () => {
 	it('accepts someone whose eighteenth birthday is today', () => {
 		const data = new Date('2008-08-02T00:00:00.000Z')
 
-		expect(dataNascita(data, 'nascita.data', oggi)).toBe(data)
+		expect(birthDate(data, 'birth.date', today)).toBe(data)
 	})
 
 	it('refuses someone whose eighteenth birthday is tomorrow', () => {
-		expect(motivo(() => dataNascita(new Date('2008-08-03T00:00:00.000Z'), 'nascita.data', oggi))).toBe(
-			"nascita.data: l'imprenditore deve essere maggiorenne (almeno 18 anni)"
+		expect(reason(() => birthDate(new Date('2008-08-03T00:00:00.000Z'), 'birth.date', today))).toBe(
+			"birth.date: the shopOwner must be of age (at least 18)"
 		)
-		expect(ETA_MINIMA).toBe(18)
+		expect(MIN_AGE).toBe(18)
 	})
 
 	it('refuses a date that is not a date', () => {
-		expect(motivo(() => dataNascita(new Date('non una data'), 'nascita.data', oggi))).toBe('nascita.data: data non valida')
+		expect(reason(() => birthDate(new Date('non una data'), 'birth.date', today))).toBe('birth.date: invalid date')
 	})
 
 	/*
@@ -275,17 +277,17 @@ describe('dataNascita', () => {
 	 * 28 February instead.
 	 */
 	describe('on 29 February', () => {
-		const bisestile = new Date('2024-02-29T00:00:00.000Z')
+		const leapYear = new Date('2024-02-29T00:00:00.000Z')
 
 		it('puts the limit on 28 February, not 1 March', () => {
 			const data = new Date('2006-02-28T00:00:00.000Z')
 
-			expect(dataNascita(data, 'nascita.data', bisestile)).toBe(data)
+			expect(birthDate(data, 'birth.date', leapYear)).toBe(data)
 		})
 
 		it('refuses the day the rollover would have let through', () => {
-			expect(motivo(() => dataNascita(new Date('2006-03-01T00:00:00.000Z'), 'nascita.data', bisestile))).toBe(
-				"nascita.data: l'imprenditore deve essere maggiorenne (almeno 18 anni)"
+			expect(reason(() => birthDate(new Date('2006-03-01T00:00:00.000Z'), 'birth.date', leapYear))).toBe(
+				"birth.date: the shopOwner must be of age (at least 18)"
 			)
 		})
 	})
@@ -297,12 +299,11 @@ describe('coordinate', () => {
 	})
 
 	it.each([[[]], [[9.19]], [[9.19, 45.46, 120]]])('refuses %p, which is not a pair', (coordinates) => {
-		expect(motivo(() => coordinate(coordinates, 'pos'))).toBe('pos: servono esattamente 2 coordinate [longitudine, latitudine]')
+		expect(reason(() => coordinate(coordinates, 'pos'))).toBe('pos: exactly 2 coordinates are required [longitude, latitude]')
 	})
 
-	// The two axes have different bounds — that asymmetry is what
-	// 20260801000000-alter-puntoVendita-position fixed in the collection, and a single ±180 rule here
-	// would put a latitude of 120 into a 2dsphere index that cannot key it.
+	// The two axes have different bounds — that asymmetry is what the collection's own validator carries,
+	// and a single ±180 rule here would put a latitude of 120 into a 2dsphere index that cannot key it.
 	it.each([[[-180, 0]], [[180, 0]], [[0, -90]], [[0, 90]]])('accepts %p, exactly on the boundary', (coordinates) => {
 		expect(coordinate(coordinates, 'pos')).toEqual(coordinates)
 	})
@@ -310,117 +311,117 @@ describe('coordinate', () => {
 	it.each([[[-180.1, 0]], [[180.1, 0]], [[Number.NaN, 0]], [[Number.POSITIVE_INFINITY, 0]]])(
 		'refuses %p for its longitude',
 		(coordinates) => {
-			expect(motivo(() => coordinate(coordinates, 'pos'))).toBe('pos: longitudine fuori da -180..180')
+			expect(reason(() => coordinate(coordinates, 'pos'))).toBe('pos: longitude outside -180..180')
 		}
 	)
 
 	it.each([[[0, -90.1]], [[0, 90.1]], [[0, Number.NaN]], [[0, Number.NEGATIVE_INFINITY]]])(
 		'refuses %p for its latitude',
 		(coordinates) => {
-			expect(motivo(() => coordinate(coordinates, 'pos'))).toBe('pos: latitudine fuori da -90..90')
+			expect(reason(() => coordinate(coordinates, 'pos'))).toBe('pos: latitude outside -90..90')
 		}
 	)
 })
 
-describe('validaAnagraficaImprenditore', () => {
-	const oggi = new Date('2026-08-02T00:00:00.000Z')
-	const nascita = { data: new Date('1990-05-17T00:00:00.000Z') }
+describe('validateShopOwnerPersonalData', () => {
+	const today = new Date('2026-08-02T00:00:00.000Z')
+	const birth = { date: new Date('1990-05-17T00:00:00.000Z') }
 
-	const valida = {
-		nome: '  Mario  ',
-		cognome: ' Rossi ',
-		nascita,
-		indirizzo: { indirizzo: ' Via Roma 1 ', cap: ' 20100 ', comune: ' Milano ', provincia: 'mi' },
-		contatti: { cellulare: ' 3331234567 ', fisso: ' 0212345 ', email: ' mario@marketplace.test ' }
+	const validate = {
+		firstName: '  Mario  ',
+		lastName: ' Rossi ',
+		birth,
+		address: { street: ' Via Roma 1 ', postalCode: ' 20100 ', city: ' Milano ', province: 'mi' },
+		contacts: { mobile: ' 3331234567 ', landline: ' 0212345 ', email: ' mario@marketplace.test ' }
 	} as never
 
-	it('returns a trimmed copy with the provincia upper-cased', () => {
-		expect(validaAnagraficaImprenditore(valida, oggi)).toEqual({
-			nome: 'Mario',
-			cognome: 'Rossi',
-			nascita: { data: nascita.data },
-			indirizzo: { indirizzo: 'Via Roma 1', cap: '20100', comune: 'Milano', provincia: 'MI' },
-			contatti: { cellulare: '3331234567', fisso: '0212345', email: 'mario@marketplace.test' }
+	it('returns a trimmed copy with the province upper-cased', () => {
+		expect(validateShopOwnerPersonalData(validate, today)).toEqual({
+			firstName: 'Mario',
+			lastName: 'Rossi',
+			birth: { date: birth.date },
+			address: { street: 'Via Roma 1', postalCode: '20100', city: 'Milano', province: 'MI' },
+			contacts: { mobile: '3331234567', landline: '0212345', email: 'mario@marketplace.test' }
 		})
 	})
 
-	// `$set: { anagrafica }` replaces the whole sub-document, so a cleared landline has to be *absent*
+	// `$set: { personalData }` replaces the whole sub-document, so a cleared landline has to be *absent*
 	// from the returned object. Present holding `undefined` is serialised to `null` by the BSON writer
 	// and fails the collection validator, taking the rest of the save with it.
 	it('drops a cleared landline instead of writing it empty', () => {
-		const senzaFisso = validaAnagraficaImprenditore(
-			{ ...(valida as object), contatti: { cellulare: '3331234567', fisso: '   ', email: 'mario@marketplace.test' } } as never,
-			oggi
+		const withoutLandline = validateShopOwnerPersonalData(
+			{ ...(validate as object), contacts: { mobile: '3331234567', landline: '   ', email: 'mario@marketplace.test' } } as never,
+			today
 		)
 
-		expect(Object.keys(senzaFisso.contatti)).toEqual(['cellulare', 'email'])
-		expect('fisso' in senzaFisso.contatti).toBe(false)
+		expect(Object.keys(withoutLandline.contacts)).toEqual(['mobile', 'email'])
+		expect('landline' in withoutLandline.contacts).toBe(false)
 	})
 
 	// One row per field, so a validator wired to the wrong argument — the copy-paste failure this shape
 	// of code invites — shows up as the wrong field name in the message rather than as a passing test.
 	it.each([
-		['nome', { nome: '' }, 'nome: campo obbligatorio'],
-		['cognome', { cognome: '  ' }, 'cognome: campo obbligatorio'],
-		['nome over the cap', { nome: 'a'.repeat(101) }, 'nome: massimo 100 caratteri'],
-		['cognome over the cap', { cognome: 'a'.repeat(101) }, 'cognome: massimo 100 caratteri'],
+		['firstName', { firstName: '' }, 'firstName: field required'],
+		['lastName', { lastName: '  ' }, 'lastName: field required'],
+		['firstName over the cap', { firstName: 'a'.repeat(101) }, 'firstName: max 100 characters'],
+		['lastName over the cap', { lastName: 'a'.repeat(101) }, 'lastName: max 100 characters'],
 		[
-			'nascita.data',
-			{ nascita: { data: new Date('2020-01-01T00:00:00.000Z') } },
-			"nascita.data: l'imprenditore deve essere maggiorenne (almeno 18 anni)"
+			'birth.date',
+			{ birth: { date: new Date('2020-01-01T00:00:00.000Z') } },
+			"birth.date: the shopOwner must be of age (at least 18)"
 		]
-	])('refuses a bad %s', (_desc, patch, atteso) => {
-		expect(motivo(() => validaAnagraficaImprenditore({ ...(valida as object), ...patch } as never, oggi))).toBe(atteso)
+	])('refuses a bad %s', (_desc, patch, expected) => {
+		expect(reason(() => validateShopOwnerPersonalData({ ...(validate as object), ...patch } as never, today))).toBe(expected)
 	})
 
 	it.each([
-		['indirizzo.indirizzo', { indirizzo: '' }, 'indirizzo.indirizzo: campo obbligatorio'],
-		['indirizzo.indirizzo over the cap', { indirizzo: 'a'.repeat(251) }, 'indirizzo.indirizzo: massimo 250 caratteri'],
-		['indirizzo.cap', { cap: '2010' }, 'indirizzo.cap: il CAP è di 5 cifre'],
-		['indirizzo.comune', { comune: '   ' }, 'indirizzo.comune: campo obbligatorio'],
-		['indirizzo.provincia', { provincia: 'MIL' }, 'indirizzo.provincia: la provincia è la sigla di 2 lettere']
-	])('refuses a bad %s', (_desc, patch, atteso) => {
-		const anagrafica = {
-			...(valida as object),
-			indirizzo: { ...(valida as never as { indirizzo: object }).indirizzo, ...patch }
+		['address.street', { street: '' }, 'address.street: field required'],
+		['address.street over the cap', { street: 'a'.repeat(251) }, 'address.street: max 250 characters'],
+		['address.postalCode', { postalCode: '2010' }, 'address.postalCode: the postal code is 5 digits'],
+		['address.city', { city: '   ' }, 'address.city: field required'],
+		['address.province', { province: 'MIL' }, 'address.province: the province is the 2-letter code']
+	])('refuses a bad %s', (_desc, patch, expected) => {
+		const personalData = {
+			...(validate as object),
+			address: { ...(validate as never as { address: object }).address, ...patch }
 		} as never
 
-		expect(motivo(() => validaAnagraficaImprenditore(anagrafica, oggi))).toBe(atteso)
+		expect(reason(() => validateShopOwnerPersonalData(personalData, today))).toBe(expected)
 	})
 
 	it.each([
-		['contatti.cellulare', { cellulare: '' }, 'contatti.cellulare: campo obbligatorio'],
-		['contatti.cellulare over the cap', { cellulare: '1234567890123' }, 'contatti.cellulare: massimo 12 caratteri'],
-		['contatti.fisso over the cap', { fisso: '1234567890123' }, 'contatti.fisso: massimo 12 caratteri'],
-		['contatti.email', { email: 'mario@marketplace' }, 'contatti.email: indirizzo email non valido']
-	])('refuses a bad %s', (_desc, patch, atteso) => {
-		const anagrafica = {
-			...(valida as object),
-			contatti: { ...(valida as never as { contatti: object }).contatti, ...patch }
+		['contacts.mobile', { mobile: '' }, 'contacts.mobile: field required'],
+		['contacts.mobile over the cap', { mobile: '1234567890123' }, 'contacts.mobile: max 12 characters'],
+		['contacts.landline over the cap', { landline: '1234567890123' }, 'contacts.landline: max 12 characters'],
+		['contacts.email', { email: 'mario@marketplace' }, 'contacts.email: invalid email address']
+	])('refuses a bad %s', (_desc, patch, expected) => {
+		const personalData = {
+			...(validate as object),
+			contacts: { ...(validate as never as { contacts: object }).contacts, ...patch }
 		} as never
 
-		expect(motivo(() => validaAnagraficaImprenditore(anagrafica, oggi))).toBe(atteso)
+		expect(reason(() => validateShopOwnerPersonalData(personalData, today))).toBe(expected)
 	})
 
 	// The input type carries the coordinates alone; the `type: 'Point'` the collection validator requires
 	// is added here, so the client never sends a constant it could get wrong.
 	it('wraps the coordinates in a GeoJSON point', () => {
-		const conPosizione = validaAnagraficaImprenditore(
+		const conPosition = validateShopOwnerPersonalData(
 			{
-				...(valida as object),
-				indirizzo: {
-					...(valida as never as { indirizzo: object }).indirizzo,
+				...(validate as object),
+				address: {
+					...(validate as never as { address: object }).address,
 					position: { coordinates: [9.19, 45.46] }
 				}
 			} as never,
-			oggi
+			today
 		)
 
-		expect(conPosizione.indirizzo.position).toEqual({ type: 'Point', coordinates: [9.19, 45.46] })
+		expect(conPosition.address.position).toEqual({ type: 'Point', coordinates: [9.19, 45.46] })
 	})
 
-	// `position` is optional in the collection and nothing backfills it, so every imprenditore created
-	// before 20260802000300 still has none. Absent has to stay absent: `$set: { anagrafica }` replaces the
+	// `position` is optional in the collection and nothing backfills it, so every shopOwner created
+	// before 20260802000300 still has none. Absent has to stay absent: `$set: { personalData }` replaces the
 	// whole sub-document, and a key present holding `undefined` is written as `null`, which the validator
 	// rejects — taking the rest of the save with it, exactly as a cleared landline would.
 	it.each([
@@ -428,172 +429,174 @@ describe('validaAnagraficaImprenditore', () => {
 		['null', { position: null }],
 		['undefined', { position: undefined }]
 	])('omits the point entirely when it is %s', (_desc, patch) => {
-		const senzaPosizione = validaAnagraficaImprenditore(
+		const withoutPosition = validateShopOwnerPersonalData(
 			{
-				...(valida as object),
-				indirizzo: { ...(valida as never as { indirizzo: object }).indirizzo, ...patch }
+				...(validate as object),
+				address: { ...(validate as never as { address: object }).address, ...patch }
 			} as never,
-			oggi
+			today
 		)
 
-		expect('position' in senzaPosizione.indirizzo).toBe(false)
+		expect('position' in withoutPosition.address).toBe(false)
 	})
 
 	// The bounds themselves are `coordinate`'s, tested above; what this pins is the path prefix, which is
 	// the only part of the message this function contributes.
 	it.each([
-		[[9.19], 'indirizzo.position.coordinates: servono esattamente 2 coordinate [longitudine, latitudine]'],
-		[[9.19, 120], 'indirizzo.position.coordinates: latitudine fuori da -90..90'],
-		[[190, 45.46], 'indirizzo.position.coordinates: longitudine fuori da -180..180']
-	])('refuses %p, naming the nested path', (coordinates, atteso) => {
-		const anagrafica = {
-			...(valida as object),
-			indirizzo: { ...(valida as never as { indirizzo: object }).indirizzo, position: { coordinates } }
+		[[9.19], 'address.position.coordinates: exactly 2 coordinates are required [longitude, latitude]'],
+		[[9.19, 120], 'address.position.coordinates: latitude outside -90..90'],
+		[[190, 45.46], 'address.position.coordinates: longitude outside -180..180']
+	])('refuses %p, naming the nested path', (coordinates, expected) => {
+		const personalData = {
+			...(validate as object),
+			address: { ...(validate as never as { address: object }).address, position: { coordinates } }
 		} as never
 
-		expect(motivo(() => validaAnagraficaImprenditore(anagrafica, oggi))).toBe(atteso)
+		expect(reason(() => validateShopOwnerPersonalData(personalData, today))).toBe(expected)
 	})
 })
 
-describe('validaNotaImprenditore', () => {
+describe('validateShopOwnerNote', () => {
 	it('returns the note trimmed', () => {
-		expect(validaNotaImprenditore('  Richiamare a settembre  ')).toBe('Richiamare a settembre')
+		expect(validateShopOwnerNote('  Richiamare a settembre  ')).toBe('Richiamare a settembre')
 	})
 
-	// `''`, not `undefined`: the caller writes it straight into `funImprenditoreUpdateNote`, which reads
-	// the empty string as "remove the field". `testoOpzionale` alone would hand back `undefined` and the
+	// `''`, not `undefined`: the caller writes it straight into `funShopOwnerUpdateNote`, which reads
+	// the empty string as "remove the field". `optionalText` alone would hand back `undefined` and the
 	// `$unset` branch would never be taken.
 	it.each([[''], ['   '], ['\n\t']])('turns %p into the empty string that clears the note', (note) => {
-		expect(validaNotaImprenditore(note)).toBe('')
+		expect(validateShopOwnerNote(note)).toBe('')
 	})
 
 	it('accepts a note of exactly 2000 characters', () => {
-		expect(validaNotaImprenditore('a'.repeat(2000))).toHaveLength(2000)
+		expect(validateShopOwnerNote('a'.repeat(2000))).toHaveLength(2000)
 	})
 
-	// The collection caps `note` at 2000; over it the driver would answer with an opaque validation
+	// The collection caps `notes` at 2000; over it the driver would answer with an opaque validation
 	// failure, so the bound is restated here to name the field.
 	it('refuses a note over the cap', () => {
-		expect(motivo(() => validaNotaImprenditore('a'.repeat(2001)))).toBe('note: massimo 2000 caratteri')
+		expect(reason(() => validateShopOwnerNote('a'.repeat(2001)))).toBe('note: max 2000 characters')
 	})
 
 	it('raises a 400 rather than a generic failure', () => {
-		expect(failure(() => validaNotaImprenditore('a'.repeat(2001)))).toEqual({
+		expect(failure(() => validateShopOwnerNote('a'.repeat(2001)))).toEqual({
 			message: 'Bad Request',
 			http: { status: 400 },
-			description: 'note: massimo 2000 caratteri'
+			description: 'note: max 2000 characters'
 		})
 	})
 })
 
-describe('validaIndirizzo', () => {
-	const valido = {
-		indirizzo: ' Via Milano 9 ',
-		cap: ' 20100 ',
-		comune: ' Milano ',
-		provincia: 'mi',
+describe('validateAddress', () => {
+	const valid = {
+		street: ' Via Milano 9 ',
+		postalCode: ' 20100 ',
+		city: ' Milano ',
+		province: 'mi',
 		position: { coordinates: [9.19, 45.46] }
 	}
 
 	// `type` is written, never read off the argument: there is one legal value, so accepting it from the
 	// client would only create a way to get it wrong.
-	it('stamps the GeoJSON type itself and upper-cases the provincia', () => {
-		expect(validaIndirizzo(valido, 'indirizzo')).toEqual({
-			indirizzo: 'Via Milano 9',
-			cap: '20100',
-			comune: 'Milano',
-			provincia: 'MI',
+	it('stamps the GeoJSON type itself and upper-cases the province', () => {
+		expect(validateAddress(valid, 'address')).toEqual({
+			street: 'Via Milano 9',
+			postalCode: '20100',
+			city: 'Milano',
+			province: 'MI',
 			position: { type: 'Point', coordinates: [9.19, 45.46] }
 		})
 	})
 
-	// ⚠️ The prefix is the whole reason this takes a second argument: one validator serves two collections
-	// since 20260803000000 restated `puntoVendita.indirizzo` on `azienda` field for field, and the operator
-	// has to be told which of the two addresses on the page is wrong.
-	it('names the path it was given, so the same failure reads differently for a shop and for a company', () => {
-		expect(motivo(() => validaIndirizzo({ ...valido, cap: 'ABCDE' }, 'indirizzo'))).toBe('indirizzo.cap: il CAP è di 5 cifre')
-		expect(motivo(() => validaIndirizzo({ ...valido, cap: 'ABCDE' }, 'azienda.indirizzo'))).toBe(
-			'azienda.indirizzo.cap: il CAP è di 5 cifre'
+	// ⚠️ The prefix is the whole reason this takes a second argument: one validator serves both the
+	// shopOwner address and the company seat, and the operator has to be told which of the two addresses
+	// on the page is wrong.
+	it('names the path it was given, so the same failure reads differently for each address', () => {
+		expect(reason(() => validateAddress({ ...valid, postalCode: 'ABCDE' }, 'address'))).toBe(
+			'address.postalCode: the postal code is 5 digits'
+		)
+		expect(reason(() => validateAddress({ ...valid, postalCode: 'ABCDE' }, 'company.address'))).toBe(
+			'company.address.postalCode: the postal code is 5 digits'
 		)
 	})
 
-	// ⚠️ 100 here, 250 on an imprenditore. Same field name, same GraphQL fragment, different collections.
-	it('caps the street address at 100, not at the imprenditore’s 250', () => {
-		expect(validaIndirizzo({ ...valido, indirizzo: 'a'.repeat(100) }, 'indirizzo').indirizzo).toHaveLength(100)
-		expect(motivo(() => validaIndirizzo({ ...valido, indirizzo: 'a'.repeat(101) }, 'indirizzo'))).toBe(
-			'indirizzo.indirizzo: massimo 100 caratteri'
+	// ⚠️ 100 here, 250 on an shopOwner. Same field name, same GraphQL fragment, different collections.
+	it('caps the street address at 100, not at the shopOwner’s 250', () => {
+		expect(validateAddress({ ...valid, street: 'a'.repeat(100) }, 'address').street).toHaveLength(100)
+		expect(reason(() => validateAddress({ ...valid, street: 'a'.repeat(101) }, 'address'))).toBe(
+			'address.street: max 100 characters'
 		)
 	})
 
 	it.each([
-		['indirizzo', { indirizzo: '  ' }, 'indirizzo.indirizzo: campo obbligatorio'],
-		['cap', { cap: 'ABCDE' }, 'indirizzo.cap: il CAP è di 5 cifre'],
-		['comune', { comune: '' }, 'indirizzo.comune: campo obbligatorio'],
-		['comune over the cap', { comune: 'a'.repeat(101) }, 'indirizzo.comune: massimo 100 caratteri'],
-		['provincia', { provincia: '1' }, 'indirizzo.provincia: la provincia è la sigla di 2 lettere'],
+		['street', { street: '  ' }, 'address.street: field required'],
+		['postalCode', { postalCode: 'ABCDE' }, 'address.postalCode: the postal code is 5 digits'],
+		['city', { city: '' }, 'address.city: field required'],
+		['city over the cap', { city: 'a'.repeat(101) }, 'address.city: max 100 characters'],
+		['province', { province: '1' }, 'address.province: the province is the 2-letter code'],
 		[
 			'position',
 			{ position: { coordinates: [9.19] } },
-			'indirizzo.position.coordinates: servono esattamente 2 coordinate [longitudine, latitudine]'
+			'address.position.coordinates: exactly 2 coordinates are required [longitude, latitude]'
 		],
-		['latitude', { position: { coordinates: [9.19, 120] } }, 'indirizzo.position.coordinates: latitudine fuori da -90..90']
-	])('refuses a bad %s', (_desc, patch, atteso) => {
-		expect(motivo(() => validaIndirizzo({ ...valido, ...patch }, 'indirizzo'))).toBe(atteso)
+		['latitude', { position: { coordinates: [9.19, 120] } }, 'address.position.coordinates: latitude outside -90..90']
+	])('refuses a bad %s', (_desc, patch, expected) => {
+		expect(reason(() => validateAddress({ ...valid, ...patch }, 'address'))).toBe(expected)
 	})
 })
 
-describe('validaAzienda', () => {
-	const indirizzo = {
-		indirizzo: ' Via Milano 9 ',
-		cap: ' 20100 ',
-		comune: ' Milano ',
-		provincia: 'mi',
+describe('validateCompany', () => {
+	const address = {
+		street: ' Via Milano 9 ',
+		postalCode: ' 20100 ',
+		city: ' Milano ',
+		province: 'mi',
 		position: { coordinates: [9.19, 45.46] }
 	}
 
-	const valida = {
-		ragionesociale: ' Pizzeria da Mario ',
-		piva: ' 12345678901 ',
-		cf: ' 12345678901 ',
-		referente: ' Mario Rossi ',
-		amministratore: ' Mario Rossi ',
-		univoco: ' ABC1234 ',
-		pec: ' pizzeria@pec.test ',
-		indirizzo,
-		visura: ' visura-2026 '
+	const validate = {
+		legalName: ' Pizzeria da Mario ',
+		vatNumber: ' 12345678901 ',
+		taxCode: ' 12345678901 ',
+		contactPerson: ' Mario Rossi ',
+		administrator: ' Mario Rossi ',
+		uniqueCode: ' ABC1234 ',
+		certifiedEmail: ' pizzeria@pec.test ',
+		address,
+		registryExtract: ' registryExtract-2026 '
 	} as never
 
 	it('returns a trimmed copy, with the seat normalised like any other address', () => {
-		expect(validaAzienda(valida)).toEqual({
-			ragionesociale: 'Pizzeria da Mario',
-			piva: '12345678901',
-			cf: '12345678901',
-			referente: 'Mario Rossi',
-			amministratore: 'Mario Rossi',
-			univoco: 'ABC1234',
-			pec: 'pizzeria@pec.test',
-			indirizzo: {
-				indirizzo: 'Via Milano 9',
-				cap: '20100',
-				comune: 'Milano',
-				provincia: 'MI',
+		expect(validateCompany(validate)).toEqual({
+			legalName: 'Pizzeria da Mario',
+			vatNumber: '12345678901',
+			taxCode: '12345678901',
+			contactPerson: 'Mario Rossi',
+			administrator: 'Mario Rossi',
+			uniqueCode: 'ABC1234',
+			certifiedEmail: 'pizzeria@pec.test',
+			address: {
+				street: 'Via Milano 9',
+				postalCode: '20100',
+				city: 'Milano',
+				province: 'MI',
 				position: { type: 'Point', coordinates: [9.19, 45.46] }
 			},
-			visura: 'visura-2026'
+			registryExtract: 'registryExtract-2026'
 		})
 	})
 
 	// The two optional fields, and the same absence rule as a landline: a key present holding `undefined`
 	// is written as `null` by the BSON writer and fails the collection validator, taking the save with it.
 	it.each([
-		['cf', { cf: '  ' }],
-		['univoco', { univoco: '   ' }],
-		['both', { cf: '', univoco: null }]
+		['taxCode', { taxCode: '  ' }],
+		['uniqueCode', { uniqueCode: '   ' }],
+		['both', { taxCode: '', uniqueCode: null }]
 	])('drops a blank %s instead of writing it empty', (_desc, patch) => {
-		const risultato = validaAzienda({ ...(valida as object), ...patch } as never)
+		const result = validateCompany({ ...(validate as object), ...patch } as never)
 
-		expect(Object.keys(risultato)).toEqual(
-			['ragionesociale', 'piva', 'cf', 'referente', 'amministratore', 'univoco', 'pec', 'indirizzo', 'visura'].filter(
+		expect(Object.keys(result)).toEqual(
+			['legalName', 'vatNumber', 'taxCode', 'contactPerson', 'administrator', 'uniqueCode', 'certifiedEmail', 'address', 'registryExtract'].filter(
 				(k) => !(k in patch)
 			)
 		)
@@ -601,40 +604,40 @@ describe('validaAzienda', () => {
 
 	// ⚠️ 1000, and it is the collection's cap rather than an invented one — the field was the single
 	// unbounded string on the embedded shape until 20260803000000 put a `maxLength` on it.
-	it('accepts a visura of exactly 1000 characters and refuses 1001', () => {
-		expect(validaAzienda({ ...(valida as object), visura: 'x'.repeat(1000) } as never).visura).toHaveLength(1000)
-		expect(motivo(() => validaAzienda({ ...(valida as object), visura: 'x'.repeat(1001) } as never))).toBe(
-			'azienda.visura: massimo 1000 caratteri'
+	it('accepts a registryExtract of exactly 1000 characters and refuses 1001', () => {
+		expect(validateCompany({ ...(validate as object), registryExtract: 'x'.repeat(1000) } as never).registryExtract).toHaveLength(1000)
+		expect(reason(() => validateCompany({ ...(validate as object), registryExtract: 'x'.repeat(1001) } as never))).toBe(
+			'company.registryExtract: max 1000 characters'
 		)
 	})
 
 	it.each([
-		['ragionesociale', { ragionesociale: '' }, 'azienda.ragionesociale: campo obbligatorio'],
-		['ragionesociale over the cap', { ragionesociale: 'a'.repeat(101) }, 'azienda.ragionesociale: massimo 100 caratteri'],
-		['piva', { piva: '1234567890' }, 'azienda.piva: la partita IVA è di 11 cifre'],
-		['cf', { cf: '1234567890' }, 'azienda.cf: esattamente 11 caratteri'],
-		['referente', { referente: '   ' }, 'azienda.referente: campo obbligatorio'],
-		['referente over the cap', { referente: 'a'.repeat(51) }, 'azienda.referente: massimo 50 caratteri'],
-		['amministratore', { amministratore: '' }, 'azienda.amministratore: campo obbligatorio'],
-		['amministratore over the cap', { amministratore: 'a'.repeat(51) }, 'azienda.amministratore: massimo 50 caratteri'],
-		['univoco', { univoco: 'ABC12' }, 'azienda.univoco: il codice univoco è di 7 caratteri alfanumerici'],
-		['pec', { pec: 'pizzeria@pec' }, 'azienda.pec: indirizzo email non valido'],
-		['visura', { visura: '   ' }, 'azienda.visura: campo obbligatorio']
-	])('refuses a bad %s', (_desc, patch, atteso) => {
-		expect(motivo(() => validaAzienda({ ...(valida as object), ...patch } as never))).toBe(atteso)
+		['legalName', { legalName: '' }, 'company.legalName: field required'],
+		['legalName over the cap', { legalName: 'a'.repeat(101) }, 'company.legalName: max 100 characters'],
+		['vatNumber', { vatNumber: '1234567890' }, 'company.vatNumber: the VAT number is 11 digits'],
+		['taxCode', { taxCode: '1234567890' }, 'company.taxCode: exactly 11 characters'],
+		['contactPerson', { contactPerson: '   ' }, 'company.contactPerson: field required'],
+		['contactPerson over the cap', { contactPerson: 'a'.repeat(51) }, 'company.contactPerson: max 50 characters'],
+		['administrator', { administrator: '' }, 'company.administrator: field required'],
+		['administrator over the cap', { administrator: 'a'.repeat(51) }, 'company.administrator: max 50 characters'],
+		['uniqueCode', { uniqueCode: 'ABC12' }, 'company.uniqueCode: the unique code is 7 alphanumeric characters'],
+		['certifiedEmail', { certifiedEmail: 'pizzeria@certifiedEmail' }, 'company.certifiedEmail: invalid email address'],
+		['registryExtract', { registryExtract: '   ' }, 'company.registryExtract: field required']
+	])('refuses a bad %s', (_desc, patch, expected) => {
+		expect(reason(() => validateCompany({ ...(validate as object), ...patch } as never))).toBe(expected)
 	})
 
 	// The seat's own failures come through with the company's prefix, which is what keeps them apart from
 	// the shop address sitting in the same form.
 	it.each([
-		['indirizzo', { indirizzo: '  ' }, 'azienda.indirizzo.indirizzo: campo obbligatorio'],
-		['cap', { cap: 'ABCDE' }, 'azienda.indirizzo.cap: il CAP è di 5 cifre'],
+		['street', { street: '  ' }, 'company.address.street: field required'],
+		['postalCode', { postalCode: 'ABCDE' }, 'company.address.postalCode: the postal code is 5 digits'],
 		[
 			'position',
 			{ position: { coordinates: [9.19] } },
-			'azienda.indirizzo.position.coordinates: servono esattamente 2 coordinate [longitudine, latitudine]'
+			'company.address.position.coordinates: exactly 2 coordinates are required [longitude, latitude]'
 		]
-	])('refuses a bad seat %s, naming the nested path', (_desc, patch, atteso) => {
-		expect(motivo(() => validaAzienda({ ...(valida as object), indirizzo: { ...indirizzo, ...patch } } as never))).toBe(atteso)
+	])('refuses a bad seat %s, naming the nested path', (_desc, patch, expected) => {
+		expect(reason(() => validateCompany({ ...(validate as object), address: { ...address, ...patch } } as never))).toBe(expected)
 	})
 })

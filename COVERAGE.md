@@ -88,9 +88,9 @@ reachable. That is intentional: 100% here means the server was really booted and
 to all three, not that a mock returned the expected value.
 
 **The integration suite never writes to MongoDB.** It seeds and deletes its own access sessions
-inside the isolated Redis namespace, and touches MongoDB only through `imprenditoriStats`
-(a `countDocuments()` read). Exercising `imprenditoreAdd` / `imprenditoreDel` /
-`imprenditoreUpdate` for real would mean writing to the dev database and satisfying the full
+inside the isolated Redis namespace, and touches MongoDB only through `shopOwnersStats`
+(a `countDocuments()` read). Exercising `shopOwnerAdd` / `shopOwnerDel` /
+`shopOwnerUpdate` for real would mean writing to the dev database and satisfying the full
 `$jsonSchema` validator; those resolvers are covered by the unit project instead, with
 `tryCatchRethrow` left unmocked so failures really travel through it.
 
@@ -98,8 +98,8 @@ inside the isolated Redis namespace, and touches MongoDB only through `imprendit
 
 `vitest.config.mts` inlines `@thedoctorweb_agency/marketplace-common` and `@axiumine/koa-utils`
 alongside `graphql` / `@apollo/server` / `@as-integrations`. The schema embeds GraphQL objects
-those two packages build (`GraphQLIndirizzoBaseFrag`, `GraphQLPositionFrag`,
-`GraphQLInputAnagraficaImprenditore`, `GraphQLInputLogin`), so they have to see the *same*
+those two packages build (`GraphQLBaseAddressFrag`, `GraphQLPositionFrag`,
+`GraphQLInputShopOwnerPersonalData`, `GraphQLInputLogin`), so they have to see the *same*
 transformed `graphql` copy as the sources — otherwise graphql refuses the type with
 "Cannot use GraphQLObjectType … from another module or realm". The bare `/graphql/` pattern
 already covers `graphql-scalars`, `graphql-upload` and `graphql-depth-limit`.
@@ -138,7 +138,7 @@ block contains only the wiring, no logic.
 Reaching 100% surfaced code that could not be covered because it could not run. Recorded here
 so the deletions are not mistaken for lost features:
 
-- `src/lib/getWeek.mts` and `src/lib/tipoPagamento.mts` — **deleted**. QPANEL car-leasing
+- `src/lib/getWeek.mts` and `src/lib/typePagamento.mts` — **deleted**. QPANEL car-leasing
   leftovers (NLT / CVT / targaprova payment types, ISO week helper) with zero importers
   anywhere in the platform.
 - `authorizationAuthenticatedResourceHandler` — the `x-introspectioncode` bypass dereferenced a
@@ -146,17 +146,17 @@ so the deletions are not mistaken for lost features:
   so it could never succeed and the `if (!introspection)` guard below it was unreachable.
   Guarded with `!introspection &&`, matching the three sibling services. The dead
   `accessToken !== ''` check and an unused `operationName` block went with it.
-- `imprenditoreAdd` — `return Imprenditore.create(doc)` inside a `try` meant the promise escaped
+- `shopOwnerAdd` — `return ShopOwner.create(doc)` inside a `try` meant the promise escaped
   before the `catch` could see it, and the mutation resolved to a Mongoose document against a
   declared `Boolean!`. Now `await`ed, like its two sibling mutations.
 
 Two more defects are **documented in the tests but deliberately left alone**, because fixing
 them is a domain decision rather than a test-porting one:
 
-- `imprenditorePuntiVendita` filters `{ _id: args.idImprenditore }` instead of
-  `{ idImprenditore: args.idImprenditore }`, so it matches nothing in practice.
-- `funImprenditoreUpdate` treats `modifiedCount === 0` as a failure, so re-saving an unchanged
-  anagrafica answers 500.
+- `shopOwnerPuntiVendita` filters `{ _id: args.idShopOwner }` instead of
+  `{ idShopOwner: args.idShopOwner }`, so it matches nothing in practice.
+- `funShopOwnerUpdate` treats `modifiedCount === 0` as a failure, so re-saving an unchanged
+  personalData answers 500.
 
 ## Mutation testing — what is mutated, and what is not
 
