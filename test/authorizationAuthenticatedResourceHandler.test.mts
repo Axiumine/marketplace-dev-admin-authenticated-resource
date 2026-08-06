@@ -18,8 +18,11 @@ function makeCtx(header?: Record<string, string>) {
 }
 
 /** Redis returns a prototype-less object; the handler spreads it, so mimic that shape. */
-function redisSession(_id = OID) {
-	return Object.assign(Object.create(null), { _id, email: 'operator@marketplace.test' })
+function redisSession(_id = OID, tier = 'admin') {
+	// `tier` has to be here: the handler asserts it before building ctx.state.user, so a session
+	// without one is refused outright — which is the point of the discriminator, and why every
+	// fixture that expects to get past the guard has to carry the tier this service accepts.
+	return Object.assign(Object.create(null), { _id, email: 'operator@marketplace.test', tier })
 }
 
 describe('authorizationAuthenticatedResourceHandler', () => {

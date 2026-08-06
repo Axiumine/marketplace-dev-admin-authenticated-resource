@@ -1,5 +1,5 @@
 import { GraphQLAddressFrag } from '@thedoctorweb_agency/marketplace-common/schema/types/fragments/GraphQLAddressFrag'
-import { GraphQLFloat, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql'
+import { GraphQLBoolean, GraphQLFloat, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql'
 
 /**
  * The company's legal seat, as the operator's form sends it.
@@ -48,6 +48,15 @@ export const GraphQLInputCompany = new GraphQLInputObjectType({
 		uniqueCode: { type: GraphQLString },
 		certifiedEmail: { type: new GraphQLNonNull(GraphQLString) },
 		address: { type: new GraphQLNonNull(GraphQLInputCompanyAddress) },
-		registryExtract: { type: new GraphQLNonNull(GraphQLString) }
+		registryExtract: { type: new GraphQLNonNull(GraphQLString) },
+		// ⚠️ The database refuses `published: true` unless `slug` and `publicName` both arrive with it —
+		// the collection validator carries that as an `$expr` beside its `$jsonSchema`, and an `$expr`
+		// runs on updates as well as inserts. So publishing a shop and naming it cannot be two saves:
+		// a `companyUpdate` that flips the flag while leaving either box empty is rejected by MongoDB,
+		// not by this schema.
+		publicName: { type: GraphQLString },
+		slug: { type: GraphQLString },
+		description: { type: GraphQLString },
+		published: { type: new GraphQLNonNull(GraphQLBoolean) }
 	})
 })

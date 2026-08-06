@@ -1,6 +1,6 @@
 import { GraphQLBaseAddressFrag } from '@thedoctorweb_agency/marketplace-common/schema/types/fragments/GraphQLBaseAddressFrag'
 import { GraphQLPositionFrag } from '@thedoctorweb_agency/marketplace-common/schema/types/fragments/GraphQLPositionFrag'
-import { GraphQLID, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
+import { GraphQLBoolean, GraphQLID, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
 
 /**
  * A company, as its own entity.
@@ -31,7 +31,24 @@ export const GraphQLCompany = new GraphQLObjectType({
 		address: { type: new GraphQLNonNull(GraphQLCompanyAddress) },
 		// The path of the uploaded registryExtract, not the document. Required, and capped at 1000 characters by
 		// the collection — it was the one unbounded string on the embedded shape.
-		registryExtract: { type: new GraphQLNonNull(GraphQLString) }
+		registryExtract: { type: new GraphQLNonNull(GraphQLString) },
+		// The shop listing, added 2026-08-04 with the catalogue. A company IS the shop here — there is no
+		// `puntoVendita` collection any more — so the storefront's heading, URL and body text have nowhere
+		// else to live.
+		//
+		// `publicName` is the *insegna*, the trading name over the door, and is not `legalName`: a *ragione
+		// sociale* carries the legal form ("… S.r.l.") and is the wrong string on a customer-facing card.
+		//
+		// The three are nullable because the collection made them optional — `collMod` cannot re-validate
+		// rows already stored, and no slug can be derived from a ragione sociale without inventing one. What
+		// keeps them from being permanently blank is the collection's `$expr`: `published: true` is refused
+		// unless `slug` and `publicName` are both strings.
+		publicName: { type: GraphQLString },
+		slug: { type: GraphQLString },
+		description: { type: GraphQLString },
+		// The only one of the four that is `required` in the collection, and so NonNull here: the three-step
+		// widen → backfill → narrow the migration paid for means every stored row has it.
+		published: { type: new GraphQLNonNull(GraphQLBoolean) }
 	})
 })
 

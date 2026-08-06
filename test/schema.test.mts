@@ -80,18 +80,20 @@ describe('schema', () => {
 		expect(result.errors).toBeUndefined()
 	})
 
-	it('exposes the six admin queries', () => {
+	it('exposes the eight admin queries', () => {
 		expect(fieldsOf('QueriesApi')).toEqual([
 			'infoAdminAfterLogin',
 			'shopOwnersActiveTbl',
 			'shopOwnersStats',
 			'shopOwnersPerPeriod',
 			'shopOwnerById',
-			'shopOwnerCompanies'
+			'shopOwnerCompanies',
+			'companyItems',
+			'itemCategories'
 		])
 	})
 
-	it('exposes the eleven mutations', () => {
+	it('exposes the sixteen mutations', () => {
 		expect(fieldsOf('MutationsApi')).toEqual([
 			'adminUpdatePwd',
 			'shopOwnerAdd',
@@ -103,8 +105,21 @@ describe('schema', () => {
 			'shopOwnerUpdateStatus',
 			'companyAdd',
 			'companyDel',
-			'companyUpdate'
+			'companyUpdate',
+			'itemCategoryAdd',
+			'itemCategoryDel',
+			'itemCategoryUpdate',
+			'itemDel',
+			'itemUpdatePublished'
 		])
+	})
+
+	// The operator writes the taxonomy and moderates items; it never authors one. `itemAdd` and
+	// `itemUpdate` live on 4026 only, and their absence here is the tier boundary — an operator with a
+	// way to write an item into somebody's catalogue is a different product.
+	it('gives the operator no way to author an item', () => {
+		expect(fieldsOf('MutationsApi')).not.toContain('itemAdd')
+		expect(fieldsOf('MutationsApi')).not.toContain('itemUpdate')
 	})
 
 	it.each([
@@ -125,7 +140,13 @@ describe('schema', () => {
 		// enforced — the resolver never sees an argument the type system does not declare.
 		['companyAdd', ['idShopOwner', 'company'], 'adds a company to a shopOwner'],
 		['companyDel', ['_id'], 'deletes a company'],
-		['companyUpdate', ['_id', 'company'], 'updates a company']
+		['companyUpdate', ['_id', 'company'], 'updates a company'],
+		['itemCategoryAdd', ['itemCategory'], 'adds an item category'],
+		['itemCategoryDel', ['_id'], 'deletes an item category'],
+		['itemCategoryUpdate', ['_id', 'itemCategory'], 'updates an item category'],
+		['itemDel', ['_id'], 'deletes an item'],
+		// Two arguments and no input object: moderation flips one flag, and the shape says so.
+		['itemUpdatePublished', ['_id', 'published'], 'publishes or unpublishes an item']
 	])('%s takes the arguments the resolver reads', (name, expected, description) => {
 		const field = types.get('MutationsApi')?.fields?.find((f) => f.name === name)
 		expect(field?.args.map((a) => a.name)).toEqual(expected)
@@ -142,6 +163,9 @@ describe('schema', () => {
 
 	it.each([
 		['shopOwnerCompanies', ['idShopOwner'], 'Get the companies of a shopOwner'],
+		['companyItems', ['idCompany'], 'Get the items of a company'],
+		// No arguments at all: the taxonomy is bounded by hand and the screen renders it whole.
+		['itemCategories', [], 'Get all the item categories'],
 		['shopOwnerById', ['idShopOwner'], 'Get a shopOwner by id'],
 		['shopOwnersActiveTbl', ['offset', 'limit', 'search', 'sortBy', 'sortDir'], 'Get shopOwners for the table'],
 		['shopOwnersPerPeriod', ['period'], 'Time series of registered shopOwners'],
@@ -299,7 +323,13 @@ describe('object types', () => {
 			'uniqueCode',
 			'certifiedEmail',
 			'address',
-			'registryExtract'
+			'registryExtract',
+			// The shop-listing half, added with the catalogue: `legalName` is a legal instrument and is
+			// the wrong thing to print on a card, so the trading name is its own field.
+			'publicName',
+			'slug',
+			'description',
+			'published'
 		])
 		// Same shared fragment as the shopOwner's address, so the four base fields cannot drift apart. The
 		// position is non-null here and nullable there: unlike the shopOwner's, every company seat is
@@ -312,13 +342,46 @@ describe('object types', () => {
 		})
 	})
 
-	// The two nullable fields, and the only two. They mirror the collection's `required` array — `taxCode`
+	// The nullable fields, and the only ones. They mirror the collection's `required` array — `taxCode`
 	// did not exist before the extraction, so no stored company carries one, and a GraphQLNonNull on
-	// either would turn every one of those rows into a query that errors.
-	it('leaves taxCode and uniqueCode nullable, and nothing else', () => {
+	// either would turn every one of those rows into a query that errors. The three public fields are
+	// nullable for the same reason: they were added to a populated collection, and `collMod` does not
+	// re-validate stored documents, so requiring them would have taken a widen → backfill → narrow of
+	// data nobody has written yet. `published` is the exception — the migration backfilled it `false`
+	// on every existing row in the same step, which is what makes it safe to require.
+	it('leaves taxCode, uniqueCode and the three public fields nullable, and nothing else', () => {
 		const nonNull = (types.get('GraphQLCompany')?.fields ?? []).filter((f) => f.type.kind !== 'NON_NULL').map((f) => f.name)
 
-		expect(nonNull).toEqual(['taxCode', 'uniqueCode'])
+		expect(nonNull).toEqual(['taxCode', 'uniqueCode', 'publicName', 'slug', 'description'])
+	})
+
+	// Flat: `idCategory` is an id and not a nested category object, because the operator's screen loads
+	// the taxonomy once with `itemCategories` and joins client-side. A resolver-level join would run one
+	// lookup per item on a list that can be a whole shop's catalogue.
+	it('GraphQLItem carries the item, its company and its category', () => {
+		expect(fieldsOf('GraphQLItem')).toEqual(['_id', 'idCompany', 'idCategory', 'name', 'description', 'slug', 'published'])
+	})
+
+	// Nothing on an item is optional, and that is the collection's `required` array showing through: an
+	// item with no name or no category cannot be listed, filtered or linked to, so there is no half-built
+	// state worth storing.
+	it('leaves nothing on an item nullable', () => {
+		const nullable = (types.get('GraphQLItem')?.fields ?? []).filter((f) => f.type.kind !== 'NON_NULL').map((f) => f.name)
+
+		expect(nullable).toEqual([])
+	})
+
+	// `idParent` is the one nullable field, and the nullability IS the tree: absent means top-level,
+	// present means subcategory. A depth field or a `children` list would be a second encoding of the
+	// same fact, free to disagree with this one.
+	it('GraphQLItemCategory encodes the tree in a nullable idParent', () => {
+		expect(fieldsOf('GraphQLItemCategory')).toEqual(['_id', 'idParent', 'name', 'slug', 'position'])
+
+		const nullable = (types.get('GraphQLItemCategory')?.fields ?? [])
+			.filter((f) => f.type.kind !== 'NON_NULL')
+			.map((f) => f.name)
+
+		expect(nullable).toEqual(['idParent'])
 	})
 })
 
@@ -342,5 +405,19 @@ describe('input types', () => {
 	// literal instead; putting `type` back would silently hand that decision to the client.
 	it('gives the position inputs no way to name a geometry other than Point', () => {
 		expect(inputFieldsOf('GraphQLInputCompanyPosition')).toEqual(['coordinates'])
+	})
+
+	// The write shape of a category is the read shape minus `_id`, reordered so the two fields the
+	// operator types come first. Spelled out rather than derived from `GraphQLItemCategory`, because
+	// the orders genuinely differ and deriving it would only assert that they do not.
+	it('takes a category as one object', () => {
+		expect(inputFieldsOf('GraphQLInputItemCategory')).toEqual(['name', 'slug', 'idParent', 'position'])
+	})
+
+	// Asserted as an absence, like `adminUpdatePwd`'s missing `_id`. An operator moderates a catalogue,
+	// it does not write one — so there is no input type for an item on this tier at all, and the two
+	// item mutations here take scalars.
+	it('gives the operator no input shape for an item', () => {
+		expect(types.has('GraphQLInputItem')).toBe(false)
 	})
 })

@@ -1147,14 +1147,21 @@ describe('company mutations (real company collection, real unique indexes)', () 
 		const vatNumber = vatNumberItest()
 
 		try {
-			expect((await gql(addMutation(first._id.toHexString(), vatNumber, certifiedEmailItest()), session.headers)).status).toBe(200)
+			expect((await gql(addMutation(first._id.toHexString(), vatNumber, certifiedEmailItest()), session.headers)).status).toBe(
+				200
+			)
 			await created(vatNumber)
 
-			const { status, json } = await gql(addMutation(secondOwner._id.toHexString(), vatNumber, certifiedEmailItest()), session.headers)
+			const { status, json } = await gql(
+				addMutation(secondOwner._id.toHexString(), vatNumber, certifiedEmailItest()),
+				session.headers
+			)
 
 			expect(status).toBe(409)
 			expect(json.errors?.[0]?.message).toBe('Conflict')
-			expect(json.errors?.[0]?.extensions?.description).toBe('VAT number or certified email already registered by another company')
+			expect(json.errors?.[0]?.extensions?.description).toBe(
+				'VAT number or certified email already registered by another company'
+			)
 			expect(await db().collection('company').countDocuments({ vatNumber })).toBe(1)
 		} finally {
 			await session.cleanup()
@@ -1178,7 +1185,9 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			const { status, json } = await gql(addMutation(owner._id.toHexString(), secondVatNumber, certifiedEmail), session.headers)
 
 			expect(status).toBe(409)
-			expect(json.errors?.[0]?.extensions?.description).toBe('VAT number or certified email already registered by another company')
+			expect(json.errors?.[0]?.extensions?.description).toBe(
+				'VAT number or certified email already registered by another company'
+			)
 			expect(await created(secondVatNumber)).toBeNull()
 		} finally {
 			await session.cleanup()
@@ -1194,7 +1203,10 @@ describe('company mutations (real company collection, real unique indexes)', () 
 		const vatNumber = vatNumberItest()
 
 		try {
-			const { status, json } = await gql(addMutation(owner._id.toHexString(), vatNumber, certifiedEmailItest(), '1234567890'), session.headers)
+			const { status, json } = await gql(
+				addMutation(owner._id.toHexString(), vatNumber, certifiedEmailItest(), '1234567890'),
+				session.headers
+			)
 
 			expect(status).toBe(400)
 			expect(json.errors?.[0]?.message).toBe('Bad Request')
@@ -1241,11 +1253,16 @@ describe('company mutations (real company collection, real unique indexes)', () 
 		const takenVatNumber = (await db().collection('company').findOne({ _id: otherCompany._id }))?.vatNumber as string
 
 		try {
-			const { status, json } = await gql(updateMutation(company._id.toHexString(), takenVatNumber, certifiedEmailItest()), session.headers)
+			const { status, json } = await gql(
+				updateMutation(company._id.toHexString(), takenVatNumber, certifiedEmailItest()),
+				session.headers
+			)
 
 			expect(status).toBe(409)
 			expect(json.errors?.[0]?.message).toBe('Conflict')
-			expect(json.errors?.[0]?.extensions?.description).toBe('VAT number or certified email already registered by another company')
+			expect(json.errors?.[0]?.extensions?.description).toBe(
+				'VAT number or certified email already registered by another company'
+			)
 
 			// Nothing landed: the whole card is one `$set`, so a rejected write leaves the ragione sociale
 			// and the seat as they were too.
@@ -1262,7 +1279,10 @@ describe('company mutations (real company collection, real unique indexes)', () 
 		const missing = new mongoose.Types.ObjectId()
 
 		try {
-			const { status, json } = await gql(updateMutation(missing.toHexString(), vatNumberItest(), certifiedEmailItest()), session.headers)
+			const { status, json } = await gql(
+				updateMutation(missing.toHexString(), vatNumberItest(), certifiedEmailItest()),
+				session.headers
+			)
 
 			expect(status).toBe(404)
 			expect(json.errors?.[0]?.message).toBe('Oops')
@@ -1317,10 +1337,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			const { status } = await gql(`mutation { companyDel(_id: "${deadCompany._id.toHexString()}") }`, session.headers)
 			expect(status).toBe(200)
 
-			const { json } = await gql(
-				`{ shopOwnerCompanies(idShopOwner: "${owner._id.toHexString()}") { _id } }`,
-				session.headers
-			)
+			const { json } = await gql(`{ shopOwnerCompanies(idShopOwner: "${owner._id.toHexString()}") { _id } }`, session.headers)
 
 			expect(json.errors).toBeUndefined()
 			expect(json.data?.shopOwnerCompanies).toEqual([{ _id: viva._id.toHexString() }])
@@ -1346,7 +1363,9 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			const { status, json } = await gql(addMutation(owner._id.toHexString(), vatNumber, certifiedEmailItest()), session.headers)
 
 			expect(status).toBe(409)
-			expect(json.errors?.[0]?.extensions?.description).toBe('VAT number or certified email already registered by another company')
+			expect(json.errors?.[0]?.extensions?.description).toBe(
+				'VAT number or certified email already registered by another company'
+			)
 			expect(await db().collection('company').countDocuments({ vatNumber })).toBe(1)
 		} finally {
 			await session.cleanup()
@@ -1452,10 +1471,7 @@ describe('shopOwnerCompanies query (real company under a real shopOwner)', () =>
 		await seedCompany(strangerOwner._id)
 
 		try {
-			const { json } = await gql(
-				`{ shopOwnerCompanies(idShopOwner: "${owner._id.toHexString()}") { _id } }`,
-				session.headers
-			)
+			const { json } = await gql(`{ shopOwnerCompanies(idShopOwner: "${owner._id.toHexString()}") { _id } }`, session.headers)
 
 			expect(json.errors).toBeUndefined()
 			expect((json.data?.shopOwnerCompanies as Array<{ _id: string }>).map((a) => a._id).sort()).toEqual(

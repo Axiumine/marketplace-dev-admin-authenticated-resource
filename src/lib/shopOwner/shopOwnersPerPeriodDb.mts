@@ -25,7 +25,7 @@ import { PipelineStage } from 'mongoose'
  * One row per range the GraphQL enum offers, holding all three facts about it together.
  *
  * `granularity` and `format` are NOT asked for by the client and not stored apart from `months`,
- * because they are consequences of the range: a caller able to request day buckets over `TUTTO`
+ * because they are consequences of the range: a caller able to request day buckets over `ALL`
  * would be asking the database for one group per day since the platform opened and the browser to
  * draw them. Keeping the three in one row is also what stops the bucket width and the date format
  * from drifting apart — they describe the same decision and there is one place to change it.
@@ -165,7 +165,7 @@ async function countsByBucket(from: number | null, format: string): Promise<Map<
 	const pipeline: PipelineStage[] = []
 
 	// Only the bounded ranges get a `$match`, and it is what the `{ registeredAt: 1 }` index in
-	// marketplace-db-setup serves. `TUTTO` reads the whole collection by definition, so a stage matching
+	// marketplace-db-setup serves. `ALL` reads the whole collection by definition, so a stage matching
 	// everything would only add work.
 	if (from !== null) {
 		pipeline.push({ $match: { registeredAt: { $gte: new Date(from) } } })

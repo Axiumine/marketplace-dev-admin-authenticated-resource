@@ -1,4 +1,4 @@
-import { coordinate, SHAPE_CAP, SHAPE_PROVINCE, textWithFormat, requiredText } from '@lib/validate/fields.mjs'
+import { coordinate, requiredText, SHAPE_CAP, SHAPE_PROVINCE, textWithFormat } from '@lib/validate/fields.mjs'
 import { ICompanyAddress } from '@thedoctorweb_agency/marketplace-common/models/MongoDBInterfaces/ICompanySchema'
 
 /*
