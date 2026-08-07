@@ -5,6 +5,8 @@ import type { IContextAdminAuthenticatedResource } from '../src/lib/auth/IContex
 
 const findById = vi.fn()
 const companyFind = vi.fn()
+const itemFind = vi.fn()
+const itemCategoryFind = vi.fn()
 const shopOwnersStatsDb = vi.fn()
 const shopOwnersPerPeriodDb = vi.fn()
 const shopOwnersActiveTblDb = vi.fn()
@@ -14,6 +16,10 @@ vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner', () =
 }))
 vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/Company', () => ({
 	Company: { find: companyFind }
+}))
+vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/Item', () => ({ Item: { find: itemFind } }))
+vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/ItemCategory', () => ({
+	ItemCategory: { find: itemCategoryFind }
 }))
 vi.mock('@lib/shopOwner/shopOwnersStatsDb.mjs', () => ({ default: shopOwnersStatsDb }))
 vi.mock('@lib/shopOwner/shopOwnersPerPeriodDb.mjs', () => ({ default: shopOwnersPerPeriodDb }))
@@ -31,6 +37,8 @@ const { shopOwnersActiveTbl } = await import('../src/graphQLApi/schema/queries/s
 const { shopOwnersPerPeriod } = await import('../src/graphQLApi/schema/queries/shopOwnersPerPeriod.mts')
 const { shopOwnersStats } = await import('../src/graphQLApi/schema/queries/shopOwnersStats.mts')
 const { infoAdminAfterLogin } = await import('../src/graphQLApi/schema/queries/infoAdminAfterLogin.mts')
+const { companyItems } = await import('../src/graphQLApi/schema/queries/companyItems.mts')
+const { itemCategories } = await import('../src/graphQLApi/schema/queries/itemCategories.mts')
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
 
@@ -77,6 +85,48 @@ describe('shopOwnerCompanies', () => {
 			idShopOwner: _id,
 			deleted: trusted({ $exists: false })
 		})
+	})
+})
+
+describe('companyItems', () => {
+	beforeEach(() => itemFind.mockReset())
+
+	// ⚠️ The same query the owner runs on 4026 **minus the ownership guard**, and the missing guard is the
+	// tier rather than an omission: an operator owns nothing, and moderating means reading somebody
+	// else's catalogue. Drafts are in for the same reason — an unpublished item is still reportable, and
+	// a moderator who only sees published rows cannot act before the owner publishes.
+	//
+	// So the exact key set is the assertion: a `published: true` tidied in here would quietly halve what
+	// moderation can see.
+	it('lists one company’s live items, drafts included', async () => {
+		const docs = [{ _id }]
+		itemFind.mockReturnValueOnce(chain(docs, false))
+
+		await expect(companyItems.resolve(null, { idCompany: _id })).resolves.toBe(docs)
+
+		expect(itemFind).toHaveBeenCalledExactlyOnceWith({ idCompany: _id, deleted: trusted({ $exists: false }) })
+	})
+})
+
+describe('itemCategories', () => {
+	beforeEach(() => itemCategoryFind.mockReset())
+
+	// No args and no paging: an operator writes this list and nobody else can, so it is bounded by hand,
+	// and the screen needs every row at once to render parents with their children under them.
+	//
+	// The sort is part of the contract, not a nicety — `position` is the operator's chosen order and is
+	// not unique, so without the `_id` tiebreak two categories sharing a position swap places between
+	// calls and the screen reorders itself for no reason.
+	it('lists the whole live taxonomy, flat, ordered by position then _id', async () => {
+		const docs = [{ _id }]
+		const lean = vi.fn().mockResolvedValue(docs)
+		const sort = vi.fn().mockReturnValue({ lean })
+		itemCategoryFind.mockReturnValueOnce({ sort })
+
+		await expect(itemCategories.resolve()).resolves.toBe(docs)
+
+		expect(itemCategoryFind).toHaveBeenCalledExactlyOnceWith({ deleted: trusted({ $exists: false }) })
+		expect(sort).toHaveBeenCalledExactlyOnceWith({ position: 1, _id: 1 })
 	})
 })
 

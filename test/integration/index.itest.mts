@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net'
 
 import { redisClient } from '@axiumine/koa-utils/dataSources/Redis'
 import { hash, verify } from '@node-rs/bcrypt'
+import { TIER } from '@thedoctorweb_agency/marketplace-common/others/Tier'
 import * as dotenv from 'dotenv'
 import type { Server } from 'http'
 import mongoose from 'mongoose'
@@ -58,7 +59,10 @@ async function withSession(email = 'operator@marketplace.test', _id = new mongoo
 	const key = `${REDIS_KEY}${token}`
 
 	seededKeys.push(key)
-	await redisClient.hSet(key, { _id: _id.toHexString(), email })
+	// `tier` is what a real login writes and what this service asserts on every request: the auth
+	// middleware calls assertTier before ctx.state.user is set, so a tier-less seed is refused with
+	// 403 and every test built on this helper fails at the guard instead of reaching its resolver.
+	await redisClient.hSet(key, { _id: _id.toHexString(), email, tier: TIER.admin })
 
 	return {
 		headers: { authorization: `Bearer ${token}` },
@@ -156,6 +160,13 @@ async function seedCompany(idShopOwner: mongoose.Types.ObjectId) {
 			administrator: 'Itest Administrator',
 			certifiedEmail: `itest-${_id.toHexString()}@certifiedEmail.invalid`,
 			address: ADDRESS_SEED,
+			// `published` joined the collection's `required` list in 20260804010000-alter-company-public,
+			// so a seed without it is refused by the validator before any resolver is reached. False is
+			// the honest value here: these tests exercise the legal entity, not the public shop page, and
+			// false is what `companyAdd` writes. `publicName` and `slug` stay off on purpose — the
+			// collection's `$expr` demands them only of a published row, and `slug` carries a unique index
+			// a fixed literal would collide on.
+			published: false,
 			registryExtract: 'itest-registryExtract'
 		})
 	seededCompanies.push(_id)
@@ -710,7 +721,7 @@ describe('shopOwnerAdd / shopOwnerUpdate mutations', () => {
 			const updated = await db().collection('shopOwner').findOne({ _id })
 			expect(updated?.personalData.firstName).toBe('Updated')
 			expect(updated?.personalData.lastName).toBe('Name')
-			expect(updated?.personalData.address.address).toBe('Via Nuova 2')
+			expect(updated?.personalData.address.street).toBe('Via Nuova 2')
 			expect(updated?.personalData.birth).toEqual({ date: new Date('1985-06-15T00:00:00.000Z') })
 			expect(updated?.personalData.contacts).toEqual({ mobile: '3911111111', email })
 		} finally {
@@ -1000,6 +1011,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 				position: { coordinates: [9.6, 45.72] }
 			}
 			registryExtract: "registryExtract-new"
+			published: false
 		}`
 	}
 
@@ -1048,7 +1060,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			const doc = await created(vatNumber)
 			expect(doc?.idShopOwner).toEqual(owner._id)
 			expect(doc?.legalName).toBe('Pizzeria Nuova S.r.l.')
-			expect(doc?.street).toEqual({
+			expect(doc?.address).toEqual({
 				street: 'Via Nuova 7',
 				postalCode: '24030',
 				city: 'Brembate di Sopra',
@@ -1059,17 +1071,24 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			// `additionalProperties: false` plus `bsonType: 'string'` means a cleared box written as null
 			// — which is what GraphQL serialises it to — fails the whole insert. The mongoose version key
 			// rides along because the model declares it and the validator allows it.
+			//
+			// ⚠️ The list is in `.sort()` order and has to stay that way. It was written against the
+			// pre-rename field names and was never re-sorted afterwards, so it compared a sorted array
+			// against an unsorted literal and could only ever fail — which it did, silently folded into
+			// the same run's tier failures. `published` belongs here because it is `required` on the
+			// collection since 20260804010000-alter-company-public: it is stored, not dropped.
 			expect(Object.keys(doc ?? {}).sort()).toEqual([
 				'__v',
 				'_id',
-				'administrator',
-				'idShopOwner',
 				'address',
+				'administrator',
 				'certifiedEmail',
-				'vatNumber',
-				'legalName',
 				'contactPerson',
-				'registryExtract'
+				'idShopOwner',
+				'legalName',
+				'published',
+				'registryExtract',
+				'vatNumber'
 			])
 		} finally {
 			await session.cleanup()
@@ -1268,7 +1287,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			// and the seat as they were too.
 			const unchanged = await db().collection('company').findOne({ _id: company._id })
 			expect(unchanged?.legalName).toMatch(/^Itest Pizzeria /)
-			expect(unchanged?.address.address).toBe('Via Test 1')
+			expect(unchanged?.address.street).toBe('Via Test 1')
 		} finally {
 			await session.cleanup()
 		}
@@ -1420,7 +1439,7 @@ describe('shopOwnerCompanies query (real company under a real shopOwner)', () =>
 
 		try {
 			const { json } = await gql(
-				`{ shopOwnerCompanies(idShopOwner: "${owner._id.toHexString()}") { _id idShopOwner legalName vatNumber taxCode contactPerson administrator uniqueCode certifiedEmail registryExtract address { address cap city province position { type coordinates } } } }`,
+				`{ shopOwnerCompanies(idShopOwner: "${owner._id.toHexString()}") { _id idShopOwner legalName vatNumber taxCode contactPerson administrator uniqueCode certifiedEmail registryExtract address { street postalCode city province position { type coordinates } } } }`,
 				session.headers
 			)
 

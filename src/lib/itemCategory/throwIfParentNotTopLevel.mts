@@ -23,10 +23,14 @@ import { trusted, Types } from 'mongoose'
  *     make a cycle, and the only one two levels leave room for.
  *
  * `_id` is the row being written, absent on the create path. It only exists to catch the self-parent
- * case, which on create is impossible: the id is minted after this runs.
+ * case, which on create is impossible: the id is minted after this runs — and needs no branch of its
+ * own, since `String(undefined)` is `'undefined'` and never equals a 24-character hex.
+ *
+ * Compared as strings rather than with `.equals()`: `idParent` is cast from a GraphQLID while `_id`
+ * comes from the resolver's own argument, so the two are equal in value while being different objects.
  */
 export async function throwIfParentNotTopLevel(idParent: Types.ObjectId, _id?: Types.ObjectId) {
-	if (_id !== undefined && String(_id) === String(idParent)) {
+	if (String(_id) === String(idParent)) {
 		throwErrorWrongUserInput('itemCategory.idParent: a category cannot be its own parent')
 	}
 

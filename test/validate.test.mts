@@ -1,3 +1,4 @@
+import { Types } from 'mongoose'
 import { describe, expect, it } from 'vitest'
 
 import { failure, reason } from './errors.mts'
@@ -27,6 +28,8 @@ const { validateShopOwnerNote } = await import('../src/lib/validate/validateShop
 const { validateCompany } = await import('../src/lib/validate/validateCompany.mts')
 
 const { validateAddress } = await import('../src/lib/validate/validateAddress.mts')
+
+const { validateItemCategory } = await import('../src/lib/validate/validateItemCategory.mts')
 
 /** An address of exactly `MAX_EMAIL` characters: 244 of local part, plus the six of `@ex.it`. */
 const emailAtLimit = `${'a'.repeat(MAX_EMAIL - 6)}@ex.it`
@@ -616,6 +619,39 @@ describe('validateCompany', () => {
 		)
 	})
 
+	// The shop listing, from 20260804000200. All three are optional because a company exists as a legal
+	// entity long before its owner writes a public page for it — and `published` is not checked against
+	// them here on purpose: the collection's `$expr` refuses `published: true` without a slug and a
+	// publicName, and that copy of the rule is the one no write can bypass.
+	it('carries the three public fields through, trimmed, when the shop has a listing', () => {
+		const result = validateCompany({
+			...(validate as object),
+			publicName: ' Pizzeria Mario ',
+			slug: ' pizzeria-mario ',
+			description: ' Wood oven since 1975. '
+		} as never)
+
+		expect(result.publicName).toBe('Pizzeria Mario')
+		expect(result.slug).toBe('pizzeria-mario')
+		expect(result.description).toBe('Wood oven since 1975.')
+	})
+
+	// ⚠️ The slug is the permanent address of a public page, so a value that differs from what was typed
+	// is refused rather than silently rewritten: an operator who typed `Pizzeria` is told the slug is
+	// lowercase, instead of finding out after the link has been shared. `--` is rejected by the same
+	// shape — a doubled hyphen comes from a name with punctuation in it and is not what a reader expects
+	// to see in a URL.
+	it.each([
+		['publicName over the cap', { publicName: 'a'.repeat(101) }, 'company.publicName: max 100 characters'],
+		['an uppercase slug', { slug: 'Pizzeria' }, 'company.slug: lowercase letters, digits and single hyphens only'],
+		['a doubled hyphen', { slug: 'pizzeria--mario' }, 'company.slug: lowercase letters, digits and single hyphens only'],
+		['a one-character slug', { slug: 'a' }, 'company.slug: min 2 characters'],
+		['slug over the cap', { slug: 'a'.repeat(121) }, 'company.slug: max 120 characters'],
+		['description over the cap', { description: 'a'.repeat(2001) }, 'company.description: max 2000 characters']
+	])('refuses %s', (_desc, patch, expected) => {
+		expect(reason(() => validateCompany({ ...(validate as object), ...patch } as never))).toBe(expected)
+	})
+
 	// ⚠️ 1000, and it is the collection's cap rather than an invented one — the field was the single
 	// unbounded string on the embedded shape until 20260803000000 put a `maxLength` on it.
 	it('accepts a registryExtract of exactly 1000 characters and refuses 1001', () => {
@@ -655,5 +691,69 @@ describe('validateCompany', () => {
 		]
 	])('refuses a bad seat %s, naming the nested path', (_desc, patch, expected) => {
 		expect(reason(() => validateCompany({ ...(validate as object), address: { ...address, ...patch } } as never))).toBe(expected)
+	})
+})
+
+describe('validateItemCategory', () => {
+	const idParent = new Types.ObjectId('507f1f77bcf86cd799439030')
+
+	const validate = { name: ' Bakery ', slug: ' bakery-goods ', idParent, position: 3 } as never
+
+	it('returns a trimmed copy, keeping the parent it was handed', () => {
+		expect(validateItemCategory(validate)).toEqual({
+			name: 'Bakery',
+			slug: 'bakery-goods',
+			idParent,
+			position: 3
+		})
+	})
+
+	// ⚠️ `idParent` is passed through untouched and nothing here invents one. Whether it names a row that
+	// exists, is live and is itself top-level takes three database reads, so all three live in
+	// `throwIfParentNotTopLevel` — this layer only guarantees the shape.
+	//
+	// Absent means absent, in both spellings: GraphQL serialises a cleared box to `null`, and the
+	// collection declares `bsonType: 'objectId'` under `additionalProperties: false`, so a null written
+	// through would fail the whole save.
+	it.each([
+		['undefined', undefined],
+		['null', null]
+	])('drops an %s idParent instead of writing it', (_desc, absent) => {
+		const result = validateItemCategory({ ...(validate as object), idParent: absent } as never)
+
+		expect(Object.keys(result)).toEqual(['name', 'slug', 'position'])
+	})
+
+	// ⚠️ `position` is checked here rather than left to the collection because `bsonType: 'int'` answers
+	// `Document failed validation` and names no field — which Apollo turns into a 500 the operator cannot
+	// act on. Zero is the first legal ordinal and 0.5 is the failure the collection would have swallowed.
+	it.each([
+		['zero', 0],
+		['a large ordinal', 9999]
+	])('accepts %s as a position', (_desc, position) => {
+		expect(validateItemCategory({ ...(validate as object), position } as never).position).toBe(position)
+	})
+
+	// The floor is inclusive, and two characters is a real slug — `it`, `hi`, a two-letter brand. A `<=`
+	// written where the `<` belongs rejects them all while every longer slug keeps working, which is the
+	// kind of bound nobody notices until a category refuses to save.
+	it('accepts a slug of exactly the minimum length', () => {
+		expect(validateItemCategory({ ...(validate as object), slug: 'ab' } as never).slug).toBe('ab')
+	})
+
+	it.each([
+		['a fractional position', { position: 1.5 }, 'itemCategory.position: whole number required'],
+		['a non-numeric position', { position: 'first' }, 'itemCategory.position: whole number required'],
+		// Negative sorts before everything and means nothing; `minimum: 0` is the collection's own bound.
+		['a negative position', { position: -1 }, 'itemCategory.position: cannot be negative'],
+		['a blank name', { name: '   ' }, 'itemCategory.name: field required'],
+		['a name over the cap', { name: 'a'.repeat(101) }, 'itemCategory.name: max 100 characters'],
+		['a blank slug', { slug: '' }, 'itemCategory.slug: field required'],
+		// ⚠️ 120 against the name's 100, and the gap is deliberate: a slug is derived from a name and
+		// hyphens make it grow, so a 100-character name that survives `requiredText` must still fit.
+		['a slug over the cap', { slug: 'a'.repeat(121) }, 'itemCategory.slug: max 120 characters'],
+		['an uppercase slug', { slug: 'Bakery' }, 'itemCategory.slug: lowercase letters, digits and single hyphens only']
+	])('refuses %s', (_desc, patch, expected) => {
+		expect(reason(() => validateItemCategory({ ...(validate as object), ...patch } as never))).toBe(expected)
 	})
 })
