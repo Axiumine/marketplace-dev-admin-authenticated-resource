@@ -13,7 +13,7 @@ const { default: shopOwnersActiveTblDb } = await import('../src/lib/shopOwner/sh
 // Spelled out rather than imported from the module under test. Asserting against
 // SHOP_OWNERS_TBL_SELECTION is a tautology — it compares the constant with itself, so emptying it
 // changes both sides at once and the test still passes while the query stops projecting and starts
-// pulling whole documents, `login.password` included, into memory for every row of every page.
+// pulling whole documents, `login.password` included, into memory for every shopOwner of every page.
 const SELECTION = '_id registeredAt personalData.firstName personalData.lastName personalData.address'
 
 type Args = Parameters<typeof shopOwnersActiveTblDb>[0]

@@ -6,7 +6,7 @@ import { Types } from 'mongoose'
  * The moderation switch: takes an item off the public site, or puts it back.
  *
  * The whole of the operator's write access to a shop's catalogue, beside `itemDel`. An operator does
- * not author items — the shop owner does, on 4026 — so this is one flag and not a save of the row.
+ * not author items — the shop owner does, on 4026 — so this is one flag and not a save of the item.
  *
  * ⚠️ **Nothing records that it was an operator who flipped it.** The owner sees an unpublished item and
  * can publish it again from their own tier, which makes this a takedown that does not stick. That is

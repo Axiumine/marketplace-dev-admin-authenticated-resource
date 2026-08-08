@@ -8,13 +8,13 @@ import { trusted, Types } from 'mongoose'
  * Marks one category deleted — a soft delete, like every other delete on this tier.
  *
  * **Refused while anything live still points at it**, which is not how `companyDel` behaves and is
- * deliberate. `item.idCategory` is required and MongoDB has no foreign keys, so retiring a category
- * under a stocked shop leaves every one of those items filed under a row no read path returns: the
- * items stay resolvable, the filter they belong to does not exist, and nothing anywhere would have
- * said so. A subcategory of a retired parent is the same failure one level up — unreachable from
- * `/category/:slug/:subSlug` while looking perfectly healthy in the collection.
+ * deliberate. `item.idCategory` is required, so retiring a category under a stocked shop leaves
+ * every one of those items filed under a category no read path returns: the items stay resolvable,
+ * the filter they belong to does not exist, and nothing anywhere would have said so. A subcategory of
+ * a retired parent is the same failure one level up — unreachable from `/category/:slug/:subSlug`
+ * while looking perfectly healthy in the collection.
  *
- * The alternative — cascade — was rejected: deleting one row would silently withdraw an unbounded
+ * The alternative — cascade — was rejected: deleting one category would silently withdraw an unbounded
  * number of other shop owners' items, which is not a decision an operator should be able to take by
  * pressing Delete. Re-filing them first is the operator's call to make explicitly.
  *

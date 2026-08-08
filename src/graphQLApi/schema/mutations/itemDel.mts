@@ -11,7 +11,7 @@ interface IArgs {
  * Removes one item, whoever owns it.
  *
  * The heavier half of moderation — `itemUpdatePublished` hides an item and the owner can undo it, this
- * one retires the row. Soft delete, so the `{ idCompany, slug }` unique index stays occupied.
+ * one retires the item. Soft delete, so the `{ idCompany, slug }` unique index stays occupied.
  */
 export const itemDel = {
 	type: new GraphQLNonNull(GraphQLBoolean),

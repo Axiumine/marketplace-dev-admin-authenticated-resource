@@ -10,7 +10,7 @@ import { GraphQLBoolean, GraphQLID, GraphQLNonNull, GraphQLObjectType } from 'gr
  * `GraphQLInputItem` here for that reason.
  *
  * `published` is exposed because it is exactly what moderation acts on, and drafts are visible on this
- * tier: an operator reviewing a report needs to see the row whether or not the owner has it live.
+ * tier: an operator reviewing a report needs to see the item whether or not the owner has it live.
  */
 export const GraphQLItem = new GraphQLObjectType({
 	name: 'GraphQLItem',

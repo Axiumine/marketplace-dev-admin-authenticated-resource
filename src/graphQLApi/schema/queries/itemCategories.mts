@@ -7,7 +7,7 @@ import { trusted } from 'mongoose'
  * The whole taxonomy, flat, for the operator's category screen.
  *
  * No args and no paging: the list is bounded by hand — an operator writes it, nobody else can — and the
- * screen needs every row at once to render parents with their children under them. Flat rather than
+ * screen needs every category at once to render parents with their children under them. Flat rather than
  * nested because the depth cap is two, so the client groups by `idParent` in one pass.
  *
  * Sorted by `position` then `_id`: `position` is the operator's chosen order and is not unique, so

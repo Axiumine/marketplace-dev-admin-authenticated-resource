@@ -12,7 +12,7 @@ interface IArgs {
  *
  * The same query the owner runs on 4026, minus the ownership guard — an operator owns nothing, and
  * moderating means looking at somebody else's catalogue. Drafts are included for the same reason they
- * are there: an unpublished item is still reportable, and a moderator who only sees published rows
+ * are there: an unpublished item is still reportable, and a moderator who only sees published items
  * cannot act before the owner publishes.
  */
 export const companyItems = {

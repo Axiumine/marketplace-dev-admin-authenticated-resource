@@ -7,9 +7,9 @@ import { QueryFilter, trusted } from 'mongoose'
  * Server-side paging for the operator's shopOwners table.
  *
  * The query this replaces had no `skip`, no `limit` and no `sort`: it returned every active
- * shopOwner on every page load and let the browser slice the result. That is fine at 20 rows and
- * a growing liability after that — the response size, the Mongo working set and the JSON parse on
- * the client all scale with the collection while the user still looks at 25 rows.
+ * shopOwner on every page load and let the browser slice the result. That is fine at 20 shopOwners
+ * and a growing liability after that — the response size, the Mongo working set and the JSON parse
+ * on the client all scale with the collection while the user still looks at 25 table rows.
  */
 
 export const SHOP_OWNERS_TBL_DEFAULT_LIMIT = 25
@@ -30,7 +30,7 @@ export const SHOP_OWNERS_TBL_SELECTION = '_id registeredAt personalData.firstNam
  * GraphQL enum name → the Mongo paths to sort by, in order. `_id` is appended to every one of these
  * by `buildSort`, so the orderings below are the tie-broken prefix, not the whole sort.
  *
- * LAST_NAME carries two paths because sorting people by surname alone leaves same-surname rows in
+ * LAST_NAME carries two paths because sorting people by surname alone leaves same-surname people in
  * arbitrary order, which reads as a bug in a table. Every entry has a matching compound index in
  * marketplace-db-setup (`tbl_active_*`); adding a key here without adding the index brings back the
  * blocking in-memory sort those indexes exist to prevent.
@@ -141,7 +141,7 @@ function assertPaging(offset: number, limit: number): void {
  * single compound index serve both ASC and DESC (an index satisfies a sort or its complete inverse,
  * nothing in between) — and the `_id` tail is what makes offset paging stable, because equal-keyed
  * documents otherwise come back in an order MongoDB is free to vary between the two queries, so a
- * row can show up on two pages while another is skipped.
+ * document can show up on two pages while another is skipped.
  */
 function buildSort(sortBy: ShopOwnersTblSortField, sortDir: ShopOwnersTblSortDirection): Record<string, 1 | -1> {
 	const order = SORT_ORDERS[sortDir]

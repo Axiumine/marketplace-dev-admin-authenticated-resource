@@ -11,7 +11,7 @@ import { GraphQLBoolean, GraphQLID, GraphQLNonNull, GraphQLObjectType, GraphQLSt
  * unique VAT number no longer refuses the second of them.
  *
  * `idShopOwner` is exposed rather than kept internal: the operator app reaches a company through its
- * owner's detail page and the field is what a client re-reading one row can check it against.
+ * owner's detail page and the field is what a client re-reading one company can check it against.
  *
  * `taxCode` and `uniqueCode` are the two nullable fields, matching the collection's `required` array. Neither
  * is a gap to be filled in later — no stored company carries a `taxCode`, since the field did not exist
@@ -41,14 +41,14 @@ export const GraphQLCompany = new GraphQLObjectType({
 		// carries the legal form ("… Ltd") and is the wrong string on a customer-facing card.
 		//
 		// The three are nullable because the collection made them optional — `collMod` cannot re-validate
-		// rows already stored, and no slug can be derived from a registered legal name without inventing one. What
+		// documents already stored, and no slug can be derived from a registered legal name without inventing one. What
 		// keeps them from being permanently blank is the collection's `$expr`: `published: true` is refused
 		// unless `slug` and `publicName` are both strings.
 		publicName: { type: GraphQLString },
 		slug: { type: GraphQLString },
 		description: { type: GraphQLString },
 		// The only one of the four that is `required` in the collection, and so NonNull here: the three-step
-		// widen → backfill → narrow the migration paid for means every stored row has it.
+		// widen → backfill → narrow the migration paid for means every stored document has it.
 		published: { type: new GraphQLNonNull(GraphQLBoolean) }
 	})
 })

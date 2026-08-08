@@ -4,7 +4,7 @@ import { GraphQLID, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLS
  * Everything an operator types about a category, in one object.
  *
  * One argument rather than four, like `GraphQLInputCompany`, because it is one form and one Save —
- * and because it lets the update path `$set` the row in a single atomic write.
+ * and because it lets the update path `$set` the document in a single atomic write.
  *
  * `idParent` is the only nullable field and is what the two levels are made of: send nothing for a
  * top-level category, send the id of a top-level category for a subcategory. Sending the id of a
@@ -13,7 +13,7 @@ import { GraphQLID, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLS
  *
  * `position` is a sort ordinal, not a coordinate — the two senses of the word collide across this
  * codebase and only one of them is GeoJSON. `Int!` rather than optional: the alternative is a listing
- * whose order changes between two reads of the same rows.
+ * whose order changes between two reads of the same documents.
  */
 export const GraphQLInputItemCategory = new GraphQLInputObjectType({
 	name: 'GraphQLInputItemCategory',

@@ -10,8 +10,8 @@ import { Types } from 'mongoose'
 /**
  * Saves one category, whole, in a single atomic write.
  *
- * ⚠️ **Both halves of the depth cap run here, and both are needed.** Filing this row under a parent
- * requires the parent to be top-level (`throwIfParentNotTopLevel`, looking up) *and* this row to have
+ * ⚠️ **Both halves of the depth cap run here, and both are needed.** Filing this category under a parent
+ * requires the parent to be top-level (`throwIfParentNotTopLevel`, looking up) *and* this category to have
  * no subcategories of its own (`throwIfHasChildren`, looking down) — a category with children that
  * gains a parent pushes every one of those children to the third level without a single write naming
  * them.

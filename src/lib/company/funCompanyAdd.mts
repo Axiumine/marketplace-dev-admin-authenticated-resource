@@ -12,7 +12,7 @@ import { trusted, Types } from 'mongoose'
  * The owner is checked first: `idShopOwner` reaches this from the URL of the operator's detail page,
  * `company` carries no foreign-key constraint — MongoDB has none — and the only read path is
  * `shopOwnerCompanies`, which lists by owner. An id that names nothing therefore inserts happily and
- * produces a row reachable only through the same wrong id that created it. A soft-deleted shopOwner
+ * produces a company reachable only through the same wrong id that created it. A soft-deleted shopOwner
  * counts as absent on the same grounds.
  *
  * `_id` is minted here rather than left to mongoose: every model in marketplace-common declares `_id`
@@ -27,7 +27,7 @@ import { trusted, Types } from 'mongoose'
  *
  * Neither carries a `partialFilterExpression`, so a **deleted** company still occupies its VAT number
  * and this rejects the same one being registered again. Deliberate, and the same shape as
- * `shopOwner.login.email_unique`: a partial index would let two rows hold one VAT number the moment
+ * `shopOwner.login.email_unique`: a partial index would let two companies hold one VAT number the moment
  * a deleted company were restored, and there is no restore flow to make that safe.
  */
 export async function funCompanyAdd(idShopOwner: Types.ObjectId, data: ICompanyValidated) {

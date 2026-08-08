@@ -333,7 +333,7 @@ describe('object types', () => {
 		])
 		// Same shared fragment as the shopOwner's address, so the four base fields cannot drift apart. The
 		// position is non-null here and nullable there: unlike the shopOwner's, every company seat is
-		// geocoded at creation because the collection has no rows predating the requirement.
+		// geocoded at creation because the collection has no documents predating the requirement.
 		expect(fieldsOf('GraphQLCompanyAddress')).toEqual(fieldsOf('GraphQLShopOwnerAddress'))
 		expect(typeOfField('GraphQLCompanyAddress', 'position')).toEqual({
 			kind: 'NON_NULL',
@@ -344,11 +344,11 @@ describe('object types', () => {
 
 	// The nullable fields, and the only ones. They mirror the collection's `required` array — `taxCode`
 	// did not exist before the extraction, so no stored company carries one, and a GraphQLNonNull on
-	// either would turn every one of those rows into a query that errors. The three public fields are
+	// either would turn every one of those documents into a query that errors. The three public fields are
 	// nullable for the same reason: they were added to a populated collection, and `collMod` does not
 	// re-validate stored documents, so requiring them would have taken a widen → backfill → narrow of
 	// data nobody has written yet. `published` is the exception — the migration backfilled it `false`
-	// on every existing row in the same step, which is what makes it safe to require.
+	// on every existing document in the same step, which is what makes it safe to require.
 	it('leaves taxCode, uniqueCode and the three public fields nullable, and nothing else', () => {
 		const nonNull = (types.get('GraphQLCompany')?.fields ?? []).filter((f) => f.type.kind !== 'NON_NULL').map((f) => f.name)
 

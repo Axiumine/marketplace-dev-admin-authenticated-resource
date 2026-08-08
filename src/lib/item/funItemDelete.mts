@@ -6,7 +6,7 @@ import { Types } from 'mongoose'
  * Removes one item from the platform — a soft delete, like every other delete on this tier.
  *
  * Unlike the owner's `itemDel` on 4026 this carries no ownership clause, because an operator owns
- * nothing and is owned by nothing: the whole point of the tier is acting on rows that belong to
+ * nothing and is owned by nothing: the whole point of the tier is acting on items that belong to
  * somebody else. The 404 is therefore the only guard, and it is a real one — an id that names no item
  * is a stale client, not a silent success.
  *
@@ -15,7 +15,7 @@ import { Types } from 'mongoose'
  *
  * `Date.now()`, a number, cast to the schema's `Date` path by mongoose on the way out. No `deleted`
  * filter on the write itself: a re-delete stamps a fresh instant, which is the state the operator asked
- * for, and the row is invisible to every read path either way.
+ * for, and the item is invisible to every read path either way.
  */
 export async function funItemDelete(_id: Types.ObjectId) {
 	const ret = await Item.updateOne({ _id: _id }, { $set: { deleted: Date.now() } }).exec()

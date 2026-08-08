@@ -13,7 +13,7 @@ import { Types } from 'mongoose'
 const MAX_NAME = 100
 const MAX_SLUG = 120
 
-/** What the `GraphQLInputItemCategory` argument carries: the stored row minus the fields nobody sends. */
+/** What the `GraphQLInputItemCategory` argument carries: the stored document minus the fields nobody sends. */
 export type IItemCategoryInput = Omit<IItemCategorySchema, '_id' | 'deleted' | '__v'>
 
 /** The same fields, normalised and ready to be written whole. */
@@ -27,7 +27,7 @@ export type IItemCategoryValidated = IItemCategoryInput
  * naming no field, which is the exact failure this whole validation layer exists to stop. `minimum: 0`
  * is the collection's; a negative ordinal sorts before everything and means nothing.
  *
- * `idParent` is passed through untouched. Whether it names a row that exists, is live, and is itself
+ * `idParent` is passed through untouched. Whether it names a category that exists, is live, and is itself
  * top-level cannot be answered here — all three take a database read — so they are the resolver's job,
  * in `throwIfParentNotTopLevel`. What this does guarantee is that a category cannot be its own parent
  * *shape*: nothing here invents an `idParent` that was not sent.
