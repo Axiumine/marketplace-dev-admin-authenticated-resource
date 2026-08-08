@@ -2,6 +2,18 @@ import { randomUUID } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 
 import { redisClient } from '@axiumine/koa-utils/dataSources/Redis'
+import { decryptDocument } from '@axiumine/marketplace-common/encryption/decryptDocument'
+import { encryptDocument } from '@axiumine/marketplace-common/encryption/encryptDocument'
+import {
+	ENCRYPTED_FIELDS_ADMIN,
+	ENCRYPTED_FIELDS_COMPANY,
+	ENCRYPTED_FIELDS_SHOP_OWNER,
+	KEY_ALT_NAME_ADMIN,
+	KEY_ALT_NAME_COMPANY,
+	KEY_ALT_NAME_SHOP_OWNER
+} from '@axiumine/marketplace-common/encryption/encryptedFields'
+import { ALGORITHM_DETERMINISTIC } from '@axiumine/marketplace-common/encryption/EncryptionAlgorithm'
+import { encryptValue } from '@axiumine/marketplace-common/encryption/fieldEncryption'
 import { TIER } from '@axiumine/marketplace-common/others/Tier'
 import { hash, verify } from '@node-rs/bcrypt'
 import * as dotenv from 'dotenv'
@@ -91,6 +103,32 @@ function db() {
 }
 
 /**
+ * A raw read whose ciphertext has been turned back into plaintext (ADR-029).
+ *
+ * The raw driver is still what reads — the assertions below are about what MongoDB holds, not about
+ * what a model would hand back — but a personal field on disk is now a `binData` of subtype 6, so an
+ * `expect(...).toBe('an address')` against it can only fail. `decryptDocument` walks whatever it is
+ * given and replaces every piece of subtype-6 ciphertext it finds, so it needs no field list and
+ * stays right when one changes.
+ */
+async function decrypted<T>(doc: T): Promise<T> {
+	await decryptDocument(doc)
+
+	return doc
+}
+
+/**
+ * `login.email` as a filter has to be encrypted to match, because the field is stored under the
+ * deterministic algorithm — the same plaintext always yields the same ciphertext, which is exactly
+ * what makes `$eq` still work, and why the value in the filter has to be the ciphertext too. This is
+ * the one place a test filters on an encrypted field; every other read here is by `_id`, `vatNumber`
+ * or another field ADR-029 leaves in the clear.
+ */
+async function shopOwnerEmailFilter(email: string) {
+	return { 'login.email': await encryptValue(email, ALGORITHM_DETERMINISTIC, KEY_ALT_NAME_SHOP_OWNER) }
+}
+
+/**
  * Inserted with the raw driver rather than the Mongoose model, the platform seeding convention:
  * the insert is then shaped by the collection's own `$jsonSchema` and by nothing else, so a seed
  * cannot inherit whatever the model happens to believe today. That is not hypothetical — the model
@@ -98,6 +136,12 @@ function db() {
  * which the validator refuses under `additionalProperties: false`, so a model write failed outright
  * (fixed in marketplace-common 1.17.0). The raw path was never affected, and will not be by the next
  * drift either.
+ *
+ * ⚠️ The personal fields go through `encryptDocument` first (ADR-029), because the collection now
+ * declares them `binData` and a raw seed of plaintext is rejected by the validator. It runs after
+ * `extra` is spread, so a caller overriding `personalData` gets its override encrypted too — the
+ * fields that stay in the clear are the three `shopOwnersActiveTbl` sorts and searches on, and those
+ * are decided by `ENCRYPTED_FIELDS_SHOP_OWNER` rather than here.
  */
 async function seedShopOwner(extra: Record<string, unknown> = {}) {
 	const email = `itest-${randomUUID()}@marketplace.invalid`
@@ -105,19 +149,25 @@ async function seedShopOwner(extra: Record<string, unknown> = {}) {
 
 	await db()
 		.collection('shopOwner')
-		.insertOne({
-			_id,
-			login: { email, password: PASSWORD_HASH },
-			personalData: {
-				firstName: 'Itest',
-				lastName: 'ShopOwner',
-				birth: { date: new Date('1980-01-01T00:00:00Z') },
-				address: { street: '1 Test Street', postalCode: '01103', city: 'Springfield', province: 'MA' },
-				contacts: { mobile: '3900000000', email }
-			},
-			registeredAt: new Date(),
-			...extra
-		})
+		.insertOne(
+			await encryptDocument(
+				{
+					_id,
+					login: { email, password: PASSWORD_HASH },
+					personalData: {
+						firstName: 'Itest',
+						lastName: 'ShopOwner',
+						birth: { date: new Date('1980-01-01T00:00:00Z') },
+						address: { street: '1 Test Street', postalCode: '01103', city: 'Springfield', province: 'MA' },
+						contacts: { mobile: '3900000000', email }
+					},
+					registeredAt: new Date(),
+					...extra
+				},
+				ENCRYPTED_FIELDS_SHOP_OWNER,
+				KEY_ALT_NAME_SHOP_OWNER
+			)
+		)
 	seededIds.push(_id)
 
 	return { _id, email }
@@ -151,24 +201,30 @@ async function seedCompany(idShopOwner: mongoose.Types.ObjectId) {
 
 	await db()
 		.collection('company')
-		.insertOne({
-			_id,
-			idShopOwner,
-			legalName,
-			vatNumber: vatNumberItest(),
-			contactPerson: 'Itest ContactPerson',
-			administrator: 'Itest Administrator',
-			certifiedEmail: `itest-${_id.toHexString()}@certifiedEmail.invalid`,
-			address: ADDRESS_SEED,
-			// `published` joined the collection's `required` list in 20260804010000-alter-company-public,
-			// so a seed without it is refused by the validator before any resolver is reached. False is
-			// the honest value here: these tests exercise the legal entity, not the public shop page, and
-			// false is what `companyAdd` writes. `publicName` and `slug` stay off on purpose — the
-			// collection's `$expr` demands them only of a published document, and `slug` carries a unique index
-			// a fixed literal would collide on.
-			published: false,
-			registryExtract: 'itest-registryExtract'
-		})
+		.insertOne(
+			await encryptDocument(
+				{
+					_id,
+					idShopOwner,
+					legalName,
+					vatNumber: vatNumberItest(),
+					contactPerson: 'Itest ContactPerson',
+					administrator: 'Itest Administrator',
+					certifiedEmail: `itest-${_id.toHexString()}@certifiedEmail.invalid`,
+					address: ADDRESS_SEED,
+					// `published` joined the collection's `required` list in 20260804010000-alter-company-public,
+					// so a seed without it is refused by the validator before any resolver is reached. False is
+					// the honest value here: these tests exercise the legal entity, not the public shop page, and
+					// false is what `companyAdd` writes. `publicName` and `slug` stay off on purpose — the
+					// collection's `$expr` demands them only of a published document, and `slug` carries a unique index
+					// a fixed literal would collide on.
+					published: false,
+					registryExtract: 'itest-registryExtract'
+				},
+				ENCRYPTED_FIELDS_COMPANY,
+				KEY_ALT_NAME_COMPANY
+			)
+		)
 	seededCompanies.push(_id)
 
 	return { _id, legalName }
@@ -202,12 +258,18 @@ async function seedAdmin(password: string, extra: Record<string, unknown> = {}) 
 
 	await db()
 		.collection('admin')
-		.insertOne({
-			_id,
-			login: { email, password: await hash(password, 4) },
-			personalData: { firstName: 'Itest', lastName: 'Operator' },
-			...extra
-		})
+		.insertOne(
+			await encryptDocument(
+				{
+					_id,
+					login: { email, password: await hash(password, 4) },
+					personalData: { firstName: 'Itest', lastName: 'Operator' },
+					...extra
+				},
+				ENCRYPTED_FIELDS_ADMIN,
+				KEY_ALT_NAME_ADMIN
+			)
+		)
 	seededAdmins.push(_id)
 
 	return { _id, email }
@@ -669,7 +731,11 @@ describe('shopOwnerAdd / shopOwnerUpdate mutations', () => {
 				session.headers
 			)
 
-			const created = await db().collection('shopOwner').findOne({ 'login.email': email })
+			const created = await decrypted(
+				await db()
+					.collection('shopOwner')
+					.findOne(await shopOwnerEmailFilter(email))
+			)
 			// Registered before the assertions: the document is already on the real collection, so a
 			// failing expect below must still leave afterAll something to delete.
 			if (created) seededIds.push(created._id)
@@ -718,7 +784,7 @@ describe('shopOwnerAdd / shopOwnerUpdate mutations', () => {
 
 			// The whole `personalData` is replaced, so every field is the new one — and the two the old
 			// model dropped are present rather than silently missing from a half-cast $set.
-			const updated = await db().collection('shopOwner').findOne({ _id })
+			const updated = await decrypted(await db().collection('shopOwner').findOne({ _id }))
 			expect(updated?.personalData.firstName).toBe('Updated')
 			expect(updated?.personalData.lastName).toBe('Name')
 			expect(updated?.personalData.address.street).toBe('2 New Street')
@@ -775,7 +841,7 @@ describe('shopOwnerAdd / shopOwnerUpdate mutations', () => {
 describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferences mutations', () => {
 	/** The `login` sub-document as MongoDB holds it. */
 	async function login(_id: mongoose.Types.ObjectId) {
-		const doc = await db().collection('shopOwner').findOne({ _id })
+		const doc = await decrypted(await db().collection('shopOwner').findOne({ _id }))
 
 		return doc?.login as Record<string, unknown>
 	}
@@ -999,8 +1065,8 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			legalName: "  New Boutique Ltd  "
 			vatNumber: "${vatNumber}"
 			taxCode: "${taxCode}"
-			contactPerson: "Nuovo ContactPerson"
-			administrator: "Nuovo Administrator"
+			contactPerson: "New ContactPerson"
+			administrator: "New Administrator"
 			uniqueCode: "${uniqueCode}"
 			certifiedEmail: "${certifiedEmail}"
 			address: {

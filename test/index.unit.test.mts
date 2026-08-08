@@ -10,6 +10,7 @@ const captureMessage = vi.fn()
 const RedisConnect = vi.fn()
 const MongoDBConnect = vi.fn()
 const initClamScan = vi.fn()
+const setupFieldEncryption = vi.fn()
 const disconnectAllDatabases = vi.fn()
 const hGetAll = vi.fn()
 
@@ -20,6 +21,10 @@ vi.mock('@sentry/node', () => ({ captureException, captureMessage }))
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ RedisConnect, redisClient: { hGetAll } }))
 vi.mock('@axiumine/koa-utils/dataSources/MongoDB', () => ({ MongoDBConnect }))
 vi.mock('@axiumine/koa-utils/files/scanVirus', () => ({ initClamScan }))
+// Mocked, not real: the real one reads the platform's 96-byte master key off disk and mints data
+// keys in the key vault, neither of which a unit test may touch. What is under test here is only
+// that start() calls it, and calls it after the connection it borrows exists.
+vi.mock('@axiumine/marketplace-common/encryption/setupFieldEncryption', () => ({ setupFieldEncryption }))
 vi.mock('@lib/db/disconnectAllDatabases.mjs', () => ({ disconnectAllDatabases }))
 // Spies on the real ApolloServerPluginDrainHttpServer (delegates to the actual implementation via
 // importOriginal, so every other test here still gets genuine drain behaviour) purely so the
@@ -192,6 +197,7 @@ describe('start (failure path)', () => {
 		RedisConnect.mockReset().mockResolvedValue(undefined)
 		MongoDBConnect.mockReset().mockResolvedValue(undefined)
 		initClamScan.mockReset().mockResolvedValue(undefined)
+		setupFieldEncryption.mockReset().mockResolvedValue(undefined)
 		for (const k of REQUIRED_ENV_VARS) vi.stubEnv(k, 'x')
 		errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 	})
@@ -220,6 +226,21 @@ describe('start (failure path)', () => {
 
 		await start()
 
+		expect(captureException).toHaveBeenCalledWith(error)
+		expect(disconnectAllDatabases).toHaveBeenCalledWith(1)
+	})
+
+	// ⚠️ The boot failure that protects the data. setupFieldEncryption() throws when
+	// CSFLE_MASTER_KEY_PATH names nothing readable, and the service must die there rather than serve:
+	// a process that got past this point would read binData it cannot decrypt and write plaintext
+	// into collections whose other documents are ciphertext, silently, until someone reads it back.
+	it('reports to Sentry and disconnects with code 1 when field encryption cannot start', async () => {
+		const error = new Error('CSFLE_MASTER_KEY_PATH is not set — field encryption cannot start without it')
+		setupFieldEncryption.mockRejectedValueOnce(error)
+
+		await start()
+
+		expect(setupFieldEncryption).toHaveBeenCalledTimes(1)
 		expect(captureException).toHaveBeenCalledWith(error)
 		expect(disconnectAllDatabases).toHaveBeenCalledWith(1)
 	})
@@ -403,6 +424,7 @@ describe('start (success path)', () => {
 		RedisConnect.mockReset().mockResolvedValue(undefined)
 		MongoDBConnect.mockReset().mockResolvedValue(undefined)
 		initClamScan.mockReset().mockResolvedValue(undefined)
+		setupFieldEncryption.mockReset().mockResolvedValue(undefined)
 		for (const k of REQUIRED_ENV_VARS) vi.stubEnv(k, 'x')
 		// Real listen() options, unlike the failure-path block above: this test actually binds a
 		// socket, so PORT needs a value Node can listen on rather than the placeholder 'x'.
@@ -419,6 +441,10 @@ describe('start (success path)', () => {
 		expect(MongoDBConnect).toHaveBeenCalledTimes(1)
 		expect(RedisConnect).toHaveBeenCalledTimes(1)
 		expect(initClamScan).toHaveBeenCalledTimes(1)
+		// Called with nothing: it takes the client off the mongoose connection MongoDBConnect just
+		// opened, and both its variables from the environment. An argument here would mean a second
+		// client and a second connection pool for the same cluster.
+		expect(setupFieldEncryption).toHaveBeenCalledExactlyOnceWith()
 		expect(server?.httpServer.listening).toBe(true)
 		// Asserting the exact options object listen() receives — not just that the server ends up
 		// listening — is what proves `{ port }` alone travelled through unmodified: a mutant that
