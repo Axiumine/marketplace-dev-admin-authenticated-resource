@@ -1,7 +1,7 @@
 import { throwAlreadyTakenError } from '@axiumine/koa-utils/graphQL/throw/throwAlreadyTakenError'
 import { throwNotFoundError } from '@axiumine/koa-utils/graphQL/throw/throwNotFoundError'
+import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner'
 import { duplicateKey } from '@lib/mongo/duplicateKey.mjs'
-import { ShopOwner } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner'
 import { Types } from 'mongoose'
 
 /**

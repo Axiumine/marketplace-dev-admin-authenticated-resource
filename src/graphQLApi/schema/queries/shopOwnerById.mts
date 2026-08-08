@@ -1,5 +1,5 @@
+import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner'
 import { GraphQLShopOwnerById } from '@ptypes/GraphQLShopOwnerById.mjs'
-import { ShopOwner } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner'
 import { GraphQLID, GraphQLNonNull } from 'graphql'
 import { Types } from 'mongoose'
 

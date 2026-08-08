@@ -1,4 +1,4 @@
-import { GraphQLAddressFrag } from '@thedoctorweb_agency/marketplace-common/schema/types/fragments/GraphQLAddressFrag'
+import { GraphQLAddressFrag } from '@axiumine/marketplace-common/schema/types/fragments/GraphQLAddressFrag'
 import { GraphQLBoolean, GraphQLFloat, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql'
 
 /**

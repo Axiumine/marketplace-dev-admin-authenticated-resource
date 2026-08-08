@@ -1,10 +1,10 @@
 import { throwAlreadyTakenError } from '@axiumine/koa-utils/graphQL/throw/throwAlreadyTakenError'
 import { throwNotFoundError } from '@axiumine/koa-utils/graphQL/throw/throwNotFoundError'
+import { ItemCategory } from '@axiumine/marketplace-common/models/MongoDB/ItemCategory'
 import { throwIfHasChildren } from '@lib/itemCategory/throwIfHasChildren.mjs'
 import { throwIfParentNotTopLevel } from '@lib/itemCategory/throwIfParentNotTopLevel.mjs'
 import { duplicateKey } from '@lib/mongo/duplicateKey.mjs'
 import { IItemCategoryValidated } from '@lib/validate/validateItemCategory.mjs'
-import { ItemCategory } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/ItemCategory'
 import { Types } from 'mongoose'
 
 /**

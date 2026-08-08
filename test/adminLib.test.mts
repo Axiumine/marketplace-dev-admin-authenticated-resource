@@ -6,7 +6,7 @@ const updateOne = vi.fn()
 const compareHashAsync = vi.fn()
 const encryptPassword = vi.fn()
 
-vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/Admin', () => ({ Admin: { findById, updateOne } }))
+vi.mock('@axiumine/marketplace-common/models/MongoDB/Admin', () => ({ Admin: { findById, updateOne } }))
 // bcrypt itself is not under test and costs ~1 s per call at SALT_ROUNDS 14, so the two koa-utils
 // wrappers around it are stubbed. checkPwdLen and checkUserAuthorizationDisDel are deliberately NOT
 // mocked: what they reject is part of this function's contract, and stubbing them would let the

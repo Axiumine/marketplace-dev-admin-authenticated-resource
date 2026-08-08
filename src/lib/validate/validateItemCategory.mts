@@ -1,6 +1,6 @@
 import { throwErrorWrongUserInput } from '@axiumine/koa-utils/graphQL/throw/throwErrorWrongUserInput'
+import { IItemCategorySchema } from '@axiumine/marketplace-common/models/MongoDBInterfaces/IItemCategorySchema'
 import { requiredSlug, requiredText } from '@lib/validate/fields.mjs'
-import { IItemCategorySchema } from '@thedoctorweb_agency/marketplace-common/models/MongoDBInterfaces/IItemCategorySchema'
 import { Types } from 'mongoose'
 
 /*

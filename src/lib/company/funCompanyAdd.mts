@@ -1,9 +1,9 @@
 import { throwAlreadyTakenError } from '@axiumine/koa-utils/graphQL/throw/throwAlreadyTakenError'
 import { throwNotFoundError } from '@axiumine/koa-utils/graphQL/throw/throwNotFoundError'
+import { Company } from '@axiumine/marketplace-common/models/MongoDB/Company'
+import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner'
 import { duplicateKey } from '@lib/mongo/duplicateKey.mjs'
 import { ICompanyValidated } from '@lib/validate/validateCompany.mjs'
-import { Company } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/Company'
-import { ShopOwner } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner'
 import { trusted, Types } from 'mongoose'
 
 /**

@@ -1,6 +1,6 @@
 import { throwInternalError } from '@axiumine/koa-utils/graphQL/throw/throwInternalError'
-import { ShopOwner } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner'
-import { IShopOwnerPersonalData } from '@thedoctorweb_agency/marketplace-common/models/MongoDBInterfaces/IShopOwnerPersonalData'
+import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner'
+import { IShopOwnerPersonalData } from '@axiumine/marketplace-common/models/MongoDBInterfaces/IShopOwnerPersonalData'
 import { Types } from 'mongoose'
 
 /**

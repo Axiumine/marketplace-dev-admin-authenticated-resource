@@ -1,6 +1,6 @@
 import { throwErrorWrongUserInput } from '@axiumine/koa-utils/graphQL/throw/throwErrorWrongUserInput'
-import { ShopOwner } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner'
-import { IShopOwnerModel } from '@thedoctorweb_agency/marketplace-common/models/MongoDBInterfaces/IShopOwnerModel'
+import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner'
+import { IShopOwnerModel } from '@axiumine/marketplace-common/models/MongoDBInterfaces/IShopOwnerModel'
 import { QueryFilter, trusted } from 'mongoose'
 
 /**

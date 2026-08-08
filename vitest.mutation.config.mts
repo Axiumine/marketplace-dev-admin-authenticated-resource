@@ -19,13 +19,7 @@ import { nodeNextResolver } from './vitest.shared.mts'
 // also embeds GraphQL objects built by marketplace-common and koa-utils, so both packages
 // need inlining alongside graphql/Apollo — see vitest.config.mts's own comment) are
 // load bearing, not preferences.
-const inlineDeps = [
-	/graphql/,
-	/@apollo\/server/,
-	/@as-integrations/,
-	/@axiumine\/koa-utils/,
-	/@thedoctorweb_agency\/marketplace-common/
-]
+const inlineDeps = [/graphql/, /@apollo\/server/, /@as-integrations/, /@axiumine\/koa-utils/, /@axiumine\/marketplace-common/]
 
 export default defineConfig({
 	plugins: [nodeNextResolver],

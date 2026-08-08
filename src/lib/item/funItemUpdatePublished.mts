@@ -1,5 +1,5 @@
 import { throwNotFoundError } from '@axiumine/koa-utils/graphQL/throw/throwNotFoundError'
-import { Item } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/Item'
+import { Item } from '@axiumine/marketplace-common/models/MongoDB/Item'
 import { Types } from 'mongoose'
 
 /**

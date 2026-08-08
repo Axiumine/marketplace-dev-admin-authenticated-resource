@@ -10,11 +10,11 @@ const shopOwnerExists = vi.fn()
 // No `deleteOne`: since `company` gained its `deleted` column the delete is a `$set` like every other
 // one on this tier, and leaving the method on the mock would let a rewrite go back to a hard delete
 // without a single test noticing.
-vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/Company', () => ({
+vi.mock('@axiumine/marketplace-common/models/MongoDB/Company', () => ({
 	Company: { create, updateOne }
 }))
 
-vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner', () => ({
+vi.mock('@axiumine/marketplace-common/models/MongoDB/ShopOwner', () => ({
 	ShopOwner: { exists: shopOwnerExists }
 }))
 

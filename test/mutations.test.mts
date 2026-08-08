@@ -16,7 +16,7 @@ const funCompanyUpdate = vi.fn()
 const funAdminUpdatePwd = vi.fn()
 const captureException = vi.fn()
 
-vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner', () => ({ ShopOwner: { create } }))
+vi.mock('@axiumine/marketplace-common/models/MongoDB/ShopOwner', () => ({ ShopOwner: { create } }))
 vi.mock('@lib/shopOwner/funShopOwnerDelete.mjs', () => ({ funShopOwnerDelete }))
 vi.mock('@lib/shopOwner/funShopOwnerUpdate.mjs', () => ({ funShopOwnerUpdate }))
 vi.mock('@lib/shopOwner/funShopOwnerUpdateEmail.mjs', () => ({ funShopOwnerUpdateEmail }))

@@ -1,8 +1,8 @@
 import { throwAlreadyTakenError } from '@axiumine/koa-utils/graphQL/throw/throwAlreadyTakenError'
+import { ItemCategory } from '@axiumine/marketplace-common/models/MongoDB/ItemCategory'
 import { throwIfParentNotTopLevel } from '@lib/itemCategory/throwIfParentNotTopLevel.mjs'
 import { duplicateKey } from '@lib/mongo/duplicateKey.mjs'
 import { IItemCategoryValidated } from '@lib/validate/validateItemCategory.mjs'
-import { ItemCategory } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/ItemCategory'
 import { Types } from 'mongoose'
 
 /**

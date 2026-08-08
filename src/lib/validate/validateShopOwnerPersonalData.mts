@@ -1,4 +1,8 @@
 import {
+	IShopOwnerAddress,
+	IShopOwnerPersonalData
+} from '@axiumine/marketplace-common/models/MongoDBInterfaces/IShopOwnerPersonalData'
+import {
 	birthDate,
 	coordinate,
 	optionalText,
@@ -8,10 +12,6 @@ import {
 	SHAPE_PROVINCE,
 	textWithFormat
 } from '@lib/validate/fields.mjs'
-import {
-	IShopOwnerAddress,
-	IShopOwnerPersonalData
-} from '@thedoctorweb_agency/marketplace-common/models/MongoDBInterfaces/IShopOwnerPersonalData'
 
 /*
  * The bounds below are the `shopOwner` collection's own, read off
