@@ -59,11 +59,11 @@ const ctx = { state: { user: { _id, email: 'operator@marketplace.test' } } } as 
  * validator doing its job and not a fixture worth keeping.
  */
 const personalDataFields = {
-	firstName: 'Mario',
-	lastName: 'Rossi',
+	firstName: 'Mark',
+	lastName: 'Rivers',
 	birth: { date: new Date('1990-05-17T00:00:00.000Z') },
-	address: { street: 'Via Roma 1', postalCode: '20100', city: 'Milano', province: 'MI' },
-	contacts: { mobile: '3331234567', email: 'mario@marketplace.test' }
+	address: { street: '1 Main Street', postalCode: '02109', city: 'Boston', province: 'MA' },
+	contacts: { mobile: '3331234567', email: 'mark@marketplace.test' }
 }
 
 /**
@@ -76,22 +76,22 @@ const personalDataFields = {
 const personalData = personalDataFields as never
 
 const address = {
-	street: 'Via Milano 9',
-	postalCode: '20100',
-	city: 'Milano',
-	province: 'MI',
+	street: '9 Harbour Road',
+	postalCode: '02109',
+	city: 'Boston',
+	province: 'MA',
 	position: { coordinates: [9.19, 45.46] }
 } as never
 
 /** A complete, already-valid company, as `GraphQLInputCompany` delivers it — seat included. */
 const company = {
-	legalName: 'Pizzeria da Mario S.r.l.',
+	legalName: 'Marks Boutique Ltd',
 	vatNumber: '12345678901',
 	taxCode: '12345678901',
-	contactPerson: 'Mario Rossi',
-	administrator: 'Mario Rossi',
+	contactPerson: 'Mark Rivers',
+	administrator: 'Mark Rivers',
 	uniqueCode: 'ABC1234',
-	certifiedEmail: 'pizzeria@pec.test',
+	certifiedEmail: 'certified@boutique.test',
 	address,
 	registryExtract: 'registryExtract-2026'
 } as never
@@ -167,16 +167,16 @@ describe('shopOwnerAdd', () => {
 				login,
 				personalData: {
 					...personalDataFields,
-					firstName: '  Mario  ',
-					address: { ...personalDataFields.address, province: 'mi', position: { coordinates: [9.19, 45.46] } },
+					firstName: '  Mark  ',
+					address: { ...personalDataFields.address, province: 'ma', position: { coordinates: [9.19, 45.46] } },
 					contacts: { ...personalDataFields.contacts, landline: '   ' }
 				} as never
 			})
 		).resolves.toBe(true)
 
 		const [doc] = create.mock.calls[0]
-		expect(doc.personalData.firstName).toBe('Mario')
-		expect(doc.personalData.address.province).toBe('MI')
+		expect(doc.personalData.firstName).toBe('Mark')
+		expect(doc.personalData.address.province).toBe('MA')
 		expect(doc.personalData.address.position).toEqual({ type: 'Point', coordinates: [9.19, 45.46] })
 		expect('landline' in doc.personalData.contacts).toBe(false)
 	})
@@ -245,16 +245,16 @@ describe('shopOwnerUpdate', () => {
 				_id,
 				personalData: {
 					...personalDataFields,
-					firstName: '  Mario  ',
-					address: { street: 'Via Roma 1', postalCode: '20100', city: 'Milano', province: 'mi' },
-					contacts: { mobile: '3331234567', landline: '   ', email: 'mario@marketplace.test' }
+					firstName: '  Mark  ',
+					address: { street: '1 Main Street', postalCode: '02109', city: 'Boston', province: 'ma' },
+					contacts: { mobile: '3331234567', landline: '   ', email: 'mark@marketplace.test' }
 				} as never
 			})
 		).resolves.toBe(true)
 
 		const [, written] = funShopOwnerUpdate.mock.calls[0]
-		expect(written.firstName).toBe('Mario')
-		expect(written.address.province).toBe('MI')
+		expect(written.firstName).toBe('Mark')
+		expect(written.address.province).toBe('MA')
 		expect(Object.keys(written.contacts)).toEqual(['mobile', 'email'])
 	})
 
@@ -468,7 +468,7 @@ describe('companyAdd', () => {
 
 		const [owner, data] = funCompanyAdd.mock.calls[0]
 		expect(owner).toBe(_id)
-		expect(data.legalName).toBe('Pizzeria da Mario S.r.l.')
+		expect(data.legalName).toBe('Marks Boutique Ltd')
 		expect(data.address.position).toEqual({ type: 'Point', coordinates: [9.19, 45.46] })
 	})
 
@@ -485,7 +485,7 @@ describe('companyAdd', () => {
 		expect(funCompanyAdd).not.toHaveBeenCalled()
 	})
 
-	// The 409 the lib raises on a duplicate partita IVA is the one an operator can act on, and it must not
+	// The 409 the lib raises on a duplicate VAT number is the one an operator can act on, and it must not
 	// reach Sentry: a company already registered is a normal outcome, not a platform failure.
 	it('preserves the status of a GraphQLError raised downstream', async () => {
 		const { throwAlreadyTakenError } = await import('@axiumine/koa-utils/graphQL/throw/throwAlreadyTakenError')
@@ -566,12 +566,12 @@ describe('companyDel', () => {
 	// to do about it, and nothing reported to Sentry.
 	it('preserves the status of a GraphQLError raised downstream', async () => {
 		const { throwConflictError } = await import('@axiumine/koa-utils/graphQL/throw/throwConflictError')
-		funCompanyDelete.mockImplementationOnce(() => throwConflictError('company ancora collegata a uno o più punti vendita'))
+		funCompanyDelete.mockImplementationOnce(() => throwConflictError('company still linked to one or more shops'))
 
 		expect(await rejection(companyDel.resolve(null, { _id }))).toEqual({
 			message: 'Conflict',
 			http: { status: 409 },
-			description: 'company ancora collegata a uno o più punti vendita'
+			description: 'company still linked to one or more shops'
 		})
 		expect(captureException).not.toHaveBeenCalled()
 	})

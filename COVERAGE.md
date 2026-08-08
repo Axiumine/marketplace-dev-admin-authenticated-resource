@@ -150,11 +150,9 @@ so the deletions are not mistaken for lost features:
   before the `catch` could see it, and the mutation resolved to a Mongoose document against a
   declared `Boolean!`. Now `await`ed, like its two sibling mutations.
 
-Two more defects are **documented in the tests but deliberately left alone**, because fixing
-them is a domain decision rather than a test-porting one:
+One more defect is **documented in the tests but deliberately left alone**, because fixing
+it is a domain decision rather than a test-porting one:
 
-- `shopOwnerPuntiVendita` filters `{ _id: args.idShopOwner }` instead of
-  `{ idShopOwner: args.idShopOwner }`, so it matches nothing in practice.
 - `funShopOwnerUpdate` treats `modifiedCount === 0` as a failure, so re-saving an unchanged
   personalData answers 500.
 
@@ -169,7 +167,7 @@ permanent survivors:
 | runs the **`unit` project only** | Stryker re-runs the suite once per mutant. Pointing that at `test/integration/*.itest.mts` would hammer the real Redis cluster, the real dev MongoDB and clamd hundreds of times per mutant, where `fileParallelism: false` serialises everything within this service's own namespace. Unit tests are Redis/MongoDB/clamd-mocked, so mutant runs stay hermetic and parallel. |
 
 There is no `ignoreStatic`. It looked necessary once: a mutant in module-load code (`name:
-'GraphQLPuntoVendita'`, `description: '…'`, the GraphQL type/field object literals) appeared
+'GraphQLCompany'`, `description: '…'`, the GraphQL type/field object literals) appeared
 unkillable, because the module under test was imported at the top of the test file — the mutant
 ran during Vitest's file-collection phase, before any test started, so Stryker's per-test
 coverage tracking could never attribute it to a test. That was a test-authoring bug, not a real

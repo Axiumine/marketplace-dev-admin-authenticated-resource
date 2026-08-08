@@ -15,14 +15,14 @@ import { ICompanySchema } from '@thedoctorweb_agency/marketplace-common/models/M
 /*
  * From marketplace-db-setup/migrations/20260803000000-create-company.js.
  *
- * The bounds are `20260301000200-create-puntoVendita.js`'s embedded `company` sub-document, which is
- * where these fields lived until 20260803000100 lifted them into a collection — with two differences,
- * both deliberate and both in that migration:
+ * The bounds are the `20260301000200` migration's embedded `company` sub-document — on the now-gone
+ * shop collection — which is where these fields lived until 20260803000100 lifted them into a
+ * collection — with two differences, both deliberate and both in that migration:
  *
  *   - `registryExtract` was unbounded and is capped at 1000. It holds the uploaded file's path, not the
  *     document, and it was the only string on the collection able to absorb an arbitrarily long value.
- *   - `taxCode` is new. Exactly 11 characters, optional, and not unique — a company's codice fiscale usually
- *     equals its partita IVA, which `vatNumber_unique` already covers.
+ *   - `taxCode` is new. Exactly 11 characters, optional, and not unique — a company's tax code usually
+ *     equals its VAT number, which `vatNumber_unique` already covers.
  */
 const MAX_LEGAL_NAME = 100
 const MAX_CONTACT_PERSON = 50

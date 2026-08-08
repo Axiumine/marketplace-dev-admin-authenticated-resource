@@ -16,18 +16,18 @@ export const GraphQLShopOwnersTblSortField = new GraphQLEnumType({
 	name: 'GraphQLShopOwnersTblSortField',
 	description: 'Sort column of the shopOwners table',
 	values: {
-		REGISTERED_AT: { description: 'Data di registeredAt' },
+		REGISTERED_AT: { description: 'Registration date' },
 		FIRST_NAME: { description: 'FirstName' },
-		LAST_NAME: { description: 'LastName, poi firstName' },
-		CITY: { description: 'City di residence' }
+		LAST_NAME: { description: 'LastName, then firstName' },
+		CITY: { description: 'City of residence' }
 	}
 })
 
 export const GraphQLSortDirection = new GraphQLEnumType({
 	name: 'GraphQLSortDirection',
-	description: 'Direzione di sorting',
+	description: 'Sort direction',
 	values: {
-		ASC: { description: 'Crescente' },
-		DESC: { description: 'Decrescente' }
+		ASC: { description: 'Ascending' },
+		DESC: { description: 'Descending' }
 	}
 })

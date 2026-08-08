@@ -53,7 +53,7 @@ export default {
 		// wrapping and scalar choices, with no resolver of its own and no branching. Verified
 		// by reading every file in the directory (GraphQLAdminInfoAfterLogin,
 		// GraphQLShopOwnerActiveTbl, GraphQLShopOwnerById, GraphQLShopOwnerAddress,
-		// GraphQLPuntiVendita — none defines a `resolve`). test/schema.test.mts already asserts
+		// GraphQLCompany, GraphQLItem — none defines a `resolve`). test/schema.test.mts already asserts
 		// the field *names* of every one of these types via introspection, which is what schema
 		// drift should be caught by; it has no reason to assert the GraphQLNonNull wrapping or
 		// scalar choice of each field, because that is schema shape, not application logic.

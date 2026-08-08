@@ -112,7 +112,7 @@ async function seedShopOwner(extra: Record<string, unknown> = {}) {
 				firstName: 'Itest',
 				lastName: 'ShopOwner',
 				birth: { date: new Date('1980-01-01T00:00:00Z') },
-				address: { street: 'Via Test 1', postalCode: '24031', city: 'Almenno San Salvatore', province: 'BG' },
+				address: { street: '1 Test Street', postalCode: '01103', city: 'Springfield', province: 'MA' },
 				contacts: { mobile: '3900000000', email }
 			},
 			registeredAt: new Date(),
@@ -125,10 +125,10 @@ async function seedShopOwner(extra: Record<string, unknown> = {}) {
 
 /** The seat every seed stores, and the payload shape the address validator answers with. */
 const ADDRESS_SEED = {
-	street: 'Via Test 1',
-	postalCode: '24031',
-	city: 'Almenno San Salvatore',
-	province: 'BG',
+	street: '1 Test Street',
+	postalCode: '01103',
+	city: 'Springfield',
+	province: 'MA',
 	// GeoJSON order: [longitude, latitude]. Plain JS numbers, not Decimal128 —
 	// 20260803000000-create-company wants ['double', 'int', 'long'] and rejects decimal, and the
 	// collection carries a 2dsphere index that fails the write outright if the two axes are swapped.
@@ -142,12 +142,12 @@ const ADDRESS_SEED = {
  * indexes — the only unique indexes left anywhere in this chain — and `address.position.coordinates`
  * is validated per axis.
  *
- * The partita IVA comes from the shared counter rather than from the id, so the seeded value is one the
+ * The VAT number comes from the shared counter rather than from the id, so the seeded value is one the
  * validator would also accept back: `SHAPE_VAT_NUMBER` is `/^\d{11}$/` and a hex slice is not eleven digits.
  */
 async function seedCompany(idShopOwner: mongoose.Types.ObjectId) {
 	const _id = new mongoose.Types.ObjectId()
-	const legalName = `Itest Pizzeria ${randomUUID()}`
+	const legalName = `Itest Boutique ${randomUUID()}`
 
 	await db()
 		.collection('company')
@@ -175,7 +175,7 @@ async function seedCompany(idShopOwner: mongoose.Types.ObjectId) {
 }
 
 /**
- * An 11-digit partita IVA, distinct on every call.
+ * An 11-digit VAT number, distinct on every call.
  *
  * A literal would collide with itself on the second write of a run, and `vatNumber_unique` is global rather
  * than per shopOwner — so the counter is what lets the same payload be sent twice without the second
@@ -454,7 +454,7 @@ describe('GraphQL over HTTP', () => {
 					firstName: token,
 					lastName,
 					birth: { date: new Date('1980-01-01T00:00:00Z') },
-					address: { street: 'Via Test 1', postalCode: '24031', city: 'Almenno San Salvatore', province: 'BG' },
+					address: { street: '1 Test Street', postalCode: '01103', city: 'Springfield', province: 'MA' },
 					contacts: { mobile: '3900000000', email: `itest-${randomUUID()}@marketplace.invalid` }
 				}
 			})
@@ -658,10 +658,10 @@ describe('shopOwnerAdd / shopOwnerUpdate mutations', () => {
 					shopOwnerAdd(
 						login: { email: "${email}", password: "${PASSWORD_HASH}" }
 						personalData: {
-							firstName: "Mario"
-							lastName: "Rossi"
+							firstName: "Mark"
+							lastName: "Rivers"
 							birth: { date: "1980-01-01" }
-							address: { street: "Via Test 1", postalCode: "24031", city: "Almenno San Salvatore", province: "BG" }
+							address: { street: "1 Test Street", postalCode: "01103", city: "Springfield", province: "MA" }
 							contacts: { mobile: "3900000000", email: "${email}" }
 						}
 					)
@@ -704,7 +704,7 @@ describe('shopOwnerAdd / shopOwnerUpdate mutations', () => {
 							firstName: "Updated"
 							lastName: "Name"
 							birth: { date: "1985-06-15" }
-							address: { street: "Via Nuova 2", postalCode: "24031", city: "Almenno San Salvatore", province: "BG" }
+							address: { street: "2 New Street", postalCode: "01103", city: "Springfield", province: "MA" }
 							contacts: { mobile: "3911111111", email: "${email}" }
 						}
 					)
@@ -721,7 +721,7 @@ describe('shopOwnerAdd / shopOwnerUpdate mutations', () => {
 			const updated = await db().collection('shopOwner').findOne({ _id })
 			expect(updated?.personalData.firstName).toBe('Updated')
 			expect(updated?.personalData.lastName).toBe('Name')
-			expect(updated?.personalData.address.street).toBe('Via Nuova 2')
+			expect(updated?.personalData.address.street).toBe('2 New Street')
 			expect(updated?.personalData.birth).toEqual({ date: new Date('1985-06-15T00:00:00.000Z') })
 			expect(updated?.personalData.contacts).toEqual({ mobile: '3911111111', email })
 		} finally {
@@ -747,7 +747,7 @@ describe('shopOwnerAdd / shopOwnerUpdate mutations', () => {
 							firstName: "Ghost"
 							lastName: "Owner"
 							birth: { date: "1990-01-01" }
-							address: { street: "Via Test 1", postalCode: "24031", city: "Almenno San Salvatore", province: "BG" }
+							address: { street: "1 Test Street", postalCode: "01103", city: "Springfield", province: "MA" }
 							contacts: { mobile: "3922222222", email: "itest-ghost@marketplace.invalid" }
 						}
 					)
@@ -789,7 +789,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 		// fields: a `{ login: { email } }` write would drop these, a `'login.email'` one keeps them.
 		await db()
 			.collection('shopOwner')
-			.updateOne({ _id }, { $set: { 'login.rememberMe': true, 'login.onboardingStep': 'DATI' } })
+			.updateOne({ _id }, { $set: { 'login.rememberMe': true, 'login.onboardingStep': 'DATA' } })
 
 		try {
 			const { status, json } = await gql(
@@ -807,7 +807,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 				email: newEmail,
 				password: PASSWORD_HASH,
 				rememberMe: true,
-				onboardingStep: 'DATI'
+				onboardingStep: 'DATA'
 			})
 		} finally {
 			await session.cleanup()
@@ -935,13 +935,13 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 		}
 
 		try {
-			expect((await preferences(true, false, 'DATI')).json.data?.shopOwnerUpdatePreferences).toBe(true)
+			expect((await preferences(true, false, 'DATA')).json.data?.shopOwnerUpdatePreferences).toBe(true)
 			expect(await login(_id)).toEqual({
 				email,
 				password: PASSWORD_HASH,
 				rememberMe: true,
 				onboardingDone: false,
-				onboardingStep: 'DATI'
+				onboardingStep: 'DATA'
 			})
 
 			// A cleared text box arrives as blank, not as null, and has to leave the key absent —
@@ -985,7 +985,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
  *
  * Both are plain global unique indexes, with no `partialFilterExpression` excluding the soft-deleted —
  * the same shape `shopOwner.login.email_unique` has. That is a decision, not an oversight: a deleted
- * company keeps its partita IVA occupied, and the `companyDel` block asserts it.
+ * company keeps its VAT number occupied, and the `companyDel` block asserts it.
  */
 describe('company mutations (real company collection, real unique indexes)', () => {
 	/**
@@ -996,7 +996,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 	 */
 	function inputCompany(vatNumber: string, certifiedEmail: string, taxCode = '   ', uniqueCode = '   ') {
 		return `{
-			legalName: "  Pizzeria Nuova S.r.l.  "
+			legalName: "  New Boutique Ltd  "
 			vatNumber: "${vatNumber}"
 			taxCode: "${taxCode}"
 			contactPerson: "Nuovo ContactPerson"
@@ -1004,10 +1004,10 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			uniqueCode: "${uniqueCode}"
 			certifiedEmail: "${certifiedEmail}"
 			address: {
-				street: "Via Nuova 7"
-				postalCode: "24030"
-				city: "Brembate di Sopra"
-				province: "bg"
+				street: "7 New Street"
+				postalCode: "01104"
+				city: "Riverside"
+				province: "ma"
 				position: { coordinates: [9.6, 45.72] }
 			}
 			registryExtract: "registryExtract-new"
@@ -1031,7 +1031,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 
 	/**
 	 * The mutation answers `Boolean!`, so the caller never learns the new id — the company is found by
-	 * its partita IVA, the one value the index guarantees unique. Registering it here rather than in each
+	 * its VAT number, the one value the index guarantees unique. Registering it here rather than in each
 	 * test is what keeps a successful insert from surviving the run: `afterAll` drains `seededCompanies`,
 	 * and a document nobody pushed into it stays in the database forever, holding its vatNumber against every
 	 * later run.
@@ -1059,12 +1059,12 @@ describe('company mutations (real company collection, real unique indexes)', () 
 
 			const doc = await created(vatNumber)
 			expect(doc?.idShopOwner).toEqual(owner._id)
-			expect(doc?.legalName).toBe('Pizzeria Nuova S.r.l.')
+			expect(doc?.legalName).toBe('New Boutique Ltd')
 			expect(doc?.address).toEqual({
-				street: 'Via Nuova 7',
-				postalCode: '24030',
-				city: 'Brembate di Sopra',
-				province: 'BG',
+				street: '7 New Street',
+				postalCode: '01104',
+				city: 'Riverside',
+				province: 'MA',
 				position: { type: 'Point', coordinates: [9.6, 45.72] }
 			})
 			// ⚠️ `taxCode` and `uniqueCode` are ABSENT, not empty. Both were sent blank, and the collection's
@@ -1155,11 +1155,11 @@ describe('company mutations (real company collection, real unique indexes)', () 
 	})
 
 	/*
-	 * ⚠️ Enforced by MongoDB itself, not by a pre-flight read: two operators saving the same partita IVA
+	 * ⚠️ Enforced by MongoDB itself, not by a pre-flight read: two operators saving the same VAT number
 	 * at once both pass any check the service could make, and only the index refuses the second one. The
 	 * second owner is a DIFFERENT shopOwner on purpose — `vatNumber_unique` is global, not per owner.
 	 */
-	it('companyAdd: answers 409 when the partita IVA is already registered, whoever owns it', async () => {
+	it('companyAdd: answers 409 when the VAT number is already registered, whoever owns it', async () => {
 		const session = await withSession()
 		const first = await seedShopOwner()
 		const secondOwner = await seedShopOwner()
@@ -1251,10 +1251,10 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			expect(json.data?.companyUpdate).toBe(true)
 
 			const after = await db().collection('company').findOne({ _id: company._id })
-			expect(after?.legalName).toBe('Pizzeria Nuova S.r.l.')
+			expect(after?.legalName).toBe('New Boutique Ltd')
 			expect(after?.vatNumber).toBe(vatNumber)
 			expect(after?.certifiedEmail).toBe(certifiedEmail)
-			expect(after?.address.city).toBe('Brembate di Sopra')
+			expect(after?.address.city).toBe('Riverside')
 			// ⚠️ The owner is not in the `$set` and cannot be: `ICompanyValidata` has no `idShopOwner`
 			// and `GraphQLInputCompany` has no field for it. Reassigning a company would strand every shop
 			// pointing at it under an shopOwner that no longer owns the company.
@@ -1264,7 +1264,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 		}
 	})
 
-	it('companyUpdate: answers 409 when the new partita IVA belongs to another company', async () => {
+	it('companyUpdate: answers 409 when the new VAT number belongs to another company', async () => {
 		const session = await withSession()
 		const owner = await seedShopOwner()
 		const otherCompany = await seedCompany(owner._id)
@@ -1283,11 +1283,11 @@ describe('company mutations (real company collection, real unique indexes)', () 
 				'VAT number or certified email already registered by another company'
 			)
 
-			// Nothing landed: the whole card is one `$set`, so a rejected write leaves the ragione sociale
+			// Nothing landed: the whole card is one `$set`, so a rejected write leaves the registered legal name
 			// and the seat as they were too.
 			const unchanged = await db().collection('company').findOne({ _id: company._id })
-			expect(unchanged?.legalName).toMatch(/^Itest Pizzeria /)
-			expect(unchanged?.address.street).toBe('Via Test 1')
+			expect(unchanged?.legalName).toMatch(/^Itest Boutique /)
+			expect(unchanged?.address.street).toBe('1 Test Street')
 		} finally {
 			await session.cleanup()
 		}
@@ -1349,7 +1349,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 	it('companyDel: drops the company out of shopOwnerCompanies', async () => {
 		const session = await withSession()
 		const owner = await seedShopOwner()
-		const viva = await seedCompany(owner._id)
+		const live = await seedCompany(owner._id)
 		const deadCompany = await seedCompany(owner._id)
 
 		try {
@@ -1359,18 +1359,18 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			const { json } = await gql(`{ shopOwnerCompanies(idShopOwner: "${owner._id.toHexString()}") { _id } }`, session.headers)
 
 			expect(json.errors).toBeUndefined()
-			expect(json.data?.shopOwnerCompanies).toEqual([{ _id: viva._id.toHexString() }])
+			expect(json.data?.shopOwnerCompanies).toEqual([{ _id: live._id.toHexString() }])
 		} finally {
 			await session.cleanup()
 		}
 	})
 
-	// ⚠️ The partita IVA stays taken. Both unique indexes are plain global ones — no
+	// ⚠️ The VAT number stays taken. Both unique indexes are plain global ones — no
 	// `partialFilterExpression` excluding the deleted, the same choice `shopOwner.login.email_unique`
 	// makes — so retiring a company does not free its vatNumber for a fresh registration. Asserted rather than
 	// left implicit because it is the one user-visible cost of the soft delete, and because adding the
 	// partial filter later would flip this case silently.
-	it('companyDel: leaves the partita IVA registered, so the same one cannot be added again', async () => {
+	it('companyDel: leaves the VAT number registered, so the same one cannot be added again', async () => {
 		const session = await withSession()
 		const owner = await seedShopOwner()
 		const company = await seedCompany(owner._id)
@@ -1457,10 +1457,10 @@ describe('shopOwnerCompanies query (real company under a real shopOwner)', () =>
 					certifiedEmail: `itest-${company._id.toHexString()}@certifiedEmail.invalid`,
 					registryExtract: 'itest-registryExtract',
 					address: {
-						street: 'Via Test 1',
-						postalCode: '24031',
-						city: 'Almenno San Salvatore',
-						province: 'BG',
+						street: '1 Test Street',
+						postalCode: '01103',
+						city: 'Springfield',
+						province: 'MA',
 						position: { type: 'Point', coordinates: [9.57, 45.75] }
 					}
 				}
@@ -1509,7 +1509,7 @@ describe('shopOwnerCompanies query (real company under a real shopOwner)', () =>
  * has to be judged by what MongoDB accepted, not by what the model claims to emit.
  */
 describe('adminUpdatePwd mutation (real bcrypt, real admin collection)', () => {
-	const OLD = 'vecchiaPassword1'
+	const OLD = 'oldPassword1'
 	const NEW = 'newPassword12'
 
 	/** The mutation takes no id: the account it changes is the one the session names. */
@@ -1607,7 +1607,7 @@ describe('adminUpdatePwd mutation (real bcrypt, real admin collection)', () => {
 		const before = await storedAdminHash(admin._id)
 
 		try {
-			const { status, json } = await updatePwd(OLD, 'corta', session.headers)
+			const { status, json } = await updatePwd(OLD, 'short', session.headers)
 
 			expect(status).toBe(400)
 			expect(json.errors?.[0]?.message).toBe('Bad Request')

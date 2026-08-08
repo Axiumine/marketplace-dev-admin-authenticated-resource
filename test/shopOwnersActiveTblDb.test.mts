@@ -47,7 +47,7 @@ describe('shopOwnersActiveTblDb', () => {
 	})
 
 	it('pages the active shopOwners and reports the size of the filtered set', async () => {
-		const docs = [{ firstName: 'Mario' }]
+		const docs = [{ firstName: 'Mark' }]
 		const builder = mockFind(docs)
 		countDocuments.mockResolvedValueOnce(137)
 
@@ -121,7 +121,7 @@ describe('shopOwnersActiveTblDb', () => {
 
 			const [{ 'personalData.firstName': regex }] = filterOf().$or
 
-			expect(regex.test('Rossi')).toBe(false)
+			expect(regex.test('Rivers')).toBe(false)
 			expect(regex.test('ossido')).toBe(true)
 		})
 

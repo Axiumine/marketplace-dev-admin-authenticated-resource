@@ -10,13 +10,14 @@ import { Types } from 'mongoose'
  * operator's page without the document going anywhere.
  *
  * The consequence to know about: `vatNumber_unique` and `certifiedEmail_unique` are plain global unique indexes with no
- * `partialFilterExpression`, so a deleted company keeps its partita IVA occupied and the same one
+ * `partialFilterExpression`, so a deleted company keeps its VAT number occupied and the same one
  * cannot be registered again. That is deliberate — it matches `shopOwner.login.email_unique`, and a
- * partial index would let two rows carry the same partita IVA the moment one of them is restored.
+ * partial index would let two rows carry the same VAT number the moment one of them is restored.
  *
- * Until 2026-08-04 this refused while any live `puntoVendita` still pointed at the row — the collection
- * carried `idCompany` as its own foreign key. `puntoVendita` is gone along with every reference to it,
- * so there is nothing left to check before the row is stamped.
+ * Until 2026-08-04 this refused while any live row on the now-gone shop collection still pointed at
+ * this row — that collection carried `idCompany` as its own foreign key. It is gone along with every
+ * reference to it — a shop IS a `company`; there is no shop collection and will not be one — so there
+ * is nothing left to check before the row is stamped.
  *
  * `Date.now()`, a number, cast to the schema's `Date` path by mongoose on the way out. The write carries
  * no `deleted` filter of its own: a re-delete stamps a fresh instant and is the state the operator asked

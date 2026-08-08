@@ -17,7 +17,7 @@ import { assertTestMongoEnv, buildTestMongoUrl, TEST_DB } from '../../vitest.mon
  *   - the R/W user is the one the service under test connects with (see vitest.config.mts).
  *
  * The migrations are read from the sibling repo rather than duplicated, and `require`d in place so the
- * `lib/schemi/` builders they share resolve relative to that checkout — the shapes stopped being inlined
+ * `lib/schemas/` builders they share resolve relative to that checkout — the shapes stopped being inlined
  * per migration once thirteen identical product validators made that untenable. Replaying the files in
  * filename order is equivalent to `migrate:up`; the `changelog` bookkeeping is migrate-mongo's and is not
  * needed for a database that is dropped on every run.

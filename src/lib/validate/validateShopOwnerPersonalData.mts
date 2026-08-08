@@ -4,7 +4,7 @@ import {
 	optionalText,
 	requiredEmail,
 	requiredText,
-	SHAPE_CAP,
+	SHAPE_POSTAL_CODE,
 	SHAPE_PROVINCE,
 	textWithFormat
 } from '@lib/validate/fields.mjs'
@@ -74,13 +74,13 @@ export const validateShopOwnerPersonalData = (
 			postalCode: textWithFormat(
 				personalData.address.postalCode,
 				'address.postalCode',
-				SHAPE_CAP,
+				SHAPE_POSTAL_CODE,
 				'the postal code is 5 digits'
 			),
 			city: requiredText(personalData.address.city, 'address.city', MAX_CITY),
 			// Upper-cased on the way in, so `mi` and `MI` are one value in the database rather than two
 			// that sort apart and compare unequal. The pattern accepts either case on purpose — refusing
-			// a lower-case sigla would be a validation error over something the server can simply fix.
+			// a lower-case province code would be a validation error over something the server can simply fix.
 			province: textWithFormat(
 				personalData.address.province,
 				'address.province',

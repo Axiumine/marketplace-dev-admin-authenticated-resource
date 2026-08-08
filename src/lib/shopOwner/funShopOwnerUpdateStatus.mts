@@ -6,7 +6,7 @@ import { Types } from 'mongoose'
  * The two account flags an operator can flip: the disable switch and the manual-approval gate.
  *
  * **False removes the field, it does not store `false`.** Both flags are documented in the collection
- * validator as "se presente e true: …, se assente: login permesso", and `funShopOwnerDelete` already
+ * validator as "present and true: blocked; absent: login allowed", and `funShopOwnerDelete` already
  * `$unset`s `waitApprov` rather than writing false. Storing `false` would be legal BSON and would still
  * behave correctly everywhere — `checkUserAuthorizationDisDel` tests truthiness — but it would leave the
  * collection holding two spellings of the same state, and a later `{ waitApprov: { $exists: true } }`
