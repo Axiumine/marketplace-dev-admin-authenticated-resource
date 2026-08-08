@@ -1,5 +1,5 @@
 import { throwInternalError } from '@axiumine/koa-utils/graphQL/throw/throwInternalError'
-import { ShopOwner } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner'
+import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner'
 import { Types } from 'mongoose'
 
 /**

@@ -1,5 +1,5 @@
+import { ICompanyAddress } from '@axiumine/marketplace-common/models/MongoDBInterfaces/ICompanySchema'
 import { coordinate, requiredText, SHAPE_POSTAL_CODE, SHAPE_PROVINCE, textWithFormat } from '@lib/validate/fields.mjs'
-import { ICompanyAddress } from '@thedoctorweb_agency/marketplace-common/models/MongoDBInterfaces/ICompanySchema'
 
 /*
  * The one address validator on this tier, for `company.address`.

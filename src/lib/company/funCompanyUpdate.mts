@@ -1,8 +1,8 @@
 import { throwAlreadyTakenError } from '@axiumine/koa-utils/graphQL/throw/throwAlreadyTakenError'
 import { throwNotFoundError } from '@axiumine/koa-utils/graphQL/throw/throwNotFoundError'
+import { Company } from '@axiumine/marketplace-common/models/MongoDB/Company'
 import { duplicateKey } from '@lib/mongo/duplicateKey.mjs'
 import { ICompanyValidated } from '@lib/validate/validateCompany.mjs'
-import { Company } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/Company'
 import { Types } from 'mongoose'
 
 /**

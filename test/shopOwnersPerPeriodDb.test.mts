@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const aggregate = vi.fn()
 
-vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner', () => ({
+vi.mock('@axiumine/marketplace-common/models/MongoDB/ShopOwner', () => ({
 	ShopOwner: { aggregate }
 }))
 

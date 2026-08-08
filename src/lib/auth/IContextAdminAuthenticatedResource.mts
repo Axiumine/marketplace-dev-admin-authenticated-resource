@@ -1,5 +1,5 @@
 import { TCommonHeaders } from '@axiumine/koa-utils/graphQL/schema/context/TCommonHeaders'
-import { IRedisDataAdminForNode } from '@thedoctorweb_agency/marketplace-common/others/Redis/IRedisDataAdminForNode'
+import { IRedisDataAdminForNode } from '@axiumine/marketplace-common/others/Redis/IRedisDataAdminForNode'
 import { IncomingHttpHeaders } from 'http'
 
 type IStateApi = {

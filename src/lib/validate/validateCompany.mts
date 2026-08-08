@@ -1,3 +1,4 @@
+import { ICompanySchema } from '@axiumine/marketplace-common/models/MongoDBInterfaces/ICompanySchema'
 import {
 	optionalSlug,
 	optionalText,
@@ -10,7 +11,6 @@ import {
 	textWithFormat
 } from '@lib/validate/fields.mjs'
 import { IAddressInput, validateAddress } from '@lib/validate/validateAddress.mjs'
-import { ICompanySchema } from '@thedoctorweb_agency/marketplace-common/models/MongoDBInterfaces/ICompanySchema'
 
 /*
  * From marketplace-db-setup/migrations/20260803000000-create-company.js.

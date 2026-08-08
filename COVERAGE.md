@@ -96,7 +96,7 @@ inside the isolated Redis namespace, and touches MongoDB only through `shopOwner
 
 ## A note on the `graphql` realm
 
-`vitest.config.mts` inlines `@thedoctorweb_agency/marketplace-common` and `@axiumine/koa-utils`
+`vitest.config.mts` inlines `@axiumine/marketplace-common` and `@axiumine/koa-utils`
 alongside `graphql` / `@apollo/server` / `@as-integrations`. The schema embeds GraphQL objects
 those two packages build (`GraphQLBaseAddressFrag`, `GraphQLPositionFrag`,
 `GraphQLInputShopOwnerPersonalData`, `GraphQLInputLogin`), so they have to see the *same*

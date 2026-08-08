@@ -1,7 +1,7 @@
 import { throwErrorWrongUserInput } from '@axiumine/koa-utils/graphQL/throw/throwErrorWrongUserInput'
 import { throwNotFoundError } from '@axiumine/koa-utils/graphQL/throw/throwNotFoundError'
-import { Item } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/Item'
-import { ItemCategory } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/ItemCategory'
+import { Item } from '@axiumine/marketplace-common/models/MongoDB/Item'
+import { ItemCategory } from '@axiumine/marketplace-common/models/MongoDB/ItemCategory'
 import { trusted, Types } from 'mongoose'
 
 /**

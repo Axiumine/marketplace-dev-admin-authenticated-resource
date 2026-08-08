@@ -6,7 +6,7 @@ import { rejection } from './errors.mts'
 const updateOne = vi.fn()
 const countDocuments = vi.fn()
 
-vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/ShopOwner', () => ({
+vi.mock('@axiumine/marketplace-common/models/MongoDB/ShopOwner', () => ({
 	ShopOwner: { updateOne, countDocuments }
 }))
 

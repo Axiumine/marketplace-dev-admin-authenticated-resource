@@ -14,10 +14,10 @@ vi.mock('@sentry/node', () => ({ captureException: vi.fn() }))
 // ⚠️ Neither mock carries `deleteOne`, for the reason `companyLib.test.mts` leaves it off Company:
 // every delete on this tier is a stamp, and a regression to a hard removal has to fail here rather
 // than against a real database. A call to a method the mock does not have throws.
-vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/Item', () => ({
+vi.mock('@axiumine/marketplace-common/models/MongoDB/Item', () => ({
 	Item: { updateOne: itemUpdateOne, countDocuments: itemCountDocuments }
 }))
-vi.mock('@thedoctorweb_agency/marketplace-common/models/MongoDB/ItemCategory', () => ({
+vi.mock('@axiumine/marketplace-common/models/MongoDB/ItemCategory', () => ({
 	ItemCategory: {
 		create: itemCategoryCreate,
 		findOne: itemCategoryFindOne,

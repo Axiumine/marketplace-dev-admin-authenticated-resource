@@ -1,5 +1,5 @@
+import { Company } from '@axiumine/marketplace-common/models/MongoDB/Company'
 import { GraphQLCompany } from '@ptypes/GraphQLCompany.mjs'
-import { Company } from '@thedoctorweb_agency/marketplace-common/models/MongoDB/Company'
 import { GraphQLID, GraphQLList, GraphQLNonNull } from 'graphql'
 import { trusted, Types } from 'mongoose'
 

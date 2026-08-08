@@ -1,7 +1,7 @@
 import { tryCatchRethrow } from '@axiumine/koa-utils/lib/tryCatchRethrow'
+import { GraphQLInputShopOwnerPersonalData } from '@axiumine/marketplace-common/schema/GraphQLInput/GraphQLInputShopOwnerPersonalData'
 import { funShopOwnerUpdate } from '@lib/shopOwner/funShopOwnerUpdate.mjs'
 import { IShopOwnerPersonalDataInput, validateShopOwnerPersonalData } from '@lib/validate/validateShopOwnerPersonalData.mjs'
-import { GraphQLInputShopOwnerPersonalData } from '@thedoctorweb_agency/marketplace-common/schema/GraphQLInput/GraphQLInputShopOwnerPersonalData'
 import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull } from 'graphql'
 import { Types } from 'mongoose'
 
