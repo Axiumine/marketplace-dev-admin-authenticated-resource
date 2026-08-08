@@ -7,7 +7,7 @@ const create = vi.fn()
 const updateOne = vi.fn()
 const shopOwnerExists = vi.fn()
 
-// No `deleteOne`: since `company` gained its `deleted` column the delete is a `$set` like every other
+// No `deleteOne`: since `company` gained its `deleted` field the delete is a `$set` like every other
 // one on this tier, and leaving the method on the mock would let a rewrite go back to a hard delete
 // without a single test noticing.
 vi.mock('@axiumine/marketplace-common/models/MongoDB/Company', () => ({
@@ -206,8 +206,8 @@ describe('funCompanyUpdate', () => {
 describe('funCompanyDelete', () => {
 	beforeEach(() => updateOne.mockReset())
 
-	// A soft delete, like every other delete on this tier since `company` gained the column: the row stays
-	// and `deleted` gets a numeric timestamp, cast to the schema's Date path by mongoose. Nothing else is
+	// A soft delete, like every other delete on this tier since `company` gained the field: the document
+	// stays and `deleted` gets a numeric timestamp, cast to the schema's Date path by mongoose. Nothing else is
 	// touched — `$set` names one field and the filter is the id alone.
 	it('stamps deleted and touches nothing else', async () => {
 		mockUpdateMatched(1)
@@ -222,7 +222,7 @@ describe('funCompanyDelete', () => {
 		expect(typeof update.$set.deleted).toBe('number')
 	})
 
-	// `matchedCount`, not `modifiedCount`: 0 matched is a stale Delete button naming a row already gone,
+	// `matchedCount`, not `modifiedCount`: 0 matched is a stale Delete button naming a company already gone,
 	// while re-deleting one that is already stamped still matched and is the state the operator asked for.
 	it('raises a 404 when no company carries that id', async () => {
 		mockUpdateMatched(0)

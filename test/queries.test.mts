@@ -94,7 +94,7 @@ describe('companyItems', () => {
 	// ⚠️ The same query the owner runs on 4026 **minus the ownership guard**, and the missing guard is the
 	// tier rather than an omission: an operator owns nothing, and moderating means reading somebody
 	// else's catalogue. Drafts are in for the same reason — an unpublished item is still reportable, and
-	// a moderator who only sees published rows cannot act before the owner publishes.
+	// a moderator who only sees published items cannot act before the owner publishes.
 	//
 	// So the exact key set is the assertion: a `published: true` tidied in here would quietly halve what
 	// moderation can see.
@@ -112,7 +112,7 @@ describe('itemCategories', () => {
 	beforeEach(() => itemCategoryFind.mockReset())
 
 	// No args and no paging: an operator writes this list and nobody else can, so it is bounded by hand,
-	// and the screen needs every row at once to render parents with their children under them.
+	// and the screen needs every category at once to render parents with their children under them.
 	//
 	// The sort is part of the contract, not a nicety — `position` is the operator's chosen order and is
 	// not unique, so without the `_id` tiebreak two categories sharing a position swap places between

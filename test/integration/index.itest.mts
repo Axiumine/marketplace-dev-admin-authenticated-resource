@@ -164,7 +164,7 @@ async function seedCompany(idShopOwner: mongoose.Types.ObjectId) {
 			// so a seed without it is refused by the validator before any resolver is reached. False is
 			// the honest value here: these tests exercise the legal entity, not the public shop page, and
 			// false is what `companyAdd` writes. `publicName` and `slug` stay off on purpose — the
-			// collection's `$expr` demands them only of a published row, and `slug` carries a unique index
+			// collection's `$expr` demands them only of a published document, and `slug` carries a unique index
 			// a fixed literal would collide on.
 			published: false,
 			registryExtract: 'itest-registryExtract'
@@ -341,7 +341,7 @@ describe('GraphQL over HTTP', () => {
 	 *
 	 * The assertion is a DELTA around two seeds rather than an absolute count, because the suite keeps
 	 * inserting shopOwners and the demo seed may have left its own. Today's bucket must gain exactly
-	 * one — the row stamped now — while the row stamped two months back must land outside the one-month
+	 * one — the document stamped now — while the document stamped two months back must land outside the one-month
 	 * range entirely, which is what proves the `$match` bound is real and not decoration.
 	 */
 	it('buckets the real collection by day and honours the range bound', async () => {
@@ -410,12 +410,12 @@ describe('GraphQL over HTTP', () => {
 	})
 
 	// shopOwnersActiveTbl filters on `disabled`/`deleted` being absent. Seeding one of each and
-	// checking both sides is what proves the filter, rather than a query that happens to return rows.
+	// checking both sides is what proves the filter, rather than a query that happens to return documents.
 	//
 	// Asked for with no arguments on purpose: the query is now paged, and every argument carries a
 	// server-side default. A client that sends nothing must still get a bounded first page — that is
 	// what made removing the old unbounded list safe. Both seeds are stamped `registeredAt: new Date()`,
-	// so under the default REGISTERED_AT/DESC ordering they are the newest rows and land on page one.
+	// so under the default REGISTERED_AT/DESC ordering they are the newest documents and land on page one.
 	it('lists the active shopOwners and leaves a disabled one out', async () => {
 		const session = await withSession()
 		const activeOwner = await seedShopOwner()
@@ -426,7 +426,7 @@ describe('GraphQL over HTTP', () => {
 
 			expect(json.errors).toBeUndefined()
 			const page = json.data?.shopOwnersActiveTbl as { items: Array<{ _id: string }>; total: number }
-			const ids = page.items.map((row) => row._id)
+			const ids = page.items.map((doc) => doc._id)
 			expect(ids).toContain(activeOwner._id.toHexString())
 			expect(ids).not.toContain(disabledOwner._id.toHexString())
 
@@ -440,9 +440,9 @@ describe('GraphQL over HTTP', () => {
 	})
 
 	// Search, offset, limit, sort and total, driven together against the real collection. They are
-	// one test because they need one shared seed: three rows nothing else in the database can match,
+	// one test because they need one shared seed: three documents nothing else in the database can match,
 	// which is the only way an assertion about a specific page is stable in a suite that keeps
-	// inserting shopOwners. The token is a random prefix no demo row and no other test can start
+	// inserting shopOwners. The token is a random prefix no demo document and no other test can start
 	// with, so `total` is exactly 3 whatever else the collection holds.
 	it('pages, searches and sorts the real collection', async () => {
 		const session = await withSession()
@@ -474,7 +474,7 @@ describe('GraphQL over HTTP', () => {
 				total: number
 			}
 
-			return { lastNames: result.items.map((row) => row.personalData.lastName), total: result.total }
+			return { lastNames: result.items.map((doc) => doc.personalData.lastName), total: result.total }
 		}
 
 		try {
@@ -487,12 +487,12 @@ describe('GraphQL over HTTP', () => {
 			const second = await page('limit: 2, sortDir: ASC, offset: 2')
 			expect(second).toEqual({ lastNames: ['Gamma'], total: 3 })
 
-			// The same index serves the reversed order — asserted here as the reversed rows.
+			// The same index serves the reversed order — asserted here as the reversed page.
 			const descending = await page('limit: 2, sortDir: DESC, offset: 0')
 			expect(descending).toEqual({ lastNames: ['Gamma', 'Beta'], total: 3 })
 
 			// Past the end is an empty page, not an error: the frontend can land on a stale page
-			// number after a row is deleted, and it has to render an empty table rather than break.
+			// number after a shopOwner is deleted, and it has to render an empty table rather than break.
 			const past = await page('limit: 2, sortDir: ASC, offset: 100')
 			expect(past).toEqual({ lastNames: [], total: 3 })
 		} finally {
@@ -670,7 +670,7 @@ describe('shopOwnerAdd / shopOwnerUpdate mutations', () => {
 			)
 
 			const created = await db().collection('shopOwner').findOne({ 'login.email': email })
-			// Registered before the assertions: the row is already on the real collection, so a
+			// Registered before the assertions: the document is already on the real collection, so a
 			// failing expect below must still leave afterAll something to delete.
 			if (created) seededIds.push(created._id)
 
@@ -981,7 +981,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
  * The `company` collection, created by 20260803000000 and written for the first time here.
  *
  * This is where the two unique indexes live: `vatNumber_unique` and `certifiedEmail_unique`, on the
- * collection where one row really is one company.
+ * collection where one document really is one company.
  *
  * Both are plain global unique indexes, with no `partialFilterExpression` excluding the soft-deleted —
  * the same shape `shopOwner.login.email_unique` has. That is a decision, not an oversight: a deleted
@@ -1313,14 +1313,14 @@ describe('company mutations (real company collection, real unique indexes)', () 
 	})
 
 	/*
-	 * A soft delete, like every other delete on this tier: the row stays and gains a `deleted` instant,
+	 * A soft delete, like every other delete on this tier: the document stays and gains a `deleted` instant,
 	 * and every read path filters it out with `deleted: { $exists: false }`.
 	 *
-	 * The row itself is asserted whole: `deleted` is a Date the validator accepted — `Date.now()` is a
+	 * The document itself is asserted whole: `deleted` is a Date the validator accepted — `Date.now()` is a
 	 * number in the resolver and only mongoose's cast makes it one — and nothing else moved, which is
 	 * what separates a soft delete from an `updateOne` that quietly rewrote the document.
 	 */
-	it('companyDel: stamps deleted and keeps the row', async () => {
+	it('companyDel: stamps deleted and keeps the document', async () => {
 		const session = await withSession()
 		const owner = await seedShopOwner()
 		const company = await seedCompany(owner._id)
@@ -1345,7 +1345,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 	})
 
 	// The company is gone from every read path the operator has, which is the whole of what "deleted"
-	// means here — the row is still on disk and only the seed's own drain will remove it.
+	// means here — the document is still on disk and only the seed's own drain will remove it.
 	it('companyDel: drops the company out of shopOwnerCompanies', async () => {
 		const session = await withSession()
 		const owner = await seedShopOwner()
@@ -1391,7 +1391,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 		}
 	})
 
-	// A second call finds the row, matches it and stamps it again. There is no `deleted` clause on the
+	// A second call finds the document, matches it and stamps it again. There is no `deleted` clause on the
 	// write, so this is idempotent in effect, not a 404.
 	it('companyDel: answers 200 again on an already deleted company', async () => {
 		const session = await withSession()

@@ -5,7 +5,7 @@ import { GraphQLID, GraphQLNonNull, GraphQLObjectType } from 'graphql'
  * A category of the platform-wide taxonomy — the one thing in the catalogue only an operator writes.
  *
  * `idParent` is nullable, and that nullability *is* the tree: absent means a top-level category,
- * present means a subcategory of the row it names. Depth is capped at two, which is why the list can
+ * present means a subcategory of the category it names. Depth is capped at two, which is why the list can
  * come back flat and be assembled client-side without recursing.
  *
  * ⚠️ The cap is enforced in `itemCategoryAdd` and `itemCategoryUpdate` on this tier and **nowhere

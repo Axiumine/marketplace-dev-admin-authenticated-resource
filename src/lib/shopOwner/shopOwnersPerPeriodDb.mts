@@ -22,12 +22,12 @@ import { PipelineStage } from 'mongoose'
  */
 
 /**
- * One row per range the GraphQL enum offers, holding all three facts about it together.
+ * One entry per range the GraphQL enum offers, holding all three facts about it together.
  *
  * `granularity` and `format` are NOT asked for by the client and not stored apart from `months`,
  * because they are consequences of the range: a caller able to request day buckets over `ALL`
  * would be asking the database for one group per day since the platform opened and the browser to
- * draw them. Keeping the three in one row is also what stops the bucket width and the date format
+ * draw them. Keeping the three in one entry is also what stops the bucket width and the date format
  * from drifting apart — they describe the same decision and there is one place to change it.
  */
 const RANGES = {
@@ -175,9 +175,9 @@ async function countsByBucket(from: number | null, format: string): Promise<Map<
 		$group: { _id: { $dateToString: { format, date: '$registeredAt', timezone: 'UTC' } }, total: { $sum: 1 } }
 	})
 
-	const rows = await ShopOwner.aggregate<{ _id: string; total: number }>(pipeline)
+	const groups = await ShopOwner.aggregate<{ _id: string; total: number }>(pipeline)
 
-	return new Map(rows.map((r) => [r._id, r.total]))
+	return new Map(groups.map((r) => [r._id, r.total]))
 }
 
 /** Gap filling: every bucket in the range gets a point, and a bucket nobody registered in gets 0. */

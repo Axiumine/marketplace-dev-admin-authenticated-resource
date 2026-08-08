@@ -25,7 +25,7 @@ function group(format: string) {
 	}
 }
 
-function rows(groups: Array<{ _id: string; total: number }>) {
+function mockGroups(groups: Array<{ _id: string; total: number }>) {
 	aggregate.mockResolvedValueOnce(groups)
 }
 
@@ -38,14 +38,14 @@ describe('shopOwnersPerPeriodDb', () => {
 	afterEach(() => vi.useRealTimers())
 
 	describe('ALL', () => {
-		// The rows come back out of order and with a hole in the middle, because both are what a real
+		// The groups come back out of order and with a hole in the middle, because both are what a real
 		// `$group` produces: it has no ordering guarantee at all, and a month nobody registered in
 		// yields no group rather than a zero. The series must still start at the OLDEST month — which
 		// is what separates `Math.min` from `Math.max` over the returned keys — run to the current
 		// month even though the last two are empty, and carry a 0 for the month in the gap.
 		it('runs from the oldest month the database returned to the current one, gaps filled', async () => {
 			todayE('2026-08-02T09:30:00.000Z')
-			rows([
+			mockGroups([
 				{ _id: '2026-06-01', total: 2 },
 				{ _id: '2026-04-01', total: 5 }
 			])
@@ -67,7 +67,7 @@ describe('shopOwnersPerPeriodDb', () => {
 		// bucket with its own first day so the client has a single date format to parse.
 		it('groups by month with no range stage at all', async () => {
 			todayE('2026-08-02T09:30:00.000Z')
-			rows([{ _id: '2026-08-01', total: 1 }])
+			mockGroups([{ _id: '2026-08-01', total: 1 }])
 
 			await shopOwnersPerPeriodDb('ALL')
 
@@ -78,7 +78,7 @@ describe('shopOwnersPerPeriodDb', () => {
 		// with a flat zero line instead would be indistinguishable on screen from a query that failed.
 		it('answers with no points at all when the collection is empty', async () => {
 			todayE('2026-08-02T09:30:00.000Z')
-			rows([])
+			mockGroups([])
 
 			await expect(shopOwnersPerPeriodDb('ALL')).resolves.toEqual({ granularity: 'MONTH', points: [] })
 		})
@@ -88,7 +88,7 @@ describe('shopOwnersPerPeriodDb', () => {
 		// boundary is where the drift and the month arithmetic are both visible at once.
 		it('steps by calendar month across a year boundary', async () => {
 			todayE('2026-02-15T00:00:00.000Z')
-			rows([{ _id: '2025-11-01', total: 4 }])
+			mockGroups([{ _id: '2025-11-01', total: 4 }])
 
 			await expect(shopOwnersPerPeriodDb('ALL')).resolves.toEqual({
 				granularity: 'MONTH',
@@ -105,7 +105,7 @@ describe('shopOwnersPerPeriodDb', () => {
 	describe('THREE_MONTHS', () => {
 		it('covers three months back to today, one point per day', async () => {
 			todayE('2026-08-02T23:59:00.000Z')
-			rows([{ _id: '2026-07-04', total: 3 }])
+			mockGroups([{ _id: '2026-07-04', total: 3 }])
 
 			const series = await shopOwnersPerPeriodDb('THREE_MONTHS')
 
@@ -122,7 +122,7 @@ describe('shopOwnersPerPeriodDb', () => {
 		// which would drop the earliest bucket's morning and leave the chart's first point short.
 		it('bounds the scan at midnight UTC of the range start', async () => {
 			todayE('2026-08-02T23:59:00.000Z')
-			rows([])
+			mockGroups([])
 
 			await shopOwnersPerPeriodDb('THREE_MONTHS')
 
@@ -136,7 +136,7 @@ describe('shopOwnersPerPeriodDb', () => {
 	describe('ONE_MONTH', () => {
 		it('covers one month back to today, one point per day', async () => {
 			todayE('2026-08-02T00:00:00.000Z')
-			rows([{ _id: '2026-08-02', total: 1 }])
+			mockGroups([{ _id: '2026-08-02', total: 1 }])
 
 			const series = await shopOwnersPerPeriodDb('ONE_MONTH')
 
@@ -159,7 +159,7 @@ describe('shopOwnersPerPeriodDb', () => {
 		 */
 		it('lands on the last day of a shorter month rather than overflowing into the next one', async () => {
 			todayE('2026-03-31T12:00:00.000Z')
-			rows([])
+			mockGroups([])
 
 			const series = await shopOwnersPerPeriodDb('ONE_MONTH')
 
@@ -173,7 +173,7 @@ describe('shopOwnersPerPeriodDb', () => {
 		// relies on instead of carrying the year by hand.
 		it('carries the year when the range start falls before January', async () => {
 			todayE('2026-01-15T00:00:00.000Z')
-			rows([])
+			mockGroups([])
 
 			const series = await shopOwnersPerPeriodDb('THREE_MONTHS')
 

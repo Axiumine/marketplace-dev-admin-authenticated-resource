@@ -17,7 +17,7 @@ import { Types } from 'mongoose'
  *
  * The duplicate-key message names `slug` alone because it is the collection's only unique index — and
  * it is unique **across both levels**, not within a parent, since `/category/:slug` and
- * `/category/:slug/:subSlug` share one namespace of first segments and two rows with one slug would be
+ * `/category/:slug/:subSlug` share one namespace of first segments and two categories with one slug would be
  * two pages that cannot both exist.
  */
 export async function funItemCategoryAdd(data: IItemCategoryValidated) {

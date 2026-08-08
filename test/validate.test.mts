@@ -708,7 +708,7 @@ describe('validateItemCategory', () => {
 		})
 	})
 
-	// ⚠️ `idParent` is passed through untouched and nothing here invents one. Whether it names a row that
+	// ⚠️ `idParent` is passed through untouched and nothing here invents one. Whether it names a category that
 	// exists, is live and is itself top-level takes three database reads, so all three live in
 	// `throwIfParentNotTopLevel` — this layer only guarantees the shape.
 	//

@@ -53,7 +53,7 @@ beforeEach(() => {
 })
 
 describe('itemCategoryAdd', () => {
-	// The validator runs here rather than in the lib, so the lib is handed a normalised row and never a
+	// The validator runs here rather than in the lib, so the lib is handed a normalised document and never a
 	// padded one — a slug written with the operator's stray spaces is a public URL nobody can reach.
 	it('validates, then creates, and answers true', async () => {
 		await expect(run(itemCategoryAdd, { itemCategory })).resolves.toBe(true)
@@ -93,9 +93,9 @@ describe('itemCategoryAdd', () => {
 
 describe('itemCategoryUpdate', () => {
 	// ⚠️ The input is the object `itemCategoryAdd` takes, so an omitted `idParent` means "top-level
-	// category" and not "leave the parent alone" — this is a save of the row, not a patch. It is what
+	// category" and not "leave the parent alone" — this is a save of the document, not a patch. It is what
 	// makes promoting a subcategory back to the top level expressible at all.
-	it('validates, then saves the row whole under its id', async () => {
+	it('validates, then saves the document whole under its id', async () => {
 		await expect(run(itemCategoryUpdate, { _id, itemCategory })).resolves.toBe(true)
 
 		expect(funItemCategoryUpdate).toHaveBeenCalledExactlyOnceWith(_id, validated)
@@ -118,7 +118,7 @@ describe('itemCategoryDel', () => {
 		expect(funItemCategoryDelete).toHaveBeenCalledExactlyOnceWith(_id)
 	})
 
-	// The one delete on this tier that can be turned down for a reason other than "no such row", and the
+	// The one delete on this tier that can be turned down for a reason other than "no such category", and the
 	// reason has to survive the catch: 400 with the text, not a 500 naming nothing.
 	it('keeps the refusal when the category still holds items', async () => {
 		funItemCategoryDelete.mockRejectedValueOnce(

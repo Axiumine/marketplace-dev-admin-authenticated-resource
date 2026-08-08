@@ -14,7 +14,7 @@ interface IArgs {
  * Saves one category, whole.
  *
  * The input is the same object `itemCategoryAdd` takes, so an omitted `idParent` here means "top-level
- * category" rather than "leave the parent alone" — this is a save of the row, not a patch of it. That
+ * category" rather than "leave the parent alone" — this is a save of the document, not a patch of it. That
  * is what makes promoting a subcategory back to the top level expressible at all: there is no other
  * value the operator could send to clear a parent.
  *

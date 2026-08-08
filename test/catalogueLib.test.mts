@@ -63,7 +63,7 @@ beforeEach(() => {
 
 describe('funItemDelete', () => {
 	// ⚠️ No ownership clause and no `deleted` clause, unlike the owner's `itemDel` on 4026 — an operator
-	// owns nothing, and acting on somebody else's row is the whole tier. The exact key set is therefore
+	// owns nothing, and acting on somebody else's document is the whole tier. The exact key set is therefore
 	// the assertion: an `idCompany` quietly copied in from the sibling service would make every
 	// moderation delete a 404.
 	it('stamps deleted on the item, by id alone', async () => {
@@ -127,7 +127,7 @@ describe('funItemUpdatePublished', () => {
 
 describe('throwIfParentNotTopLevel', () => {
 	// The projection is the point: this asks one question — does the parent have a parent — and pulling
-	// the whole row to answer it would put the name, slug and position on the wire for nothing.
+	// the whole document to answer it would put the name, slug and position on the wire for nothing.
 	it('passes when the parent exists, is live and is top-level', async () => {
 		await expect(throwIfParentNotTopLevel(idParent)).resolves.toBeUndefined()
 
@@ -150,17 +150,17 @@ describe('throwIfParentNotTopLevel', () => {
 		expect(itemCategoryFindOne).not.toHaveBeenCalled()
 	})
 
-	// The update path passes `_id` on every call, so a row being edited under a *different* parent has to
+	// The update path passes `_id` on every call, so a document being edited under a *different* parent has to
 	// get past the self-check and reach the read.
-	it('still reads when the row being edited is not the parent named', async () => {
+	it('still reads when the category being edited is not the parent named', async () => {
 		await expect(throwIfParentNotTopLevel(idParent, _id)).resolves.toBeUndefined()
 
 		expect(itemCategoryFindOne).toHaveBeenCalledOnce()
 	})
 
-	// 404 and not 400: MongoDB has no foreign keys, so an id naming nothing is the ordinary stale-client
-	// failure. A soft-deleted parent counts as missing — the `deleted` clause above is what makes it so,
-	// and a subcategory under an invisible parent is unreachable from `/category/:slug/:subSlug`.
+	// 404 and not 400: an id naming nothing is the ordinary stale-client failure. A soft-deleted parent
+	// counts as missing — the `deleted` clause above is what makes it so, and a subcategory under an
+	// invisible parent is unreachable from `/category/:slug/:subSlug`.
 	it('answers 404 when the parent is absent or retired', async () => {
 		itemCategoryFindOne.mockReturnValueOnce(finding(null))
 
@@ -259,9 +259,9 @@ describe('funItemCategoryAdd', () => {
 
 describe('funItemCategoryDelete', () => {
 	// ⚠️ Refused while anything live still points at it, which is *not* how `companyDel` behaves on this
-	// same tier. `item.idCategory` is required and MongoDB has no foreign keys, so retiring a stocked
-	// category leaves items filed under a row no read path returns — resolvable items, a filter that does
-	// not exist, and nothing anywhere saying so.
+	// same tier. `item.idCategory` is required, so retiring a stocked category leaves items filed under
+	// a category no read path returns — resolvable items, a filter that does not exist, and nothing
+	// anywhere saying so.
 	it('stamps deleted once nothing live points at it', async () => {
 		await expect(funItemCategoryDelete(_id)).resolves.toBeUndefined()
 
@@ -333,7 +333,7 @@ describe('funItemCategoryUpdate', () => {
 	})
 
 	// Both halves of the cap on the one path that needs both — upwards at the parent, downwards at this
-	// row's own children — and the empty `$unset` is what keeps `$set` and `$unset` from ever naming the
+	// document's own children — and the empty `$unset` is what keeps `$set` and `$unset` from ever naming the
 	// same path, which the driver refuses with a conflict.
 	it('writes the parent after checking upwards then downwards', async () => {
 		await expect(funItemCategoryUpdate(_id, { ...(data as object), idParent } as never)).resolves.toBeUndefined()
@@ -354,7 +354,7 @@ describe('funItemCategoryUpdate', () => {
 		expect(itemCategoryUpdateOne).not.toHaveBeenCalled()
 	})
 
-	it('does not write when the row being filed has subcategories of its own', async () => {
+	it('does not write when the category being filed has subcategories of its own', async () => {
 		itemCategoryCountDocuments.mockReturnValueOnce(counting(1))
 
 		await expect(funItemCategoryUpdate(_id, { ...(data as object), idParent } as never)).rejects.toThrow('Bad Request')

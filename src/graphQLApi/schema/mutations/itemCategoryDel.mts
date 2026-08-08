@@ -12,7 +12,7 @@ interface IArgs {
  *
  * Refused while a live subcategory or a live item still points at it — see `funItemCategoryDelete` for
  * why that is a 400 and not a cascade. It is the one delete on this tier that can be turned down for a
- * reason other than "no such row".
+ * reason other than "no such category".
  */
 export const itemCategoryDel = {
 	type: new GraphQLNonNull(GraphQLBoolean),
