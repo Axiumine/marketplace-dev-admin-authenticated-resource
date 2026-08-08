@@ -27,18 +27,18 @@ const _id = new Types.ObjectId('507f1f77bcf86cd799439014')
 const idShopOwner = new Types.ObjectId('507f1f77bcf86cd799439013')
 
 const data = {
-	legalName: 'Pizzeria da Mario S.r.l.',
+	legalName: 'Marks Boutique Ltd',
 	vatNumber: '12345678901',
 	taxCode: '12345678901',
-	contactPerson: 'Mario Rossi',
-	administrator: 'Mario Rossi',
+	contactPerson: 'Mark Rivers',
+	administrator: 'Mark Rivers',
 	uniqueCode: 'ABC1234',
-	certifiedEmail: 'pizzeria@pec.test',
+	certifiedEmail: 'certified@boutique.test',
 	address: {
-		street: 'Via Milano 9',
-		postalCode: '20100',
-		city: 'Milano',
-		province: 'MI',
+		street: '9 Harbour Road',
+		postalCode: '02109',
+		city: 'Boston',
+		province: 'MA',
 		position: { type: 'Point', coordinates: [9.19, 45.46] }
 	},
 	registryExtract: 'registryExtract-2026'
@@ -222,7 +222,7 @@ describe('funCompanyDelete', () => {
 		expect(typeof update.$set.deleted).toBe('number')
 	})
 
-	// `matchedCount`, not `modifiedCount`: 0 matched is a stale Elimina button naming a row already gone,
+	// `matchedCount`, not `modifiedCount`: 0 matched is a stale Delete button naming a row already gone,
 	// while re-deleting one that is already stamped still matched and is the state the operator asked for.
 	it('raises a 404 when no company carries that id', async () => {
 		mockUpdateMatched(0)

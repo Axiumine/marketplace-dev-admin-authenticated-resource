@@ -45,7 +45,7 @@ const counting = (found: number) => ({ lean: vi.fn().mockResolvedValue(found) })
 const finding = (doc: unknown) => ({ lean: vi.fn().mockResolvedValue(doc) })
 
 /** A category as `validateItemCategory` hands it over: top-level unless a parent is spread in. */
-const data = { name: 'Bakery', slug: 'bakery', position: 0 } as never
+const data = { name: 'Footwear', slug: 'footwear', position: 0 } as never
 
 /** The absence clause every read on this tier shares, tagged so `sanitizeFilter` leaves it alone. */
 const live = trusted({ $exists: false })
@@ -323,7 +323,7 @@ describe('funItemCategoryUpdate', () => {
 		expect(itemCategoryCountDocuments).not.toHaveBeenCalled()
 		expect(itemCategoryUpdateOne).toHaveBeenCalledExactlyOnceWith(
 			{ _id },
-			{ $set: { name: 'Bakery', slug: 'bakery', position: 0 }, $unset: { idParent: 1 } }
+			{ $set: { name: 'Footwear', slug: 'footwear', position: 0 }, $unset: { idParent: 1 } }
 		)
 		// ⚠️ The key set, separately: `toEqual` ignores a property holding `undefined`, so a `$set` built
 		// as `{ ...rest, idParent }` with nothing to put there passes the assertion above while writing
@@ -342,7 +342,7 @@ describe('funItemCategoryUpdate', () => {
 		expect(itemCategoryCountDocuments).toHaveBeenCalledExactlyOnceWith({ idParent: _id, deleted: live })
 		expect(itemCategoryUpdateOne).toHaveBeenCalledExactlyOnceWith(
 			{ _id },
-			{ $set: { name: 'Bakery', slug: 'bakery', position: 0, idParent }, $unset: {} }
+			{ $set: { name: 'Footwear', slug: 'footwear', position: 0, idParent }, $unset: {} }
 		)
 	})
 

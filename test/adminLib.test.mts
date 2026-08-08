@@ -17,8 +17,8 @@ vi.mock('@axiumine/koa-utils/lib/encryptPassword', () => ({ encryptPassword }))
 const { funAdminUpdatePwd } = await import('../src/lib/admin/funAdminUpdatePwd.mts')
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
-const OLD = 'vecchiaPassword1'
-const NEW = 'nuovaPassword1'
+const OLD = 'oldPassword1'
+const NEW = 'newPassword1'
 const HASH = '$2b$14$' + 'x'.repeat(53)
 
 /** `findById(...).select(...).lean()` — two links to mock. */

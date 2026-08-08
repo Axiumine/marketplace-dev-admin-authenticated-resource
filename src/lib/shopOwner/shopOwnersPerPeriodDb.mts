@@ -10,13 +10,13 @@ import { PipelineStage } from 'mongoose'
  * over the last thirty days is one bar.
  *
  * ⚠️ **Unfiltered, exactly like `shopOwnersStatsDb`.** No `deleted` / `disabled` exclusion, so the
- * points sum to the "Totali" row the chart sits under. Filtering here and not there would put two
+ * points sum to the "Total" row the chart sits under. Filtering here and not there would put two
  * numbers that look like the same number on the same screen, disagreeing.
  *
- * ⚠️ **Everything is bucketed in UTC**, both in the `$dateToString` below and in the gap filling. Rome
- * is UTC+1/+2, so an shopOwner registered at 00:30 local lands in the previous day's bucket. That
- * is a deliberate trade: bucketing in Europe/Rome means every boundary — the range start, the day
- * steps, the month steps — has to be computed in a zone with two DST transitions a year, and a
+ * ⚠️ **Everything is bucketed in UTC**, both in the `$dateToString` below and in the gap filling. A
+ * shopOwner in a zone ahead of UTC who registers at 00:30 local lands in the previous day's bucket.
+ * That is a deliberate trade: bucketing in a local zone means every boundary — the range start, the
+ * day steps, the month steps — has to be computed in a zone with two DST transitions a year, and a
  * one-to-two-hour skew on a registration timestamp is invisible at this chart's resolution. If the
  * chart ever gains an hour-of-day axis, this is the decision to revisit first.
  */

@@ -28,9 +28,9 @@ directory (custom + vendored) in one shot.
 
 `custom.yml` carries a rule most services do not have —
 `marketplace-no-log-reset-secret`. This tier is Admin-authenticated, not public,
-but it is the one place the platform hands an imprenditore's reset-password
-state (`resetHash`, `resetDateReq`) to a client at all — `GraphQLImprenditoreById`
-exposes `resetPwd { resetHash resetDateReq }` and `imprenditoreById.mts` projects
+but it is the one place the platform hands a shop owner's reset-password
+state (`resetHash`, `resetDateReq`) to a client at all — `GraphQLShopOwnerById`
+exposes `resetPwd { resetHash resetDateReq }` and `shopOwnerById.mts` projects
 `resetPwd` out of Mongo for it. The hash still authenticates the reset link on
 the public tier, so a log line carrying it here would leak the same secret.
 

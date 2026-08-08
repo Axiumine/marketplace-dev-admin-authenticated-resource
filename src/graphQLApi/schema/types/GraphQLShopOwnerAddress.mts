@@ -3,7 +3,7 @@ import { GraphQLPositionFrag } from '@thedoctorweb_agency/marketplace-common/sch
 import { GraphQLObjectType } from 'graphql'
 
 /**
- * ⚠️ `position` is **nullable here and non-null on the shop** (`GraphQLPVAddress`). Not an
+ * ⚠️ `position` is **nullable here and non-null on the shop** (`GraphQLCompanyAddress`). Not an
  * oversight: the collection made it optional for the same reason — every shopOwner stored before
  * `20260802000300-alter-shopOwner-position-note` has an address and no coordinates, and there is
  * nothing to derive them from without geocoding. A `GraphQLNonNull` here would turn every one of those

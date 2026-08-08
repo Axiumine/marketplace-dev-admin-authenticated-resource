@@ -6,12 +6,12 @@ import { throwErrorWrongUserInput } from '@axiumine/koa-utils/graphQL/throw/thro
  * They exist because the collection's `$jsonSchema` is the only thing that was enforcing any of this,
  * and a validator rejection surfaces as a raw driver error: `Document failed validation`, with the
  * offending path buried in `errInfo`. Apollo turns that into a 500 with no usable message, so an
- * operator who typed a four-digit CAP was told the server had broken. Every helper below raises a 400
+ * operator who typed a four-digit postal code was told the server had broken. Every helper below raises a 400
  * naming the field instead.
  *
  * They also **normalise**, and that half is not cosmetic. `additionalProperties: false` plus
  * `bsonType: 'string'` means an optional contact sent as `null` — which is exactly what a cleared text
- * box serialises to over GraphQL — fails the write. `testoOpzionale` answers `undefined` for anything
+ * box serialises to over GraphQL — fails the write. `optionalText` answers `undefined` for anything
  * blank, so the key is simply absent from the `$set` document.
  *
  * The bounds are copied from the migrations, not from koa-utils. They are not the same numbers: the
@@ -31,7 +31,7 @@ export const MAX_EMAIL = 250
  */
 export const SHAPE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-export const SHAPE_CAP = /^\d{5}$/
+export const SHAPE_POSTAL_CODE = /^\d{5}$/
 export const SHAPE_PROVINCE = /^[A-Za-z]{2}$/
 export const SHAPE_VAT_NUMBER = /^\d{11}$/
 export const SHAPE_UNIQUE_CODE = /^[A-Za-z0-9]{7}$/
@@ -54,7 +54,7 @@ export const SHAPE_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 /** Every slug on the platform, shortest first: two characters. */
 export const MIN_SLUG = 2
 
-/** Italian age of majority. An shopOwner signs contracts, so the platform has no under-18 accounts. */
+/** Age of majority. A shop owner signs contracts, so the platform has no under-18 accounts. */
 export const MIN_AGE = 18
 
 /**
@@ -105,9 +105,9 @@ export const textWithFormat = (value: string, field: string, shape: RegExp, expe
 /**
  * An optional text field the collection pins to one exact length — `company.taxCode` is the only one.
  *
- * Its own helper rather than `testoOpzionaleConFormato` with a `/^.{11}$/`: `.` does not match a
+ * Its own helper rather than `optionalTextWithFormat` with a `/^.{11}$/`: `.` does not match a
  * newline, so a pattern would reject an eleven-character value the collection accepts. Length is also
- * all that was asked for — the codice fiscale of a company is the 11-digit form, but the collection
+ * all that was asked for — the tax code of a company is the 11-digit form, but the collection
  * constrains `minLength`/`maxLength` and no alphabet, and inventing one here would reject a value the
  * database takes.
  *
@@ -141,7 +141,7 @@ export const optionalTextWithFormat = (
 /**
  * A required slug: trimmed, within the collection's bounds, shaped like a URL segment.
  *
- * Not lowercased for the caller. An operator who typed `Margherita` is told the slug is lowercase
+ * Not lowercased for the caller. An operator who typed `Northwind` is told the slug is lowercase
  * rather than having it silently rewritten — the slug is the permanent address of a public page, and a
  * value that differs from what was typed is the kind of surprise that gets noticed only after the link
  * has been shared.
@@ -203,8 +203,8 @@ export const birthDate = (date: Date, field: string, today: Date): Date => {
 /**
  * A GeoJSON coordinate pair, `[longitude, latitude]` — longitude first.
  *
- * The two axes get different bounds, matching what `20260801000000-alter-puntoVendita-position` put in
- * the collection validator: ±180 for longitude, ±90 for latitude. A single ±180 rule for both is the
+ * The two axes get different bounds, matching what the `20260801000000` migration put in the (now-gone
+ * shop collection's) validator: ±180 for longitude, ±90 for latitude. A single ±180 rule for both is the
  * bug that migration fixed, and re-introducing it here would let a latitude of 120 through to a
  * `2dsphere` index that cannot key it.
  *

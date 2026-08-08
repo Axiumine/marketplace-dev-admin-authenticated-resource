@@ -57,9 +57,9 @@ rules:
           regex: (?i)(accesstoken|access_token|refreshtoken|refresh_token|bearer)
 
   # This tier is Admin-authenticated, not public — but it is the one place the
-  # platform hands an imprenditore's reset-password state (resetHash,
-  # resetDateReq) to a client at all: GraphQLImprenditoreById exposes
-  # resetPwd { resetHash, resetDateReq } and imprenditoreById.mts projects
+  # platform hands a shop owner's reset-password state (resetHash,
+  # resetDateReq) to a client at all: GraphQLShopOwnerById exposes
+  # resetPwd { resetHash, resetDateReq } and shopOwnerById.mts projects
   # 'resetPwd' out of Mongo for it. The hash still authenticates the reset
   # link on the public tier, so logging it here would leak the same secret.
   - id: marketplace-no-log-reset-secret
@@ -71,8 +71,8 @@ rules:
       category: security
       confidence: MEDIUM
       references:
-        - src/graphQLApi/schema/types/GraphQLImprenditoreById.mts
-        - src/graphQLApi/schema/queries/imprenditoreById.mts
+        - src/graphQLApi/schema/types/GraphQLShopOwnerById.mts
+        - src/graphQLApi/schema/queries/shopOwnerById.mts
     patterns:
       - pattern-either:
           - pattern: console.$M(..., $ARG, ...)

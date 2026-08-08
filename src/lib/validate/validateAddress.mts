@@ -1,14 +1,15 @@
-import { coordinate, requiredText, SHAPE_CAP, SHAPE_PROVINCE, textWithFormat } from '@lib/validate/fields.mjs'
+import { coordinate, requiredText, SHAPE_POSTAL_CODE, SHAPE_PROVINCE, textWithFormat } from '@lib/validate/fields.mjs'
 import { ICompanyAddress } from '@thedoctorweb_agency/marketplace-common/models/MongoDBInterfaces/ICompanySchema'
 
 /*
  * The one address validator on this tier, for `company.address`.
  *
- * Until 2026-08-04 this also served `puntoVendita.address` — the two collections stored the same
- * shape, the same bounds and the same tuple-form GeoJSON point, which is why the function was written
- * generic on a `prefix` path rather than hard-coded to one caller. `puntoVendita` is gone along with
- * every mutation that took an address, so `company` is the only caller left; the generic shape stayed
- * rather than being collapsed into `validateCompany.mts`, since nothing about it is company-specific.
+ * Until 2026-08-04 this also served the now-gone shop collection's `address` — the two collections
+ * stored the same shape, the same bounds and the same tuple-form GeoJSON point, which is why the
+ * function was written generic on a `prefix` path rather than hard-coded to one caller. That collection
+ * is gone along with every mutation that took an address, so `company` is the only caller left; the
+ * generic shape stayed rather than being collapsed into `validateCompany.mts`, since nothing about it
+ * is company-specific.
  *
  * ⚠️ `MAX_ADDRESS` is 100 here and 250 on a shopOwner. Same field name, same fragment on the
  * GraphQL side, different collections and different caps — the shopOwner validator lives in
@@ -43,7 +44,7 @@ export type IAddressInput = Omit<ICompanyAddress, 'position'> & { position: { co
  */
 export const validateAddress = (address: IAddressInput, prefix: string): ICompanyAddress => ({
 	street: requiredText(address.street, `${prefix}.street`, MAX_ADDRESS),
-	postalCode: textWithFormat(address.postalCode, `${prefix}.postalCode`, SHAPE_CAP, 'the postal code is 5 digits'),
+	postalCode: textWithFormat(address.postalCode, `${prefix}.postalCode`, SHAPE_POSTAL_CODE, 'the postal code is 5 digits'),
 	city: requiredText(address.city, `${prefix}.city`, MAX_CITY),
 	province: textWithFormat(
 		address.province,

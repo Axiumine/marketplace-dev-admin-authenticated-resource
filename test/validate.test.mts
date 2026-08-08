@@ -8,7 +8,7 @@ const {
 	birthDate,
 	requiredEmail,
 	MIN_AGE,
-	SHAPE_CAP,
+	SHAPE_POSTAL_CODE,
 	SHAPE_EMAIL,
 	SHAPE_VAT_NUMBER,
 	SHAPE_PROVINCE,
@@ -36,7 +36,7 @@ const emailAtLimit = `${'a'.repeat(MAX_EMAIL - 6)}@ex.it`
 
 describe('requiredText', () => {
 	it('trims before measuring, so trailing spaces are neither content nor overflow', () => {
-		expect(requiredText('  Mario  ', 'firstName', 5)).toBe('Mario')
+		expect(requiredText('  Mark  ', 'firstName', 5)).toBe('Mark')
 	})
 
 	it.each([
@@ -106,13 +106,13 @@ describe('optionalText', () => {
 
 describe('textWithFormat', () => {
 	it('trims and returns a value that matches', () => {
-		expect(textWithFormat('  20100  ', 'postalCode', SHAPE_CAP, 'the postal code is 5 digits')).toBe('20100')
+		expect(textWithFormat('  02109  ', 'postalCode', SHAPE_POSTAL_CODE, 'the postal code is 5 digits')).toBe('02109')
 	})
 
 	// No separate empty test in the source: every pattern is anchored and matches at least one
 	// character, so a blank field gets the shape message rather than "field required".
 	it('refuses a blank value with the shape message, not an obligatory one', () => {
-		expect(reason(() => textWithFormat('   ', 'postalCode', SHAPE_CAP, 'the postal code is 5 digits'))).toBe(
+		expect(reason(() => textWithFormat('   ', 'postalCode', SHAPE_POSTAL_CODE, 'the postal code is 5 digits'))).toBe(
 			'postalCode: the postal code is 5 digits'
 		)
 	})
@@ -140,12 +140,12 @@ describe('optionalTextWithFormat', () => {
  * Every table carries a value that is right, a value that is the wrong length on each side, a value
  * with the wrong character class, and — the two that are easy to leave out — a value with something
  * glued to the front and one with something glued to the back. Those last two are what an unanchored
- * pattern would let through: `/\d{5}/` without `^` accepts `via 20100`, and without `$` it accepts
- * `20100 Milano`, both of which look like they matched.
+ * pattern would let through: `/\d{5}/` without `^` accepts `street 02109`, and without `$` it accepts
+ * `02109 Boston`, both of which look like they matched.
  */
 describe('the field patterns', () => {
 	it.each([
-		['20100', true],
+		['02109', true],
 		['00100', true],
 		['2010', false],
 		['201000', false],
@@ -155,13 +155,13 @@ describe('the field patterns', () => {
 		['x20100', false],
 		['20100x', false],
 		[' 20100', false]
-	])('SHAPE_CAP accepts %p: %s', (value, expected) => {
-		expect(SHAPE_CAP.test(value)).toBe(expected)
+	])('SHAPE_POSTAL_CODE accepts %p: %s', (value, expected) => {
+		expect(SHAPE_POSTAL_CODE.test(value)).toBe(expected)
 	})
 
 	it.each([
-		['MI', true],
-		['mi', true],
+		['MA', true],
+		['ma', true],
 		['Mi', true],
 		['M', false],
 		['MIL', false],
@@ -206,18 +206,18 @@ describe('the field patterns', () => {
 	// Deliberately loose — one `@`, a dot after it, no whitespace. The rows below are the rubbish it is
 	// meant to stop, not an attempt at RFC 5322.
 	it.each([
-		['mario@marketplace.test', true],
-		['m.rossi+tag@sub.marketplace.co.uk', true],
+		['mark@marketplace.test', true],
+		['m.rivers+tag@sub.marketplace.co.uk', true],
 		['a@b.c', true],
-		['mario@marketplace', false],
-		['mariomarketplace.test', false],
+		['mark@marketplace', false],
+		['markmarketplace.test', false],
 		['@marketplace.test', false],
-		['mario@.test', false],
-		['mario@marketplace.', false],
-		['mario@@marketplace.test', false],
+		['mark@.test', false],
+		['mark@marketplace.', false],
+		['mark@@marketplace.test', false],
 		['ma rio@marketplace.test', false],
-		['mario@marketplace.test ', false],
-		[' mario@marketplace.test', false],
+		['mark@marketplace.test ', false],
+		[' mark@marketplace.test', false],
 		['', false]
 	])('SHAPE_EMAIL accepts %p: %s', (value, expected) => {
 		expect(SHAPE_EMAIL.test(value)).toBe(expected)
@@ -226,7 +226,7 @@ describe('the field patterns', () => {
 
 describe('emailObbligatoria', () => {
 	it('trims and returns a well-formed address', () => {
-		expect(requiredEmail('  mario@marketplace.test ', 'contacts.email')).toBe('mario@marketplace.test')
+		expect(requiredEmail('  mark@marketplace.test ', 'contacts.email')).toBe('mark@marketplace.test')
 	})
 
 	// The cap is the collection's 250, not koa-utils' platform-wide 255: validating against the wrong
@@ -239,7 +239,7 @@ describe('emailObbligatoria', () => {
 	it.each([
 		['a blank box', '   ', 'contacts.email: field required'],
 		['one character over the cap', `x${emailAtLimit}`, 'contacts.email: max 250 characters'],
-		['a malformed address', 'mario@marketplace', 'contacts.email: invalid email address']
+		['a malformed address', 'mark@marketplace', 'contacts.email: invalid email address']
 	])('refuses %s', (_desc, value, expected) => {
 		expect(reason(() => requiredEmail(value, 'contacts.email'))).toBe(expected)
 	})
@@ -331,20 +331,20 @@ describe('validateShopOwnerPersonalData', () => {
 	const birth = { date: new Date('1990-05-17T00:00:00.000Z') }
 
 	const validate = {
-		firstName: '  Mario  ',
-		lastName: ' Rossi ',
+		firstName: '  Mark  ',
+		lastName: ' Rivers ',
 		birth,
-		address: { street: ' Via Roma 1 ', postalCode: ' 20100 ', city: ' Milano ', province: 'mi' },
-		contacts: { mobile: ' 3331234567 ', landline: ' 0212345 ', email: ' mario@marketplace.test ' }
+		address: { street: ' 1 Main Street ', postalCode: ' 02109 ', city: ' Boston ', province: 'ma' },
+		contacts: { mobile: ' 3331234567 ', landline: ' 0212345 ', email: ' mark@marketplace.test ' }
 	} as never
 
 	it('returns a trimmed copy with the province upper-cased', () => {
 		expect(validateShopOwnerPersonalData(validate, today)).toEqual({
-			firstName: 'Mario',
-			lastName: 'Rossi',
+			firstName: 'Mark',
+			lastName: 'Rivers',
 			birth: { date: birth.date },
-			address: { street: 'Via Roma 1', postalCode: '20100', city: 'Milano', province: 'MI' },
-			contacts: { mobile: '3331234567', landline: '0212345', email: 'mario@marketplace.test' }
+			address: { street: '1 Main Street', postalCode: '02109', city: 'Boston', province: 'MA' },
+			contacts: { mobile: '3331234567', landline: '0212345', email: 'mark@marketplace.test' }
 		})
 	})
 
@@ -353,7 +353,7 @@ describe('validateShopOwnerPersonalData', () => {
 	// and fails the collection validator, taking the rest of the save with it.
 	it('drops a cleared landline instead of writing it empty', () => {
 		const withoutLandline = validateShopOwnerPersonalData(
-			{ ...(validate as object), contacts: { mobile: '3331234567', landline: '   ', email: 'mario@marketplace.test' } } as never,
+			{ ...(validate as object), contacts: { mobile: '3331234567', landline: '   ', email: 'mark@marketplace.test' } } as never,
 			today
 		)
 
@@ -396,7 +396,7 @@ describe('validateShopOwnerPersonalData', () => {
 		['contacts.mobile', { mobile: '' }, 'contacts.mobile: field required'],
 		['contacts.mobile over the cap', { mobile: '1234567890123' }, 'contacts.mobile: max 12 characters'],
 		['contacts.landline over the cap', { landline: '1234567890123' }, 'contacts.landline: max 12 characters'],
-		['contacts.email', { email: 'mario@marketplace' }, 'contacts.email: invalid email address']
+		['contacts.email', { email: 'mark@marketplace' }, 'contacts.email: invalid email address']
 	])('refuses a bad %s', (_desc, patch, expected) => {
 		const personalData = {
 			...(validate as object),
@@ -409,7 +409,7 @@ describe('validateShopOwnerPersonalData', () => {
 	// The input type carries the coordinates alone; the `type: 'Point'` the collection validator requires
 	// is added here, so the client never sends a constant it could get wrong.
 	it('wraps the coordinates in a GeoJSON point', () => {
-		const conPosition = validateShopOwnerPersonalData(
+		const withPosition = validateShopOwnerPersonalData(
 			{
 				...(validate as object),
 				address: {
@@ -420,7 +420,7 @@ describe('validateShopOwnerPersonalData', () => {
 			today
 		)
 
-		expect(conPosition.address.position).toEqual({ type: 'Point', coordinates: [9.19, 45.46] })
+		expect(withPosition.address.position).toEqual({ type: 'Point', coordinates: [9.19, 45.46] })
 	})
 
 	// `position` is optional in the collection and nothing backfills it, so every shopOwner created
@@ -428,7 +428,7 @@ describe('validateShopOwnerPersonalData', () => {
 	// whole sub-document, and a key present holding `undefined` is written as `null`, which the validator
 	// rejects — taking the rest of the save with it, exactly as a cleared landline would.
 	it.each([
-		['assente', {}],
+		['absent', {}],
 		['null', { position: null }],
 		['undefined', { position: undefined }]
 	])('omits the point entirely when it is %s', (_desc, patch) => {
@@ -492,10 +492,10 @@ describe('validateShopOwnerNote', () => {
 
 describe('validateAddress', () => {
 	const valid = {
-		street: ' Via Milano 9 ',
-		postalCode: ' 20100 ',
-		city: ' Milano ',
-		province: 'mi',
+		street: ' 9 Harbour Road ',
+		postalCode: ' 02109 ',
+		city: ' Boston ',
+		province: 'ma',
 		position: { coordinates: [9.19, 45.46] }
 	}
 
@@ -503,10 +503,10 @@ describe('validateAddress', () => {
 	// client would only create a way to get it wrong.
 	it('stamps the GeoJSON type itself and upper-cases the province', () => {
 		expect(validateAddress(valid, 'address')).toEqual({
-			street: 'Via Milano 9',
-			postalCode: '20100',
-			city: 'Milano',
-			province: 'MI',
+			street: '9 Harbour Road',
+			postalCode: '02109',
+			city: 'Boston',
+			province: 'MA',
 			position: { type: 'Point', coordinates: [9.19, 45.46] }
 		})
 	})
@@ -550,21 +550,21 @@ describe('validateAddress', () => {
 
 describe('validateCompany', () => {
 	const address = {
-		street: ' Via Milano 9 ',
-		postalCode: ' 20100 ',
-		city: ' Milano ',
-		province: 'mi',
+		street: ' 9 Harbour Road ',
+		postalCode: ' 02109 ',
+		city: ' Boston ',
+		province: 'ma',
 		position: { coordinates: [9.19, 45.46] }
 	}
 
 	const validate = {
-		legalName: ' Pizzeria da Mario ',
+		legalName: ' Marks Boutique ',
 		vatNumber: ' 12345678901 ',
 		taxCode: ' 12345678901 ',
-		contactPerson: ' Mario Rossi ',
-		administrator: ' Mario Rossi ',
+		contactPerson: ' Mark Rivers ',
+		administrator: ' Mark Rivers ',
 		uniqueCode: ' ABC1234 ',
-		certifiedEmail: ' pizzeria@pec.test ',
+		certifiedEmail: ' certified@boutique.test ',
 		address,
 		registryExtract: ' registryExtract-2026 ',
 		// Present and `false`, because `GraphQLInputCompany` declares it `Boolean!` — the resolver is
@@ -575,18 +575,18 @@ describe('validateCompany', () => {
 
 	it('returns a trimmed copy, with the seat normalised like any other address', () => {
 		expect(validateCompany(validate)).toEqual({
-			legalName: 'Pizzeria da Mario',
+			legalName: 'Marks Boutique',
 			vatNumber: '12345678901',
 			taxCode: '12345678901',
-			contactPerson: 'Mario Rossi',
-			administrator: 'Mario Rossi',
+			contactPerson: 'Mark Rivers',
+			administrator: 'Mark Rivers',
 			uniqueCode: 'ABC1234',
-			certifiedEmail: 'pizzeria@pec.test',
+			certifiedEmail: 'certified@boutique.test',
 			address: {
-				street: 'Via Milano 9',
-				postalCode: '20100',
-				city: 'Milano',
-				province: 'MI',
+				street: '9 Harbour Road',
+				postalCode: '02109',
+				city: 'Boston',
+				province: 'MA',
 				position: { type: 'Point', coordinates: [9.19, 45.46] }
 			},
 			registryExtract: 'registryExtract-2026',
@@ -626,25 +626,25 @@ describe('validateCompany', () => {
 	it('carries the three public fields through, trimmed, when the shop has a listing', () => {
 		const result = validateCompany({
 			...(validate as object),
-			publicName: ' Pizzeria Mario ',
-			slug: ' pizzeria-mario ',
+			publicName: ' Mark Boutique ',
+			slug: ' mark-boutique ',
 			description: ' Wood oven since 1975. '
 		} as never)
 
-		expect(result.publicName).toBe('Pizzeria Mario')
-		expect(result.slug).toBe('pizzeria-mario')
+		expect(result.publicName).toBe('Mark Boutique')
+		expect(result.slug).toBe('mark-boutique')
 		expect(result.description).toBe('Wood oven since 1975.')
 	})
 
 	// ⚠️ The slug is the permanent address of a public page, so a value that differs from what was typed
-	// is refused rather than silently rewritten: an operator who typed `Pizzeria` is told the slug is
+	// is refused rather than silently rewritten: an operator who typed `Boutique` is told the slug is
 	// lowercase, instead of finding out after the link has been shared. `--` is rejected by the same
 	// shape — a doubled hyphen comes from a name with punctuation in it and is not what a reader expects
 	// to see in a URL.
 	it.each([
 		['publicName over the cap', { publicName: 'a'.repeat(101) }, 'company.publicName: max 100 characters'],
-		['an uppercase slug', { slug: 'Pizzeria' }, 'company.slug: lowercase letters, digits and single hyphens only'],
-		['a doubled hyphen', { slug: 'pizzeria--mario' }, 'company.slug: lowercase letters, digits and single hyphens only'],
+		['an uppercase slug', { slug: 'Boutique' }, 'company.slug: lowercase letters, digits and single hyphens only'],
+		['a doubled hyphen', { slug: 'mark--boutique' }, 'company.slug: lowercase letters, digits and single hyphens only'],
 		['a one-character slug', { slug: 'a' }, 'company.slug: min 2 characters'],
 		['slug over the cap', { slug: 'a'.repeat(121) }, 'company.slug: max 120 characters'],
 		['description over the cap', { description: 'a'.repeat(2001) }, 'company.description: max 2000 characters']
@@ -673,7 +673,7 @@ describe('validateCompany', () => {
 		['administrator', { administrator: '' }, 'company.administrator: field required'],
 		['administrator over the cap', { administrator: 'a'.repeat(51) }, 'company.administrator: max 50 characters'],
 		['uniqueCode', { uniqueCode: 'ABC12' }, 'company.uniqueCode: the unique code is 7 alphanumeric characters'],
-		['certifiedEmail', { certifiedEmail: 'pizzeria@certifiedEmail' }, 'company.certifiedEmail: invalid email address'],
+		['certifiedEmail', { certifiedEmail: 'boutique@certifiedEmail' }, 'company.certifiedEmail: invalid email address'],
 		['registryExtract', { registryExtract: '   ' }, 'company.registryExtract: field required']
 	])('refuses a bad %s', (_desc, patch, expected) => {
 		expect(reason(() => validateCompany({ ...(validate as object), ...patch } as never))).toBe(expected)
@@ -697,12 +697,12 @@ describe('validateCompany', () => {
 describe('validateItemCategory', () => {
 	const idParent = new Types.ObjectId('507f1f77bcf86cd799439030')
 
-	const validate = { name: ' Bakery ', slug: ' bakery-goods ', idParent, position: 3 } as never
+	const validate = { name: ' Footwear ', slug: ' footwear-goods ', idParent, position: 3 } as never
 
 	it('returns a trimmed copy, keeping the parent it was handed', () => {
 		expect(validateItemCategory(validate)).toEqual({
-			name: 'Bakery',
-			slug: 'bakery-goods',
+			name: 'Footwear',
+			slug: 'footwear-goods',
 			idParent,
 			position: 3
 		})
@@ -752,7 +752,7 @@ describe('validateItemCategory', () => {
 		// ⚠️ 120 against the name's 100, and the gap is deliberate: a slug is derived from a name and
 		// hyphens make it grow, so a 100-character name that survives `requiredText` must still fit.
 		['a slug over the cap', { slug: 'a'.repeat(121) }, 'itemCategory.slug: max 120 characters'],
-		['an uppercase slug', { slug: 'Bakery' }, 'itemCategory.slug: lowercase letters, digits and single hyphens only']
+		['an uppercase slug', { slug: 'Footwear' }, 'itemCategory.slug: lowercase letters, digits and single hyphens only']
 	])('refuses %s', (_desc, patch, expected) => {
 		expect(reason(() => validateItemCategory({ ...(validate as object), ...patch } as never))).toBe(expected)
 	})

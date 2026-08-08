@@ -5,9 +5,10 @@ import { GraphQLBoolean, GraphQLID, GraphQLNonNull, GraphQLObjectType, GraphQLSt
 /**
  * A company, as its own entity.
  *
- * These fields were `puntoVendita.company`, an embedded object, until 20260803000100 lifted them into
- * the `company` collection — which is why a chain's three pizzerias no longer store the ragione sociale
- * three times, and why the unique partita IVA no longer refuses the second of them.
+ * These fields lived on a per-shop embedded object — a shop IS a `company`; there is no shop collection
+ * and will not be one — until 20260803000100 lifted them into the `company` collection itself, which is
+ * why a shopOwner running three shops no longer stores the registered legal name three times, and why the
+ * unique VAT number no longer refuses the second of them.
  *
  * `idShopOwner` is exposed rather than kept internal: the operator app reaches a company through its
  * owner's detail page and the field is what a client re-reading one row can check it against.
@@ -33,14 +34,14 @@ export const GraphQLCompany = new GraphQLObjectType({
 		// the collection — it was the one unbounded string on the embedded shape.
 		registryExtract: { type: new GraphQLNonNull(GraphQLString) },
 		// The shop listing, added 2026-08-04 with the catalogue. A company IS the shop here — there is no
-		// `puntoVendita` collection any more — so the storefront's heading, URL and body text have nowhere
+		// shop collection and will not be one — so the storefront's heading, URL and body text have nowhere
 		// else to live.
 		//
-		// `publicName` is the *insegna*, the trading name over the door, and is not `legalName`: a *ragione
-		// sociale* carries the legal form ("… S.r.l.") and is the wrong string on a customer-facing card.
+		// `publicName` is the trading name over the door, and is not `legalName`: a registered legal name
+		// carries the legal form ("… Ltd") and is the wrong string on a customer-facing card.
 		//
 		// The three are nullable because the collection made them optional — `collMod` cannot re-validate
-		// rows already stored, and no slug can be derived from a ragione sociale without inventing one. What
+		// rows already stored, and no slug can be derived from a registered legal name without inventing one. What
 		// keeps them from being permanently blank is the collection's `$expr`: `published: true` is refused
 		// unless `slug` and `publicName` are both strings.
 		publicName: { type: GraphQLString },
@@ -55,7 +56,7 @@ export const GraphQLCompany = new GraphQLObjectType({
 /**
  * The company's legal seat — not the address of any of its shops.
  *
- * Its own type rather than `GraphQLPVAddress` reused, on the same grounds every other duplicated
+ * Its own type rather than `GraphQLShopOwnerAddress` reused, on the same grounds every other duplicated
  * declaration on this tier stands on: a GraphQL type name is global to the schema, and tying the shape
  * of two collections' addresses to one name means a field added for one of them silently appears on the
  * other. What *is* shared is the field map — both spread the same fragments from marketplace-common, which

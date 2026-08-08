@@ -17,7 +17,7 @@ import { Types } from 'mongoose'
  * from "this account has never had a preference recorded".
  *
  * `onboardingStep` is the exception, because it is the one that can genuinely be *not set*: blank
- * arrives here as `undefined` from `testoOpzionale` and removes the field, since the collection types
+ * arrives here as `undefined` from `optionalText` and removes the field, since the collection types
  * it `string` and would reject a `null` for the whole write.
  */
 export async function funShopOwnerUpdatePreferences(

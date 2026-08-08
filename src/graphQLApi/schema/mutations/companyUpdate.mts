@@ -19,7 +19,7 @@ interface IArgs {
  * would silently hand them over with it.
  *
  * The whole object in one `$set`, for the reason the shop mutations give: it is one form and one Save, on
- * a single document, so the write is atomic and a rejected certified email cannot leave the new ragione sociale
+ * a single document, so the write is atomic and a rejected certified email cannot leave the new registered legal name
  * already stored.
  */
 export const companyUpdate = {

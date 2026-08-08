@@ -13,8 +13,7 @@ export const shopOwnersPerPeriod = {
 	//
 	// ⚠️ The value has to be a member of the enum, and nothing but the schema test checks that: an
 	// unknown default is not a build error, it makes `defaultValue` serialise to `null` and the whole
-	// introspection query fail — which is how `TUTTO`, missed by the English rename, survived here
-	// while every other spelling of it was gone.
+	// introspection query fail — a failure that names neither this file nor the argument.
 	args: {
 		period: { type: new GraphQLNonNull(GraphQLShopOwnersPeriod), defaultValue: 'ALL' }
 	},

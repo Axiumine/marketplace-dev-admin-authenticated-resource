@@ -21,9 +21,9 @@ const { default: shopOwnersStatsDb } = await import('../src/lib/shopOwner/shopOw
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
 
 const personalData = {
-	firstName: 'Mario',
-	lastName: 'Rossi',
-	address: { via: 'Via Roma 1', postalCode: '20100', city: 'Milano', province: 'MI', country: 'IT' }
+	firstName: 'Mark',
+	lastName: 'Rivers',
+	address: { street: '1 Main Street', postalCode: '02109', city: 'Boston', province: 'MA', country: 'US' }
 } as never
 
 /** Both fun* helpers end in `.exec()`, so the chain has to be mocked one level deep. */
@@ -227,7 +227,7 @@ describe('funShopOwnerUpdatePreferences', () => {
 	// Every path is prefixed `login.`: these three live inside the login sub-document, not at the root.
 	// Both booleans are stored as they are — false included — unlike the two status flags above.
 	it.each([
-		[true, true, 'DATI', { 'login.rememberMe': true, 'login.onboardingDone': true, 'login.onboardingStep': 'DATI' }, {}],
+		[true, true, 'DATA', { 'login.rememberMe': true, 'login.onboardingDone': true, 'login.onboardingStep': 'DATA' }, {}],
 		[false, false, 'PV', { 'login.rememberMe': false, 'login.onboardingDone': false, 'login.onboardingStep': 'PV' }, {}],
 		[true, false, undefined, { 'login.rememberMe': true, 'login.onboardingDone': false }, { 'login.onboardingStep': 1 }]
 	])('rememberMe=%s onboardingDone=%s step=%s sets %o and unsets %o', async (rememberMe, onboardingDone, step, set, unset) => {
@@ -241,7 +241,7 @@ describe('funShopOwnerUpdatePreferences', () => {
 	it('raises a 404 when no shopOwner carries that id', async () => {
 		mockUpdateMatched(0)
 
-		expect(await rejection(funShopOwnerUpdatePreferences(_id, true, true, 'DATI'))).toEqual({
+		expect(await rejection(funShopOwnerUpdatePreferences(_id, true, true, 'DATA'))).toEqual({
 			message: 'Oops',
 			http: { status: 404 },
 			description: 'shopOwner not found'

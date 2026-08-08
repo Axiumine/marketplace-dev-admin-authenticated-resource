@@ -31,10 +31,10 @@ const _id = new Types.ObjectId('507f1f77bcf86cd799439020')
 const idParent = new Types.ObjectId('507f1f77bcf86cd799439030')
 
 /** As the operator's form sends it — untrimmed, because the validator is real here. */
-const itemCategory = { name: ' Bakery ', slug: ' bakery ', idParent, position: 3 }
+const itemCategory = { name: ' Footwear ', slug: ' footwear ', idParent, position: 3 }
 
 /** The same category once `validateItemCategory` is done with it. */
-const validated = { name: 'Bakery', slug: 'bakery', idParent, position: 3 }
+const validated = { name: 'Footwear', slug: 'footwear', idParent, position: 3 }
 
 type Resolver = { resolve: (...a: never[]) => unknown }
 
@@ -64,7 +64,7 @@ describe('itemCategoryAdd', () => {
 	// `Boolean!` and not the new id, like every other write on this tier: the category screen re-reads
 	// `itemCategories` after a save and has no use for one.
 	it('does not write when a field is refused, and does not report it to Sentry', async () => {
-		expect(await rejection(run(itemCategoryAdd, { itemCategory: { ...itemCategory, slug: 'Bakery' } }))).toEqual({
+		expect(await rejection(run(itemCategoryAdd, { itemCategory: { ...itemCategory, slug: 'Footwear' } }))).toEqual({
 			message: 'Bad Request',
 			http: { status: 400 },
 			description: 'itemCategory.slug: lowercase letters, digits and single hyphens only'
