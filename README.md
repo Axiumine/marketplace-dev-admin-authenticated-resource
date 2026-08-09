@@ -53,9 +53,9 @@ starts matching accounts that are not waiting. A new flag added here follows the
 
 | Topic | File |
 |---|---|
-| rules for agents working in this repo | `CLAUDE.md` |
-| git hooks, gate order, node selection | `REPO.md` |
-| the whole platform — tiers, ports, terminology | parent `CLAUDE.md` |
+| rules for agents working in this repo | [`CLAUDE.md`](./CLAUDE.md) |
+| git hooks, gate order, node selection | [`REPO.md`](./REPO.md) |
+| the whole platform — tiers, ports, terminology | parent [`CLAUDE.md`](./CLAUDE.md) |
 
 ## License
 
