@@ -14,6 +14,7 @@ import {
 } from '@axiumine/marketplace-common/encryption/encryptedFields'
 import { ALGORITHM_DETERMINISTIC } from '@axiumine/marketplace-common/encryption/EncryptionAlgorithm'
 import { encryptValue } from '@axiumine/marketplace-common/encryption/fieldEncryption'
+import { sessionKey } from '@axiumine/marketplace-common/others/sessionKeys'
 import { TIER } from '@axiumine/marketplace-common/others/Tier'
 import { hash, verify } from '@node-rs/bcrypt'
 import * as dotenv from 'dotenv'
@@ -68,7 +69,7 @@ async function gql(query: string, headers: Record<string, string> = {}) {
  */
 async function withSession(email = 'operator@marketplace.test', _id = new mongoose.Types.ObjectId()) {
 	const token = `access:${randomUUID()}`
-	const key = `${REDIS_KEY}${token}`
+	const key = sessionKey(token)
 
 	seededKeys.push(key)
 	// `tier` is what a real login writes and what this service asserts on every request: the auth
