@@ -55,7 +55,6 @@ if (process.env.DSN) {
 	Sentry.init({
 		dsn: process.env.DSN,
 		enableLogs: true,
-		enableLogs: true,
 		dataCollection: {
 			// The client address is a network-derived value this platform does not capture (E12-S06); this
 			// is the switch that stops the SDK inferring one from the forwarding headers for `event.user`.
