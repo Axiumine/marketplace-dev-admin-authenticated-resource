@@ -43,7 +43,10 @@ export const authorizationAuthenticatedResourceHandler = () => async (ctx: ICont
 		) {
 			introspection = true
 		} else {
-			console.log('auth undefined')
+			// E12-S20 removed a `console.log('auth undefined')` from here. It printed a constant, so it
+			// leaked nothing and went for tidiness rather than for safety — but it fired once per
+			// unauthenticated request on the operator surface, which makes it a free line of log volume
+			// for anyone who can reach the port. The 412 below is the record that this happened.
 			throw throwPreconditionFailedNoAuthHeader()
 		}
 	}

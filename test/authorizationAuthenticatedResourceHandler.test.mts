@@ -124,25 +124,27 @@ describe('authorizationAuthenticatedResourceHandler', () => {
 		}
 	})
 
-	it('answers 412 when there is no authorization header', async () => {
+	// E12-S20. The refusal used to print `auth undefined` and this test used to assert the string. The
+	// print carried nothing — it was a constant — but it fired once per unauthenticated request on the
+	// operator surface, so it went; the absence is asserted so it does not come back with a debugging
+	// session.
+	it('answers 412 when there is no authorization header, and prints nothing doing it', async () => {
 		const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 		const ctx = makeCtx({})
 
 		await expect(authorizationAuthenticatedResourceHandler()(ctx, next)).rejects.toThrow('Precondition Failed')
 		expect(hGetAll).not.toHaveBeenCalled()
 		expect(next).not.toHaveBeenCalled()
-		expect(log).toHaveBeenCalledExactlyOnceWith('auth undefined')
+		expect(log).not.toHaveBeenCalled()
 		log.mockRestore()
 	})
 
 	// ctx.request.header itself can be absent (the optional-chained read yields undefined), which is
 	// a different branch from "header present but carrying no authorization".
 	it('answers 412 when the request has no headers at all', async () => {
-		const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 		const ctx = makeCtx(undefined)
 
 		await expect(authorizationAuthenticatedResourceHandler()(ctx, next)).rejects.toThrow('Precondition Failed')
-		log.mockRestore()
 	})
 
 	it('answers 499 when the header does not use the `Bearer access:` scheme', async () => {
@@ -183,11 +185,9 @@ describe('authorizationAuthenticatedResourceHandler', () => {
 	})
 
 	it('ignores a wrong x-introspectioncode', async () => {
-		const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 		const ctx = makeCtx({ 'x-introspectioncode': 'wrong-code' })
 
 		await expect(authorizationAuthenticatedResourceHandler()(ctx, next)).rejects.toThrow('Precondition Failed')
-		log.mockRestore()
 	})
 
 	// The code is only consulted when the header is missing: a caller that sends both is
