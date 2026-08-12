@@ -3,6 +3,7 @@ import { GraphQLObjectType } from 'graphql'
 import { companyItems } from './queries/companyItems.mjs'
 import { infoAdminAfterLogin } from './queries/infoAdminAfterLogin.mjs'
 import { itemCategories } from './queries/itemCategories.mjs'
+import { keygripStatus } from './queries/keygripStatus.mjs'
 import { shopOwnerById } from './queries/shopOwnerById.mjs'
 import { shopOwnerCompanies } from './queries/shopOwnerCompanies.mjs'
 import { shopOwnersActiveTbl } from './queries/shopOwnersActiveTbl.mjs'
@@ -19,7 +20,8 @@ const QueriesApi = new GraphQLObjectType({
 		shopOwnerById,
 		shopOwnerCompanies,
 		companyItems,
-		itemCategories
+		itemCategories,
+		keygripStatus
 	}
 })
 

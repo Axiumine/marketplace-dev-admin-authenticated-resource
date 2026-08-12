@@ -2,6 +2,7 @@ import { trusted, Types } from 'mongoose'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { IContextAdminAuthenticatedResource } from '../src/lib/auth/IContextAdminAuthenticatedResource.mts'
+import { rejection } from './errors.mts'
 
 const findById = vi.fn()
 const companyFind = vi.fn()
@@ -10,6 +11,8 @@ const itemCategoryFind = vi.fn()
 const shopOwnersStatsDb = vi.fn()
 const shopOwnersPerPeriodDb = vi.fn()
 const shopOwnersActiveTblDb = vi.fn()
+const funKeygripStatus = vi.fn()
+const captureException = vi.fn()
 
 vi.mock('@axiumine/marketplace-common/models/MongoDB/ShopOwner', () => ({
 	ShopOwner: { findById }
@@ -30,6 +33,10 @@ vi.mock('@lib/shopOwner/shopOwnersActiveTblDb.mjs', () => ({
 	default: shopOwnersActiveTblDb,
 	SHOP_OWNERS_TBL_DEFAULT_LIMIT: 25
 }))
+vi.mock('@lib/keygrip/funKeygripStatus.mjs', () => ({ funKeygripStatus }))
+// tryCatchRethrow is NOT mocked, as in mutations.test.mts — only its Sentry sink is, so a failure
+// really travels through the wrapper this resolver puts around the lib.
+vi.mock('@sentry/node', () => ({ captureException }))
 
 const { shopOwnerCompanies } = await import('../src/graphQLApi/schema/queries/shopOwnerCompanies.mts')
 const { shopOwnerById } = await import('../src/graphQLApi/schema/queries/shopOwnerById.mts')
@@ -39,6 +46,7 @@ const { shopOwnersStats } = await import('../src/graphQLApi/schema/queries/shopO
 const { infoAdminAfterLogin } = await import('../src/graphQLApi/schema/queries/infoAdminAfterLogin.mts')
 const { companyItems } = await import('../src/graphQLApi/schema/queries/companyItems.mts')
 const { itemCategories } = await import('../src/graphQLApi/schema/queries/itemCategories.mts')
+const { keygripStatus } = await import('../src/graphQLApi/schema/queries/keygripStatus.mts')
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
 
@@ -196,6 +204,50 @@ describe('shopOwnersPerPeriod', () => {
 		await expect(shopOwnersPerPeriod.resolve(null, { period: 'ONE_MONTH' })).resolves.toBe(series)
 
 		expect(shopOwnersPerPeriodDb).toHaveBeenCalledExactlyOnceWith('ONE_MONTH')
+	})
+})
+
+describe('keygripStatus', () => {
+	beforeEach(() => {
+		funKeygripStatus.mockReset()
+		captureException.mockReset()
+	})
+
+	/*
+	 * ⚠️ No arguments and no context: the record is the platform's, not the session's, and there is nothing
+	 * about it a caller could name. The resolver hands back exactly what the lib built — a reshaping here
+	 * would be a second place for a field to be added to, and the schema test that forbids `material` only
+	 * guards the types.
+	 */
+	it('returns the answer the lib built, untouched', async () => {
+		const status = { version: 3, fingerprint: 'c77808de4139', keys: [], holders: [] }
+		funKeygripStatus.mockResolvedValueOnce(status)
+
+		await expect(keygripStatus.resolve()).resolves.toBe(status)
+
+		expect(funKeygripStatus).toHaveBeenCalledExactlyOnceWith()
+	})
+
+	// A record this service cannot open is a 500 that already carries what to fix — flattening it into a
+	// second, generic one would lose the only sentence telling the operator whose `KEYGRIP_KEK` is wrong.
+	it('preserves the status of a GraphQLError raised downstream', async () => {
+		const { throwConflictError } = await import('@axiumine/koa-utils/graphQL/throw/throwConflictError')
+		funKeygripStatus.mockImplementationOnce(() => throwConflictError('the record moved under this read'))
+
+		expect(await rejection(keygripStatus.resolve())).toEqual({
+			message: 'Conflict',
+			http: { status: 409 },
+			description: 'the record moved under this read'
+		})
+		expect(captureException).not.toHaveBeenCalled()
+	})
+
+	it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
+		const error = new Error('redis down')
+		funKeygripStatus.mockRejectedValueOnce(error)
+
+		await expect(keygripStatus.resolve()).rejects.toThrow('Internal Server Error')
+		expect(captureException).toHaveBeenCalledWith(error)
 	})
 })
 

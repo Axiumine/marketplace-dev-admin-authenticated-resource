@@ -11,10 +11,19 @@ const hGetAll = vi.fn()
 const evalRedis = vi.fn()
 const captureMessage = vi.fn()
 
-vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hGetAll, eval: evalRedis } }))
+/*
+ * ⚠️ Stubbed so that a *write* is visible, not so that one can happen. Neither function in this file may
+ * file a holders row: both read with `readKeygrip`, and `loadKeygrip` — the variant that announces the
+ * caller as a holder — would reach this stub instead of failing on a missing method, which is exactly the
+ * regression the two `not.toHaveBeenCalled()` assertions below catch.
+ */
+const hSet = vi.fn()
+
+vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hGetAll, hSet, eval: evalRedis } }))
 vi.mock('@sentry/node', () => ({ captureMessage }))
 
 const { funKeygripRotate } = await import('../src/lib/keygrip/funKeygripRotate.mts')
+const { funKeygripStatus } = await import('../src/lib/keygrip/funKeygripStatus.mts')
 
 const KEK = Buffer.alloc(32, 7)
 const OPERATOR = new Types.ObjectId('507f1f77bcf86cd799439011')
@@ -62,9 +71,32 @@ const written = () => {
 	return { script, key: options.keys[0], expected, next, wrapped, fp, channel }
 }
 
+/**
+ * The two hashes a status read touches, answered **by key** rather than by call order.
+ *
+ * `seed` above can hand back one queued value because the rotation reads once; the status reads the record
+ * and then the holders hash, and a fixture keyed on order would keep passing if the two reads swapped
+ * places. Returns the record's fingerprint, which is what every holders row is compared against.
+ */
+const seedStatus = (keys: IKeygripKeyMaterial[], holders: Record<string, string>, version = 3, kek = KEK) => {
+	const record = {
+		version: String(version),
+		wrapped: wrapKeygripKeys(keys, version, kek),
+		fp: keygripFingerprint(keys)
+	}
+
+	hGetAll.mockImplementation((key: string) => Promise.resolve(key === 'test:keygrip' ? record : holders))
+
+	return record.fp
+}
+
+/** A holders row as `recordKeygripHolder` writes it. */
+const heldAt = (fp: string, lastSeen: string) => `${fp}@${lastSeen}`
+
 beforeEach(() => {
 	vi.stubEnv('KEYGRIP_KEK', KEK.toString('base64'))
 	hGetAll.mockReset()
+	hSet.mockReset()
 	evalRedis.mockReset().mockResolvedValue(1)
 	captureMessage.mockReset()
 })
@@ -89,6 +121,9 @@ describe('funKeygripRotate', () => {
 		// write then does nothing at all.
 		expect(w.expected).toBe('3')
 		expect(w.next).toBe('4')
+		// Rotating is not holding: this service owns the KEK to reseal the record, it signs no cookie, and
+		// a row of its own in the holders table would be a heartbeat nothing is behind.
+		expect(hSet).not.toHaveBeenCalled()
 	})
 
 	/*
@@ -232,5 +267,155 @@ describe('funKeygripRotate', () => {
 		)
 		expect(evalRedis).not.toHaveBeenCalled()
 		expect(captureMessage).not.toHaveBeenCalled()
+	})
+})
+
+describe('funKeygripStatus', () => {
+	it('reads the record and the holders hash, and nothing else', async () => {
+		const fp = seedStatus(YOUNG, {})
+
+		const status = await funKeygripStatus()
+
+		expect(status.version).toBe(3)
+		expect(status.fingerprint).toBe(fp)
+		// Both keys, in order and by name: the holders hash is a second key, and a read that asked the
+		// record for it would answer three fields that happen to parse as three services.
+		expect(hGetAll.mock.calls).toEqual([['test:keygrip'], ['test:keygrip:holders']])
+		expect(hSet).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ Floored, and computed here rather than in the browser. The rotation retires a key at
+	 * `SESSION_CAP_DAYS_REMEMBERED` days measured on the server's clock, so a screen that rounded — or that
+	 * did this arithmetic against the viewer's clock — would show a key as retirable while the rotation
+	 * refuses it, and the operator would be told to retry a button that cannot succeed.
+	 */
+	it('ages every key against the server clock, floored, so a key on its thirtieth day still reads 29', async () => {
+		const keys = [aged('k2', 0), aged('k1', 29)]
+
+		seedStatus(keys, {})
+
+		expect((await funKeygripStatus()).keys).toEqual([
+			{ id: 'k2', createdAt: keys[0].createdAt, ageDays: 0 },
+			{ id: 'k1', createdAt: keys[1].createdAt, ageDays: 29 }
+		])
+	})
+
+	/*
+	 * ⚠️ The story's own line, and the reason this function reads through `readKeygrip` and then drops what
+	 * it unwrapped: no field of the answer carries key material. Asserted against the serialised result, so
+	 * a field added to `IKeygripKeyInfo` — or a spread of the raw key — fails here as well as in the schema
+	 * test. An operator who could read one key back could mint a session cookie for any account.
+	 */
+	it('returns no key material anywhere in the answer', async () => {
+		const fp = seedStatus(YOUNG, {
+			'marketplace-dev-public-authorization': heldAt(keygripFingerprint(YOUNG), '2026-08-12T09:00:00.000Z')
+		})
+
+		const reported = JSON.stringify(await funKeygripStatus())
+
+		expect(YOUNG).toHaveLength(2)
+		for (const key of YOUNG) expect(reported).not.toContain(key.material)
+		expect(reported).toContain(fp)
+	})
+
+	/*
+	 * The table's whole job: a service that has not caught up yet is *here and behind*, not gone. `current`
+	 * is answered against the record this same read returned, so the two cannot be a rotation apart — and
+	 * the rows are sorted by service name, because Redis hands hash fields back in an order that is stable
+	 * for nobody and a table that reshuffles every poll cannot be read.
+	 */
+	it('sorts the holders by service and marks the one still signing under an older key set', async () => {
+		const fp = keygripFingerprint(YOUNG)
+
+		seedStatus(YOUNG, {
+			'marketplace-dev-public-authorization': heldAt(fp, '2026-08-12T09:00:00.000Z'),
+			'marketplace-dev-authenticated-logout': heldAt('0123456789ab', '2026-08-12T08:00:00.000Z')
+		})
+
+		expect((await funKeygripStatus()).holders).toEqual([
+			{
+				service: 'marketplace-dev-authenticated-logout',
+				fingerprint: '0123456789ab',
+				lastSeen: '2026-08-12T08:00:00.000Z',
+				current: false
+			},
+			{
+				service: 'marketplace-dev-public-authorization',
+				fingerprint: fp,
+				lastSeen: '2026-08-12T09:00:00.000Z',
+				current: true
+			}
+		])
+	})
+
+	// A fleet that has not booted since the last flush of Redis. `HGETALL` on a missing key answers `{}`,
+	// which is a real state and renders as an empty table — not as an error, and not as "all current".
+	it('answers an empty holders table rather than failing when nothing has announced itself', async () => {
+		seedStatus(YOUNG, {})
+
+		expect((await funKeygripStatus()).holders).toEqual([])
+	})
+
+	// The first separator, not the last: the ISO timestamp never carries one, a future fingerprint format
+	// might, so an ambiguous row must lose part of its fingerprint rather than its date.
+	it('splits a holders row on the first separator', async () => {
+		seedStatus(YOUNG, { 'marketplace-dev-authenticated-authorization': 'aa@bb@2026-08-12T09:00:00.000Z' })
+
+		expect((await funKeygripStatus()).holders).toEqual([
+			{
+				service: 'marketplace-dev-authenticated-authorization',
+				fingerprint: 'aa',
+				lastSeen: 'bb@2026-08-12T09:00:00.000Z',
+				current: false
+			}
+		])
+	})
+
+	// One malformed row must not be the reason an operator cannot see the other five, so a row with no
+	// separator at all yields an empty timestamp instead of throwing.
+	it('renders a row carrying no timestamp instead of losing the whole table', async () => {
+		seedStatus(YOUNG, { 'marketplace-dev-user-authenticated-authorization': 'deadbeefcafe' })
+
+		expect((await funKeygripStatus()).holders).toEqual([
+			{
+				service: 'marketplace-dev-user-authenticated-authorization',
+				fingerprint: 'deadbeefcafe',
+				lastSeen: '',
+				current: false
+			}
+		])
+	})
+
+	// The same refusal every signing service gives at boot, reached from the screen that exists to show it.
+	// The operator's fix is the seed script, and the message carries it.
+	it('reports a missing record as a 500 carrying what to do about it', async () => {
+		hGetAll.mockResolvedValue({})
+
+		const outcome = await rejection(funKeygripStatus())
+
+		expect(outcome.message).toBe('Internal Server Error')
+		expect(outcome.http).toEqual({ status: 500 })
+		expect(outcome.description).toBe(
+			'Error reported to Dev Team.KEYGRIP_RECORD_MISSING: no keygrip key set at "test:keygrip". Run "yarn seed:keygrip" in marketplace-db-setup before starting any service.'
+		)
+	})
+
+	/*
+	 * ⚠️ This service holding the wrong KEK must surface as an error, never as an empty screen: the record
+	 * it cannot open is the one the fleet is signing with, and a status page that answered "no keys, no
+	 * holders" would invite the operator to press the button that rewraps it under this service's key —
+	 * the platform-wide outage the rotation refuses for the same reason.
+	 */
+	it('reports a record it cannot open, rather than an empty screen', async () => {
+		seedStatus(YOUNG, {}, 3, Buffer.alloc(32, 8))
+
+		const outcome = await rejection(funKeygripStatus())
+
+		expect(outcome.message).toBe('Internal Server Error')
+		expect(outcome.http).toEqual({ status: 500 })
+		expect(outcome.description).toMatch(
+			/^Error reported to Dev Team\.KEYGRIP_KEK_MISMATCH: this service cannot unwrap keygrip record version 3 \(\w{12}\)\./
+		)
 	})
 })
