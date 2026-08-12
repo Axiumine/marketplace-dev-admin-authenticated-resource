@@ -80,7 +80,7 @@ describe('schema', () => {
 		expect(result.errors).toBeUndefined()
 	})
 
-	it('exposes the eight admin queries', () => {
+	it('exposes the nine admin queries', () => {
 		expect(fieldsOf('QueriesApi')).toEqual([
 			'infoAdminAfterLogin',
 			'shopOwnersActiveTbl',
@@ -89,7 +89,8 @@ describe('schema', () => {
 			'shopOwnerById',
 			'shopOwnerCompanies',
 			'companyItems',
-			'itemCategories'
+			'itemCategories',
+			'keygripStatus'
 		])
 	})
 
@@ -180,7 +181,11 @@ describe('schema', () => {
 		['shopOwnersActiveTbl', ['offset', 'limit', 'search', 'sortBy', 'sortDir'], 'Get shopOwners for the table'],
 		['shopOwnersPerPeriod', ['period'], 'Time series of registered shopOwners'],
 		['shopOwnersStats', [], 'ShopOwners stats'],
-		['infoAdminAfterLogin', [], 'Info after login']
+		['infoAdminAfterLogin', [], 'Info after login'],
+		// ⚠️ No arguments, for the same reason `keygripRotate` has none (ADR-034): this reads the record
+		// that is live right now. A `version` argument would be a request to unwrap an older blob, and the
+		// platform keeps none — the rotation replaces all three fields at once.
+		['keygripStatus', [], 'Get the current cookie-signing key set and which services are holding it']
 	])('%s takes the arguments the resolver reads', (name, expected, description) => {
 		const field = types.get('QueriesApi')?.fields?.find((f) => f.name === name)
 		expect(field?.args.map((a) => a.name)).toEqual(expected)
@@ -420,6 +425,51 @@ describe('object types', () => {
 	// state worth storing.
 	it('leaves nothing on an item nullable', () => {
 		const nullable = (types.get('GraphQLItem')?.fields ?? []).filter((f) => f.type.kind !== 'NON_NULL').map((f) => f.name)
+
+		expect(nullable).toEqual([])
+	})
+
+	it('GraphQLKeygripStatus carries the record and who is holding it', () => {
+		expect(fieldsOf('GraphQLKeygripStatus')).toEqual(['version', 'fingerprint', 'keys', 'holders'])
+		// Ids and dates, no material — see the absence assertion below. `ageDays` is computed by the
+		// server because the retirement rule is measured on the server's clock.
+		expect(fieldsOf('GraphQLKeygripKeyInfo')).toEqual(['id', 'createdAt', 'ageDays'])
+		// `current` is answered server-side against the record the same read returned, so a row cannot be
+		// compared against a fingerprint a rotation apart from the one shown above it.
+		expect(fieldsOf('GraphQLKeygripHolder')).toEqual(['service', 'fingerprint', 'lastSeen', 'current'])
+	})
+
+	/*
+	 * ⚠️ **The security property of the whole status screen, asserted by name rather than by snapshot**
+	 * (ADR-034, E01-S14). The record these types describe holds the platform's cookie-signing keys, and an
+	 * operator who could read one back could sign a session cookie for any account — a strictly larger
+	 * power than "may rotate the keys", which is the only one this screen exists to grant.
+	 *
+	 * By name, because a snapshot test answers a field added later by asking to be updated, and the update
+	 * looks like every other one. This list fails instead, and names what it refused.
+	 *
+	 * What is left is safe by construction: the key **ids** are counters, `createdAt` holds dates, and the
+	 * fingerprint is a sha256 over the ordered ids — `keygripFingerprint` takes the ids precisely so that
+	 * publishing it narrows a 64-byte secret by not one bit.
+	 */
+	it.each(['GraphQLKeygripStatus', 'GraphQLKeygripKeyInfo', 'GraphQLKeygripHolder'])(
+		'exposes no key material on %s',
+		(typeName) => {
+			const fields = fieldsOf(typeName)
+
+			expect(fields.length).toBeGreaterThan(0)
+			for (const banned of ['material', 'wrapped', 'secret', 'kek', 'key', 'signingKey', 'keygrip'])
+				expect(fields).not.toContain(banned)
+		}
+	)
+
+	// Nothing on this screen is optional: every field is read out of a record that either opened or threw,
+	// so there is no half-answered state — a nullable field here would be a way to render "unknown" for a
+	// fingerprint an operator is about to compare by eye.
+	it('leaves nothing on the keygrip status nullable', () => {
+		const nullable = ['GraphQLKeygripStatus', 'GraphQLKeygripKeyInfo', 'GraphQLKeygripHolder'].flatMap((t) =>
+			(types.get(t)?.fields ?? []).filter((f) => f.type.kind !== 'NON_NULL').map((f) => `${t}.${f.name}`)
+		)
 
 		expect(nullable).toEqual([])
 	})

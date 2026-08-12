@@ -241,3 +241,128 @@ describe('keygripRotate over HTTP, against the real record', () => {
 		expect(await redisClient.hGetAll(HOLDERS_KEY)).toEqual({})
 	})
 })
+
+/*
+ * `keygripStatus` over the same wire and the same record (ADR-034, E01-S14).
+ *
+ * ⚠️ **Last in the file, and not by accident.** The holders test above claims an empty table, and the
+ * tests below write rows into it. vitest runs a file's tests in order; moving this block up would make
+ * that claim pass or fail on which suite ran first.
+ */
+describe('keygripStatus over HTTP, against the record three rotations left behind', () => {
+	const STATUS_QUERY = `query {
+		keygripStatus {
+			version
+			fingerprint
+			keys { id createdAt ageDays }
+			holders { service fingerprint lastSeen current }
+		}
+	}`
+
+	type StatusPayload = {
+		version: number
+		fingerprint: string
+		keys: Array<{ id: string; createdAt: string; ageDays: number }>
+		holders: Array<{ service: string; fingerprint: string; lastSeen: string; current: boolean }>
+	}
+
+	/*
+	 * ⚠️ Reading the key set is a privileged act, not a public one — the ids and the dates say when the
+	 * fleet last rotated and how close a key is to retirement, which is reconnaissance for the one attack
+	 * this design exists to make loud. 412 is the bearer gate, ahead of the schema.
+	 */
+	it('refuses an unauthenticated read of the key set', async () => {
+		const { status, json } = await gql(STATUS_QUERY)
+
+		expect(status).toBe(412)
+		expect(json.message).toBe('Precondition Failed')
+	})
+
+	it('answers the live record, and carries no key material in the response body', async () => {
+		const headers = await withSession()
+		const record = await readRecord()
+
+		const { status, json } = await gql(STATUS_QUERY, headers)
+
+		expect(status).toBe(200)
+		expect(json.errors).toBeUndefined()
+
+		const payload = json.data?.keygripStatus as StatusPayload
+
+		expect(payload.version).toBe(3)
+		expect(payload.fingerprint).toBe(record.fp)
+		expect(payload.keys.map((key) => key.id)).toEqual(['k4', 'k3', 'k2', 'k1'])
+		expect(payload.keys.map((key) => key.createdAt)).toEqual(record.keys.map((key) => key.createdAt))
+
+		// ⚠️ The story's own line, on the bytes that leave the process: the four keys are in this record and
+		// none of them is in this answer. Checked against the material actually sealed in Redis, so a field
+		// leaking it under any name — or a stringified key reaching the wire — fails here.
+		const body = JSON.stringify(json)
+
+		expect(record.keys).toHaveLength(4)
+		for (const key of record.keys) expect(body).not.toContain(key.material)
+	})
+
+	/*
+	 * Ages, asserted as differences rather than as numbers: the two seeded keys carry fixed dates ten days
+	 * apart, so any absolute assertion would make this file expire on a calendar. The pair the rotations
+	 * just minted is what pins the floor — both were created seconds ago and must read 0, which a `+` for
+	 * `-` or a `*` for `/` in the arithmetic cannot survive.
+	 */
+	it('reports each key its age in whole days', async () => {
+		const headers = await withSession()
+
+		const { json } = await gql(STATUS_QUERY, headers)
+		const ages = Object.fromEntries((json.data?.keygripStatus as StatusPayload).keys.map((key) => [key.id, key.ageDays]))
+
+		expect(ages.k4).toBe(0)
+		expect(ages.k3).toBe(0)
+		expect(ages.k1 - ages.k2).toBe(10)
+	})
+
+	/*
+	 * The question the screen exists to answer: has the rotation landed everywhere yet. One service on the
+	 * current fingerprint, one still on the record it read before the first rotation — and the table comes
+	 * back sorted by service name, not in the order Redis happens to hold the hash fields.
+	 */
+	it('marks a service still signing under an older key set as not current', async () => {
+		const headers = await withSession()
+		const record = await readRecord()
+
+		seededKeys.push(HOLDERS_KEY)
+		await redisClient.hSet(HOLDERS_KEY, 'marketplace-dev-public-authorization', `${record.fp}@2026-08-12T09:00:00.000Z`)
+		await redisClient.hSet(HOLDERS_KEY, 'marketplace-dev-authenticated-logout', `0123456789ab@2026-08-12T08:00:00.000Z`)
+
+		const { json } = await gql(STATUS_QUERY, headers)
+
+		expect((json.data?.keygripStatus as StatusPayload).holders).toEqual([
+			{
+				service: 'marketplace-dev-authenticated-logout',
+				fingerprint: '0123456789ab',
+				lastSeen: '2026-08-12T08:00:00.000Z',
+				current: false
+			},
+			{
+				service: 'marketplace-dev-public-authorization',
+				fingerprint: record.fp,
+				lastSeen: '2026-08-12T09:00:00.000Z',
+				current: true
+			}
+		])
+	})
+
+	/*
+	 * ⚠️ The absence, asserted against the schema this service is actually serving rather than against the
+	 * source it was built from. A field named `material` does not exist to be asked for, so the request is
+	 * refused by validation before a resolver runs — which is a stronger statement than "the resolver does
+	 * not fill it in", and the one that stays true if somebody later returns the raw record from the lib.
+	 */
+	it('has no field an operator could ask key material with', async () => {
+		const headers = await withSession()
+
+		const { json } = await gql('query { keygripStatus { keys { material } } }', headers)
+
+		expect(json.data).toBeUndefined()
+		expect(json.errors?.[0].message).toMatch(/Cannot query field "material" on type "GraphQLKeygripKeyInfo"/)
+	})
+})
