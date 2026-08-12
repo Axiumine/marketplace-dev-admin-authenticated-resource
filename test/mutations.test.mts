@@ -14,6 +14,7 @@ const funCompanyAdd = vi.fn()
 const funCompanyDelete = vi.fn()
 const funCompanyUpdate = vi.fn()
 const funAdminUpdatePwd = vi.fn()
+const funKeygripRotate = vi.fn()
 const captureException = vi.fn()
 
 vi.mock('@axiumine/marketplace-common/models/MongoDB/ShopOwner', () => ({ ShopOwner: { create } }))
@@ -27,6 +28,7 @@ vi.mock('@lib/company/funCompanyAdd.mjs', () => ({ funCompanyAdd }))
 vi.mock('@lib/company/funCompanyDelete.mjs', () => ({ funCompanyDelete }))
 vi.mock('@lib/company/funCompanyUpdate.mjs', () => ({ funCompanyUpdate }))
 vi.mock('@lib/admin/funAdminUpdatePwd.mjs', () => ({ funAdminUpdatePwd }))
+vi.mock('@lib/keygrip/funKeygripRotate.mjs', () => ({ funKeygripRotate }))
 // tryCatchRethrow is NOT mocked — the point of these tests is that a failure really travels
 // through it. Only its Sentry sink is stubbed.
 //
@@ -36,6 +38,7 @@ vi.mock('@lib/admin/funAdminUpdatePwd.mjs', () => ({ funAdminUpdatePwd }))
 vi.mock('@sentry/node', () => ({ captureException }))
 
 const { adminUpdatePwd } = await import('../src/graphQLApi/schema/mutations/adminUpdatePwd.mts')
+const { keygripRotate } = await import('../src/graphQLApi/schema/mutations/keygripRotate.mts')
 const { companyAdd } = await import('../src/graphQLApi/schema/mutations/companyAdd.mts')
 const { companyDel } = await import('../src/graphQLApi/schema/mutations/companyDel.mts')
 const { companyUpdate } = await import('../src/graphQLApi/schema/mutations/companyUpdate.mts')
@@ -580,5 +583,45 @@ describe('companyDel', () => {
 		funCompanyDelete.mockRejectedValueOnce(new Error('mongo down'))
 
 		await expect(companyDel.resolve(null, { _id })).rejects.toThrow('Internal Server Error')
+	})
+})
+
+describe('keygripRotate', () => {
+	beforeEach(() => {
+		funKeygripRotate.mockReset().mockResolvedValue(undefined)
+		captureException.mockReset()
+	})
+
+	/*
+	 * ⚠️ The operator's id comes off the Redis session and travels only into the audit event; there is no
+	 * argument of any kind, so nothing about the key set is reachable from the request body. The answer is
+	 * `true` and never the keys — see `funKeygripRotate` for why that is the whole point.
+	 */
+	it('rotates on behalf of the session account and answers true', async () => {
+		await expect(keygripRotate.resolve(null, {}, ctx)).resolves.toBe(true)
+
+		expect(funKeygripRotate).toHaveBeenCalledExactlyOnceWith(_id)
+	})
+
+	// "Somebody rotated a second ago" and "every key is still verifying cookies" are both 409s the operator
+	// can act on. Flattened into a 500 they would read as a broken platform, which is the opposite of true.
+	it('preserves the status of a GraphQLError raised downstream', async () => {
+		const { throwConflictError } = await import('@axiumine/koa-utils/graphQL/throw/throwConflictError')
+		funKeygripRotate.mockImplementationOnce(() => throwConflictError('another rotation landed first'))
+
+		expect(await rejection(keygripRotate.resolve(null, {}, ctx))).toEqual({
+			message: 'Conflict',
+			http: { status: 409 },
+			description: 'another rotation landed first'
+		})
+		expect(captureException).not.toHaveBeenCalled()
+	})
+
+	it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
+		const error = new Error('redis down')
+		funKeygripRotate.mockRejectedValueOnce(error)
+
+		await expect(keygripRotate.resolve(null, {}, ctx)).rejects.toThrow('Internal Server Error')
+		expect(captureException).toHaveBeenCalledWith(error)
 	})
 })

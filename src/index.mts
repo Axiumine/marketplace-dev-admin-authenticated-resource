@@ -53,7 +53,15 @@ export const REQUIRED_ENV_VARS = [
 	'HIT_STATS',
 	'INTROSPECTION_CODE',
 	'PLATFORM_NAME',
-	'SAMESITE_COOKIE'
+	'SAMESITE_COOKIE',
+	// ADR-034, E01-S13. This service signs no cookie and never will; it holds the key that opens the
+	// record the five signing services read, because `keygripRotate` is where the platform's signing keys
+	// are minted and resealed. Required at boot rather than checked at first use: an operator reaching
+	// for rotation is usually doing it during an incident, and "this service was never given the KEK" is
+	// not an answer anybody wants at that moment. A KEK that is present but *wrong* cannot be caught
+	// here — nothing reads the record until a rotation runs — and the rotation refuses rather than
+	// writing a record its siblings cannot open.
+	'KEYGRIP_KEK'
 ]
 
 /**
