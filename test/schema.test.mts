@@ -272,8 +272,51 @@ describe('object types', () => {
 	})
 
 	it('GraphQLShopOwnerActiveTbl stays a narrow table projection', () => {
-		expect(fieldsOf('GraphQLShopOwnerActiveTbl')).toEqual(['_id', 'registeredAt', 'personalData'])
+		expect(fieldsOf('GraphQLShopOwnerActiveTbl')).toEqual(['_id', 'registeredAt', 'email', 'personalData', 'waitApprov'])
 		expect(fieldsOf('GraphQLPersonalData')).toEqual(['firstName', 'lastName', 'address'])
+	})
+
+	// ⚠️ **`personalData` is nullable on both shopOwner types, and introspection is where that is
+	// pinned.** It stopped being required on the collection when `shopOwnerRegister` shipped: a
+	// self-registered seller has an address and a password and nothing else until onboarding. A
+	// `NonNull` here would not merely null one field — `items` is a non-null list of non-null rows, so
+	// one pending registration turns the operator's whole table into an error, and the detail page into
+	// a 500 for exactly the account the operator opened it to approve.
+	it.each([
+		['GraphQLShopOwnerActiveTbl', 'GraphQLPersonalData'],
+		['GraphQLShopOwnerById', 'GraphQLShopOwnerPersonalDataById']
+	])('leaves personalData nullable on %s, for accounts that have none yet', (owner, personalData) => {
+		expect(typeOfField(owner, 'personalData')).toEqual({ kind: 'OBJECT', name: personalData, ofType: null })
+	})
+
+	// The queue's two columns. `email` is what identifies a row whose `personalData` is absent, and
+	// `waitApprov` is what marks it as waiting — nullable because the field is `$unset` on approval and
+	// so reads as absent, never `false`.
+	it('carries the approval queue on the table type', () => {
+		expect(typeOfField('GraphQLShopOwnerActiveTbl', 'email')).toEqual({
+			kind: 'NON_NULL',
+			name: null,
+			ofType: { kind: 'SCALAR', name: 'String', ofType: null }
+		})
+		expect(typeOfField('GraphQLShopOwnerActiveTbl', 'waitApprov')).toEqual({
+			kind: 'SCALAR',
+			name: 'Boolean',
+			ofType: null
+		})
+	})
+
+	// The one field on this schema with a resolver of its own, so the one that introspection cannot
+	// check: every other field is answered by the default resolver reading a same-named key. The
+	// document nests the address under `login` and the table renders it as a flat column, and nothing
+	// above this line would notice the mapping being wrong — a resolver returning the row itself, or a
+	// constant, still introspects as `String!`.
+	it('flattens login.email onto the row', async () => {
+		const { GraphQLShopOwnerActiveTbl } = await import('../src/graphQLApi/schema/types/GraphQLShopOwnerActiveTbl.mts')
+
+		const { resolve } = GraphQLShopOwnerActiveTbl.getFields().email
+		const row = { login: { email: 'seller@example.com' } }
+
+		expect(resolve?.(row, {}, undefined, undefined as never)).toBe('seller@example.com')
 	})
 
 	// Both address types spread the same shared fragment from marketplace-common, so the four address

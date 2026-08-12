@@ -23,8 +23,20 @@ export const SHOP_OWNERS_TBL_MAX_LIMIT = 100
 /** Bounds the regex the search builds. See `prefixRegExp` for why the length matters. */
 export const SHOP_OWNERS_TBL_MAX_SEARCH_LENGTH = 100
 
-/** The projection the GraphQL table type consumes. A field dropped here nulls a NonNull. */
-export const SHOP_OWNERS_TBL_SELECTION = '_id registeredAt personalData.firstName personalData.lastName personalData.address'
+/**
+ * The projection the GraphQL table type consumes. A field dropped here nulls a NonNull.
+ *
+ * ⚠️ **`personalData` is not guaranteed to come back, and the table type is nullable there for that
+ * reason.** A self-registered shop owner has an address, a password and nothing else until onboarding
+ * runs, so the three `personalData.*` paths below resolve to nothing on exactly the rows an operator
+ * opened this table to act on. `login.email` is what identifies those rows instead.
+ *
+ * `waitApprov` turns the table into the approval queue: it is the only field distinguishing an account
+ * that is waiting for an operator from one that is trading, and without it the queue would be a page
+ * of rows that look identical and behave differently.
+ */
+export const SHOP_OWNERS_TBL_SELECTION =
+	'_id registeredAt login.email waitApprov personalData.firstName personalData.lastName personalData.address'
 
 /**
  * GraphQL enum name → the Mongo paths to sort by, in order. `_id` is appended to every one of these
