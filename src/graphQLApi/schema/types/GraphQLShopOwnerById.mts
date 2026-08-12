@@ -7,7 +7,15 @@ export const GraphQLShopOwnerById = new GraphQLObjectType({
 	fields: () => ({
 		_id: { type: new GraphQLNonNull(GraphQLID) },
 		login: { type: new GraphQLNonNull(GraphQLShopOwnerLogin) },
-		personalData: { type: new GraphQLNonNull(GraphQLShopOwnerPersonalDataById) },
+		/**
+		 * ⚠️ **Nullable, for the reason the table's is.** `shopOwner.personalData` stopped being required
+		 * when `shopOwnerRegister` shipped, and this is the page an operator opens to decide whether to
+		 * approve exactly those accounts: under a `NonNull` the query for a pending registration returned
+		 * an error instead of a document, so the one account that needed looking at was the one that
+		 * could not be looked at. `login.email` and `registeredAt` are what the page has to work with
+		 * until onboarding fills the rest in.
+		 */
+		personalData: { type: GraphQLShopOwnerPersonalDataById },
 		registeredAt: { type: new GraphQLNonNull(GraphQLDateTime) },
 		deleted: { type: GraphQLDateTime },
 		disabled: { type: GraphQLBoolean },

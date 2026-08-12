@@ -14,7 +14,7 @@ const { default: shopOwnersActiveTblDb } = await import('../src/lib/shopOwner/sh
 // SHOP_OWNERS_TBL_SELECTION is a tautology — it compares the constant with itself, so emptying it
 // changes both sides at once and the test still passes while the query stops projecting and starts
 // pulling whole documents, `login.password` included, into memory for every shopOwner of every page.
-const SELECTION = '_id registeredAt personalData.firstName personalData.lastName personalData.address'
+const SELECTION = '_id registeredAt login.email waitApprov personalData.firstName personalData.lastName personalData.address'
 
 type Args = Parameters<typeof shopOwnersActiveTblDb>[0]
 
@@ -59,6 +59,42 @@ describe('shopOwnersActiveTblDb', () => {
 		expect(builder.select).toHaveBeenCalledExactlyOnceWith(SELECTION)
 		expect(builder.skip).toHaveBeenCalledExactlyOnceWith(50)
 		expect(builder.limit).toHaveBeenCalledExactlyOnceWith(10)
+	})
+
+	// ⚠️ The two fields that make this table the approval queue. A self-registered shop owner has no
+	// `personalData` at all, so `login.email` is the only thing identifying the row an operator is
+	// about to approve, and `waitApprov` is the only thing saying it needs approving. Dropping either
+	// leaves a page that renders and is useless — which is why they are named here and not merely
+	// inside the constant.
+	it('projects the address and the approval flag, or the queue is a page of blank rows', async () => {
+		const builder = mockFind([])
+
+		await shopOwnersActiveTblDb(args())
+
+		expect(builder.select).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('login.email'))
+		expect(builder.select).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('waitApprov'))
+	})
+
+	// ⚠️ The filter excludes the disabled and the deleted and **nothing else** — asserted from the
+	// other side here, because a `waitApprov: { $exists: false }` clause added to "show only real shop
+	// owners" would hide every account waiting for an operator from the only table that lists them.
+	it('lists accounts awaiting approval rather than filtering them out', async () => {
+		mockFind([])
+
+		await shopOwnersActiveTblDb(args())
+
+		expect(Object.keys(filterOf())).toEqual(['disabled', 'deleted'])
+	})
+
+	// The password never leaves the database on this path. The projection is a positive list, so this
+	// holds by construction — and it is asserted anyway, because the table is the one query here that
+	// runs for every row of every page and a whole-document fetch would be invisible in the output.
+	it('never projects the credential', async () => {
+		const builder = mockFind([])
+
+		await shopOwnersActiveTblDb(args())
+
+		expect(builder.select).toHaveBeenCalledExactlyOnceWith(expect.not.stringContaining('password'))
 	})
 
 	// trusted(), not a bare object: sanitizeFilter is on globally, and it rewrites an un-trusted
