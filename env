@@ -127,8 +127,8 @@ INTROSPECTION_CODE='xxx'
 # changing this, which is the point: this key stays put while what it seals is replaced.
 KEYGRIP_KEK="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 #
-# No KEYGRIP_KEY_* here, and none anywhere since ADR-034: the signing keys are the Redis record above,
-# not environment variables.
+# No signing key of any kind here, and none in any template since ADR-034: the cookie-signing keys are
+# the Redis record the value above unwraps, never an environment variable (E01-S15).
 
 # Optional: an empty or missing DSN leaves the Sentry SDK inert and the service still boots.
 # Deliberately absent from REQUIRED_ENV_VARS in src/index.mts — do not add it back.

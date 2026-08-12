@@ -58,8 +58,8 @@ describe('start() when MongoDB refuses the connection', () => {
 	 * calling checkRequiredEnv() directly, so it is that ordering being tested and not just the
 	 * guard's own loop.
 	 *
-	 * PLATFORM_NAME, not KEYGRIP_KEY_1: this tier authenticates over a bearer header against Redis,
-	 * not a signed cookie, so it has no Keygrip keys in REQUIRED_ENV_VARS at all — any entry from
+	 * PLATFORM_NAME, not KEYGRIP_KEK: this tier authenticates over a bearer header against Redis, not
+	 * a signed cookie, so it holds the KEK for rotation alone — any entry from
 	 * that list works the same way here, since checkRequiredEnv throws on the first one it finds
 	 * missing regardless of position, and every other entry is still present from the real .env.
 	 *
