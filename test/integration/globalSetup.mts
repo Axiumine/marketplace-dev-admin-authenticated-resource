@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 import { MongoClient } from 'mongodb'
 
+import { seedKeygrip } from '../../vitest.keygrip.mts'
 import { assertTestMongoEnv, buildTestMongoUrl, TEST_CSFLE_MASTER_KEY_PATH, TEST_DB } from '../../vitest.mongo.mts'
 
 /**
@@ -63,6 +64,12 @@ export async function setup(): Promise<void> {
 	// The demo seed is gated on SEED_DEMO and must stay a no-op: the suite seeds its own documents
 	// and counts them, which fixed demo documents would silently offset.
 	process.env.SEED_DEMO = 'false'
+
+	// ⚠️ The record `keygripRotate` rewrites, and the KEK that opens it (ADR-034, E01-S13). start()
+	// refuses to boot without the key — this service holds it because rotation lives here — so seeding is
+	// part of provisioning the run, exactly like the throwaway CSFLE key above. KEYGRIP_KEK is exported
+	// through process.env, which the workers inherit: they are forked after this returns.
+	await seedKeygrip()
 
 	const client = new MongoClient(buildTestMongoUrl('owner'))
 	try {

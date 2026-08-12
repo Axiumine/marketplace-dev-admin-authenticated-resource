@@ -109,11 +109,26 @@ HIT_STATS=false
 # word. Two things have to be wrong before it opens, and this variable is the second.
 INTROSPECTION_CODE='xxx'
 
-# No KEYGRIP_KEY_* here on purpose. This tier authenticates over a bearer header checked against
-# Redis and signs no cookie, so REQUIRED_ENV_VARS in src/index.mts carries neither key — only the
-# five services that mint or verify the refresh cookie do (the four *-authorization services and
-# *-authenticated-logout). Adding them back puts a secret on a machine that has no use for it and
-# widens the cross-repo agreement surface described in docs/workflow.md §Environment files.
+# ── The key that opens the cookie-signing keys (ADR-034) ─────────────────────
+#
+# ⚠️ Not a signing key, and this service still signs nothing — it authenticates over a bearer header
+# checked against Redis. It holds this one because `keygripRotate` lives here: rotating the platform's
+# signing keys means opening the sealed Redis record, minting a key, and sealing it again. Six
+# services hold this value; five of them sign with what it opens (the four *-authorization services
+# and *-authenticated-logout), and this one only rewrites it.
+#
+# The SAME value as in those five. A missing one stops the boot — it is in REQUIRED_ENV_VARS, because
+# an operator reaching for rotation is usually mid-incident and that is the worst moment to discover
+# the key was never installed. A *wrong* one cannot be caught at boot, since nothing here reads the
+# record until a rotation runs; the rotation then refuses rather than writing a record the five
+# signing services cannot open.
+#
+# Base64 of exactly 32 bytes — `openssl rand -base64 32`. Rotating the signing keys does NOT require
+# changing this, which is the point: this key stays put while what it seals is replaced.
+KEYGRIP_KEK="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+#
+# No KEYGRIP_KEY_* here, and none anywhere since ADR-034: the signing keys are the Redis record above,
+# not environment variables.
 
 # Optional: an empty or missing DSN leaves the Sentry SDK inert and the service still boots.
 # Deliberately absent from REQUIRED_ENV_VARS in src/index.mts — do not add it back.

@@ -93,7 +93,7 @@ describe('schema', () => {
 		])
 	})
 
-	it('exposes the sixteen mutations', () => {
+	it('exposes the seventeen mutations', () => {
 		expect(fieldsOf('MutationsApi')).toEqual([
 			'adminUpdatePwd',
 			'shopOwnerAdd',
@@ -110,7 +110,8 @@ describe('schema', () => {
 			'itemCategoryDel',
 			'itemCategoryUpdate',
 			'itemDel',
-			'itemUpdatePublished'
+			'itemUpdatePublished',
+			'keygripRotate'
 		])
 	})
 
@@ -146,7 +147,16 @@ describe('schema', () => {
 		['itemCategoryUpdate', ['_id', 'itemCategory'], 'updates an item category'],
 		['itemDel', ['_id'], 'deletes an item'],
 		// Two arguments and no input object: moderation flips one flag, and the shape says so.
-		['itemUpdatePublished', ['_id', 'published'], 'publishes or unpublishes an item']
+		['itemUpdatePublished', ['_id', 'published'], 'publishes or unpublishes an item'],
+		// ⚠️ No arguments at all, and that is the security property (ADR-034): what the new key is, and
+		// which version it lands under, are read from the record and decided by the platform. An argument
+		// here — key material, a version, a count — would be a way to install a chosen signing key, which
+		// is the ability to mint a session cookie for any account on the platform.
+		[
+			'keygripRotate',
+			[],
+			'mints a new cookie-signing key for the whole platform and retires the ones nothing can still be signed with'
+		]
 	])('%s takes the arguments the resolver reads', (name, expected, description) => {
 		const field = types.get('MutationsApi')?.fields?.find((f) => f.name === name)
 		expect(field?.args.map((a) => a.name)).toEqual(expected)
