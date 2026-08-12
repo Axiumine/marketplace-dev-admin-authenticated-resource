@@ -63,8 +63,35 @@ describe('shopOwnerById', () => {
 		expect(findById).toHaveBeenCalledExactlyOnceWith({ _id })
 		expect(builder.select).toHaveBeenCalledExactlyOnceWith(
 			'_id login.email login.firstLogin login.lastLogin login.onboardingStep login.onboardingDone login.rememberMe ' +
-				'registeredAt personalData registeredAt waitApprov note resetPwd disabled deleted'
+				'registeredAt personalData waitApprov notes resetPwd disabled deleted'
 		)
+	})
+
+	// ⚠️ The verbatim assertion above cannot tell a real path from a misspelt one — it only says the
+	// string did not change, and the string was wrong: `note` for `notes`, which Mongoose drops from a
+	// projection without a word, leaving the operator note reading as blank in the admin UI. This test
+	// asks the schema instead. `personalData` and `resetPwd` are sub-documents named as a whole, so
+	// `path()` answers for them too; the `login.*` half is checked by the same call on the nested path.
+	it('names only real paths on ShopOwner, so no field can be projected into silence', async () => {
+		// The model is mocked at the top of this file down to a bare `findById`, so the real schema has
+		// to be pulled in past the mock. This is the only test here that needs the actual shape.
+		const { ShopOwner } = await vi.importActual<{ ShopOwner: { schema: { path(p: string): unknown } } }>(
+			'@axiumine/marketplace-common/models/MongoDB/ShopOwner'
+		)
+		const doc = { _id }
+		const builder = chain(doc, true)
+		findById.mockReturnValueOnce(builder)
+
+		await expect(shopOwnerById.resolve(null, { idShopOwner: _id })).resolves.toBe(doc)
+
+		const projection = builder.select?.mock.calls[0]?.[0] as string
+
+		// Field by field rather than in bulk, and the field name carried into the assertion: a failure
+		// has to say *which* token is not a path, not that one of fourteen is not. `schema.path()`
+		// answers for a nested path like `login.email` and for a sub-document named whole, and answers
+		// `undefined` for anything the collection has never heard of — which is the whole check.
+		for (const field of projection.split(' '))
+			expect({ field, isRealPath: ShopOwner.schema.path(field) !== undefined }).toEqual({ field, isRealPath: true })
 	})
 })
 

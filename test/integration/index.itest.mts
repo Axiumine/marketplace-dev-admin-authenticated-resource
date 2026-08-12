@@ -447,14 +447,21 @@ describe('GraphQL over HTTP', () => {
 	// The projection in shopOwnerById is long and hand-written; running it against a document
 	// this run inserted is the only way to see that it really returns the nested login/personalData
 	// shape the operator frontend renders.
+	//
+	// ⚠️ `notes` is asked for here because it is where that went wrong: the projection spelt the field
+	// `note`, Mongoose dropped the unknown token without a word, and the operator note came back `null`
+	// for every shop owner who had one — indistinguishable from a shop owner who had none. A seed that
+	// stores a note and an assertion that reads it back is what tells those two apart. It also proves
+	// the field is decrypted on the way out: `notes` is an encrypted path, so a projection that loaded
+	// it without the codec would answer binData rather than the string.
 	it('reads a seeded shopOwner back by id, with the projected nested fields', async () => {
 		const session = await withSession()
-		const { _id, email } = await seedShopOwner()
+		const { _id, email } = await seedShopOwner({ notes: 'Approved by phone, 2026-03-02.' })
 
 		try {
 			const { status, json } = await gql(
 				`{ shopOwnerById(idShopOwner: "${_id.toHexString()}") {
-					_id login { email onboardingDone } personalData { firstName lastName contacts { email mobile } } waitApprov
+					_id login { email onboardingDone } personalData { firstName lastName contacts { email mobile } } waitApprov notes
 				} }`,
 				session.headers
 			)
@@ -465,7 +472,8 @@ describe('GraphQL over HTTP', () => {
 				_id: _id.toHexString(),
 				login: { email, onboardingDone: null },
 				personalData: { firstName: 'Itest', lastName: 'ShopOwner', contacts: { email, mobile: '3900000000' } },
-				waitApprov: null
+				waitApprov: null,
+				notes: 'Approved by phone, 2026-03-02.'
 			})
 		} finally {
 			await session.cleanup()
