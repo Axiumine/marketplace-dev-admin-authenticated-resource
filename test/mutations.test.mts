@@ -14,6 +14,7 @@ const funCompanyAdd = vi.fn()
 const funCompanyDelete = vi.fn()
 const funCompanyUpdate = vi.fn()
 const funAdminUpdatePwd = vi.fn()
+const endEverySession = vi.fn()
 const funKeygripRotate = vi.fn()
 const captureException = vi.fn()
 
@@ -28,6 +29,9 @@ vi.mock('@lib/company/funCompanyAdd.mjs', () => ({ funCompanyAdd }))
 vi.mock('@lib/company/funCompanyDelete.mjs', () => ({ funCompanyDelete }))
 vi.mock('@lib/company/funCompanyUpdate.mjs', () => ({ funCompanyUpdate }))
 vi.mock('@lib/admin/funAdminUpdatePwd.mjs', () => ({ funAdminUpdatePwd }))
+// Mocked here, and covered for real in `endEverySession.test.mts`: what this file asserts about it is
+// *when* the resolver calls it, which a stub answers exactly as well as a live Redis conversation would.
+vi.mock('@lib/auth/endEverySession.mjs', () => ({ endEverySession }))
 vi.mock('@lib/keygrip/funKeygripRotate.mjs', () => ({ funKeygripRotate }))
 // tryCatchRethrow is NOT mocked — the point of these tests is that a failure really travels
 // through it. Only its Sentry sink is stubbed.
@@ -102,6 +106,7 @@ const company = {
 describe('adminUpdatePwd', () => {
 	beforeEach(() => {
 		funAdminUpdatePwd.mockReset().mockResolvedValue(undefined)
+		endEverySession.mockReset().mockResolvedValue(undefined)
 		captureException.mockReset()
 	})
 
@@ -138,6 +143,46 @@ describe('adminUpdatePwd', () => {
 			'Internal Server Error'
 		)
 		expect(captureException).toHaveBeenCalledWith(error)
+	})
+
+	/*
+	 * ⚠️ **Every session ends, and only after the write landed** (E15-S05). A password change made because
+	 * someone else is believed to be inside the account is the remedy it appears to be only if the
+	 * intruder's session dies with it — and on this tier that session reaches every shop owner and every
+	 * company. The order is the other half: revoking first would log an operator out of every device for a
+	 * change that then failed.
+	 */
+	it('ends every session the account holds, after the password write', async () => {
+		await expect(adminUpdatePwd.resolve(null, { passwordOld: 'oldpwd12345', passwordNew: 'newpwd12345' }, ctx)).resolves.toBe(
+			true
+		)
+
+		expect(endEverySession).toHaveBeenCalledExactlyOnceWith(ctx)
+		expect(endEverySession.mock.invocationCallOrder[0]).toBeGreaterThan(funAdminUpdatePwd.mock.invocationCallOrder[0])
+	})
+
+	// The revoke is not attempted when the write did not happen. A wrong current password answers 401 and
+	// must not, on its way out, log the operator out of the devices they are legitimately using.
+	it('revokes nothing when the password write failed', async () => {
+		const { throwUnauthorizedError } = await import('@axiumine/koa-utils/graphQL/throw/throwUnauthorizedError')
+		funAdminUpdatePwd.mockImplementationOnce(() => throwUnauthorizedError())
+
+		await rejection(adminUpdatePwd.resolve(null, { passwordOld: 'wrongpwd1234', passwordNew: 'newpwd12345' }, ctx))
+
+		expect(endEverySession).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ **A revoke that fails fails the mutation.** The alternative — answering `true` and reporting the
+	 * Redis error somewhere else — tells the operator their password change ended every other session when
+	 * it did not, which is worse than an error they can retry.
+	 */
+	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
+		endEverySession.mockRejectedValueOnce(new Error('redis down'))
+
+		expect(
+			await rejection(adminUpdatePwd.resolve(null, { passwordOld: 'oldpwd12345', passwordNew: 'newpwd12345' }, ctx))
+		).toMatchObject({ message: 'Internal Server Error', http: { status: 500 } })
 	})
 })
 
