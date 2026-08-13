@@ -14,7 +14,7 @@ import {
 } from '@axiumine/marketplace-common/encryption/encryptedFields'
 import { ALGORITHM_DETERMINISTIC } from '@axiumine/marketplace-common/encryption/EncryptionAlgorithm'
 import { encryptValue } from '@axiumine/marketplace-common/encryption/fieldEncryption'
-import { sessionKey } from '@axiumine/marketplace-common/others/sessionKeys'
+import { indexSession, sessionIndexKey, sessionKey } from '@axiumine/marketplace-common/others/sessionKeys'
 import { TIER } from '@axiumine/marketplace-common/others/Tier'
 import { hash, verify } from '@node-rs/bcrypt'
 import * as dotenv from 'dotenv'
@@ -81,6 +81,37 @@ async function withSession(email = 'operator@marketplace.test', _id = new mongoo
 		headers: { authorization: `Bearer ${token}` },
 		cleanup: () => redisClient.del(key)
 	}
+}
+
+/**
+ * A live *ShopOwner* session on the cluster: the refresh hash a login writes, plus the entry that login
+ * files under the account's session index (E15-S02). What `shopOwnerUpdateStatus` has to be able to end.
+ *
+ * ⚠️ **`indexSession` writes the index rather than a literal `hSet` here, deliberately.** The field name
+ * is the digest of the *prefixed* token and nothing about it is guessable from the outside; spelling it
+ * by hand in a test would make this suite pass against a revocation that looks in the wrong place, which
+ * is the one failure the story exists to catch. Both keys are registered before the first write, so a
+ * throw between them still leaves them drainable in `afterAll` (BCON-09).
+ *
+ * `sessionCapDays: '1'` because nothing here rotates — the field TTL only has to outlive the test.
+ */
+async function seedShopOwnerSession(_id: mongoose.Types.ObjectId) {
+	const token = `refresh:${randomUUID()}`
+	const key = sessionKey(token)
+	const index = sessionIndexKey(TIER.shopOwner, _id.toHexString())
+	const refreshData = {
+		_id: _id.toHexString(),
+		tier: TIER.shopOwner,
+		familyId: randomUUID(),
+		originalLogin: `${Date.now()}`,
+		sessionCapDays: '1'
+	}
+
+	seededKeys.push(key, index)
+	await redisClient.hSet(key, refreshData)
+	await indexSession(redisClient, token, refreshData)
+
+	return { key, index }
 }
 
 /****************************************************************************************
@@ -983,6 +1014,64 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 			const flagsOff = await db().collection('shopOwner').findOne({ _id })
 			expect(flagsOff).not.toHaveProperty('disabled')
 			expect(flagsOff).not.toHaveProperty('waitApprov')
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	/*
+	 * E15-S07, end to end on the real cluster: a shop owner parked by an operator loses the sessions they
+	 * were holding at that moment.
+	 *
+	 * ⚠️ **What is asserted is the keyspace, not a refused request, and that is a deviation from the
+	 * story's third criterion worth knowing.** The refusal it asks for happens in
+	 * `marketplace-dev-authenticated-resource` (4026), which this suite does not boot and cannot: it is
+	 * another service, in another repo, with its own database handles. What the two services share is
+	 * Redis, so the honest end-to-end assertion available here is that the refresh session and its index
+	 * are gone — after which 4026 has nothing left to rotate and the next refresh fails there by
+	 * construction. The residual is unchanged and stated in `endEveryShopOwnerSession`: an access token
+	 * already minted keeps working until it expires.
+	 */
+	it('shopOwnerUpdateStatus: parking an account deletes the sessions it was holding, index included', async () => {
+		const session = await withSession()
+		const { _id } = await seedShopOwner()
+		const { key, index } = await seedShopOwnerSession(_id)
+
+		try {
+			// The seed is asserted live first: a revocation that deleted nothing and a seed that wrote
+			// nothing leave the same empty keyspace behind, and only this line separates them.
+			expect(await redisClient.hGetAll(key)).toMatchObject({ _id: _id.toHexString(), tier: TIER.shopOwner })
+			expect(Object.keys(await redisClient.hGetAll(index))).toHaveLength(1)
+
+			const { json } = await gql(
+				`mutation { shopOwnerUpdateStatus(_id: "${_id.toHexString()}", disabled: true, waitApprov: false) }`,
+				session.headers
+			)
+			expect(json.data?.shopOwnerUpdateStatus).toBe(true)
+
+			expect(await redisClient.hGetAll(key)).toEqual({})
+			expect(await redisClient.hGetAll(index)).toEqual({})
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	// The other half of the rule: approving and enabling an account is not a credential event and must
+	// leave whoever is signed in signed in. Nothing revokes on the way out of a parked state.
+	it('shopOwnerUpdateStatus: releasing an account leaves its live sessions alone', async () => {
+		const session = await withSession()
+		const { _id } = await seedShopOwner({ disabled: true, waitApprov: true })
+		const { key, index } = await seedShopOwnerSession(_id)
+
+		try {
+			const { json } = await gql(
+				`mutation { shopOwnerUpdateStatus(_id: "${_id.toHexString()}", disabled: false, waitApprov: false) }`,
+				session.headers
+			)
+			expect(json.errors).toBeUndefined()
+
+			expect(await redisClient.hGetAll(key)).toMatchObject({ _id: _id.toHexString(), tier: TIER.shopOwner })
+			expect(Object.keys(await redisClient.hGetAll(index))).toHaveLength(1)
 		} finally {
 			await session.cleanup()
 		}
