@@ -14,7 +14,15 @@ import {
 } from '@axiumine/marketplace-common/encryption/encryptedFields'
 import { ALGORITHM_DETERMINISTIC } from '@axiumine/marketplace-common/encryption/EncryptionAlgorithm'
 import { encryptValue } from '@axiumine/marketplace-common/encryption/fieldEncryption'
-import { indexSession, sessionIndexKey, sessionKey } from '@axiumine/marketplace-common/others/sessionKeys'
+import { recordReuseEvent } from '@axiumine/marketplace-common/others/recordReuseEvent'
+import {
+	indexSession,
+	readSessionHash,
+	reuseEventsKey,
+	sessionIndexKey,
+	sessionKey
+} from '@axiumine/marketplace-common/others/sessionKeys'
+import { sha256Hex } from '@axiumine/marketplace-common/others/sha256Hex'
 import { TIER } from '@axiumine/marketplace-common/others/Tier'
 import { hash, verify } from '@node-rs/bcrypt'
 import * as dotenv from 'dotenv'
@@ -107,11 +115,27 @@ async function seedShopOwnerSession(_id: mongoose.Types.ObjectId) {
 		sessionCapDays: '1'
 	}
 
+	const before = new Set(Object.keys(await redisClient.hGetAll(index)))
+
 	seededKeys.push(key, index)
 	await redisClient.hSet(key, refreshData)
 	await indexSession(redisClient, token, refreshData)
 
-	return { key, index }
+	/*
+	 * `token` and `familyId` are handed back for E17's console tests, which need to assert that neither
+	 * reaches the wire; `field` is the digest the index filed this session under, and therefore the `id`
+	 * the console renders and takes back.
+	 *
+	 * ⚠️ **Read off the index as the difference this write made, never recomputed and never `keys[0]`.**
+	 * Hashing the token here would make the suite agree with a `sessions` query that hashed it the same
+	 * wrong way, which is the one failure the story exists to catch; taking the first key breaks the
+	 * moment an account holds two sessions, silently handing back the other one's id.
+	 */
+	const added = Object.keys(await redisClient.hGetAll(index)).filter((f) => !before.has(f))
+
+	if (added.length !== 1) throw new Error(`expected indexSession to add exactly one field, it added ${added.length}`)
+
+	return { key, index, token, field: added[0], familyId: refreshData.familyId }
 }
 
 /****************************************************************************************
@@ -1804,6 +1828,217 @@ describe('non-GraphQL routes', () => {
 			const res = await fetch(`${base}/nope`, { headers: session.headers })
 
 			expect(res.status).toBe(404)
+		} finally {
+			await session.cleanup()
+		}
+	})
+})
+
+/*
+ * E17-S03, on the real cluster: the session console lists what a login actually wrote, ends what an
+ * operator picks, and reads back the trail the authorization services actually append.
+ *
+ * ⚠️ **What is asserted after a revocation is the keyspace, not a refused request — the same deviation
+ * E15-S07 records above, for the same reason.** The refusal belongs to the service that owns the tier
+ * being revoked (`marketplace-dev-authenticated-resource` on 4026 for a `shopOwner`), which this suite
+ * neither boots nor can boot. Redis is what the two share, so the honest end-to-end claim available here
+ * is that the session hash and its index entry are gone — after which the refresh that service performs
+ * has nothing to read and fails by construction. `readSessionHash` is called directly below to make that
+ * last step explicit rather than implied: it is the exact read the victim service runs, and it answers
+ * the empty hash that every caller turns into a re-login.
+ *
+ * ⚠️ **The residual is unchanged and is not a defect**: revocation ends the refresh lineage, and an
+ * access token already minted from it keeps working until its own short expiry. `indexSession` states
+ * this; the console has to say it too, which is E17-S06's job on the confirmation dialog.
+ */
+describe('session console (real sessions, real index, real reuse trail)', () => {
+	/**
+	 * The operator whose id meters the rate limit, plus the two meter keys their writes create.
+	 *
+	 * ⚠️ Registered before the first call that could create them (BCON-09): `assertUnderRateLimit` INCRs
+	 * a key named after the operator, so a console test that threw between the write and the drain used
+	 * to leave a live counter in the namespace — invisible, and enough to answer 429 to a later run.
+	 */
+	async function withOperator() {
+		const _id = new mongoose.Types.ObjectId()
+
+		seededKeys.push(
+			`${REDIS_KEY}rl:session:revoke:${sha256Hex(_id.toHexString())}`,
+			`${REDIS_KEY}rl:session:revokeAll:${sha256Hex(_id.toHexString())}`
+		)
+
+		return withSession('operator@marketplace.test', _id)
+	}
+
+	it('sessions: lists a real login, keyed by the digest the index filed it under', async () => {
+		const session = await withOperator()
+		const _id = new mongoose.Types.ObjectId()
+		const { field, token, familyId } = await seedShopOwnerSession(_id)
+
+		try {
+			const { json } = await gql(
+				`{ sessions(tier: shopOwner, accountId: "${_id.toHexString()}") { id tier mintedAt familyId } }`,
+				session.headers
+			)
+
+			expect(json.errors).toBeUndefined()
+			expect(json.data?.sessions).toEqual([
+				{ id: field, tier: 'shopOwner', mintedAt: expect.stringMatching(/^\d+$/) as unknown as string, familyId }
+			])
+
+			// E17-S07 over HTTP, on a response built from a session that really exists: the token that
+			// minted it is nowhere in the bytes, prefix or no prefix.
+			const body = JSON.stringify(json)
+			expect(body).not.toContain(token)
+			expect(body).not.toContain(token.replace('refresh:', ''))
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	it('sessions: answers an empty list for an account that has never logged in', async () => {
+		const session = await withOperator()
+
+		try {
+			const { json } = await gql(
+				`{ sessions(tier: shopOwner, accountId: "${new mongoose.Types.ObjectId().toHexString()}") { id } }`,
+				session.headers
+			)
+
+			expect(json.errors).toBeUndefined()
+			expect(json.data?.sessions).toEqual([])
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	it('revokeSession: ends the one session named and leaves the account able to hold others', async () => {
+		const session = await withOperator()
+		const _id = new mongoose.Types.ObjectId()
+		const first = await seedShopOwnerSession(_id)
+		const second = await seedShopOwnerSession(_id)
+
+		try {
+			// The seeds are asserted live first: a revocation that deleted nothing and a seed that wrote
+			// nothing leave the same empty keyspace behind, and only this line separates them.
+			expect(Object.keys(await redisClient.hGetAll(first.index))).toHaveLength(2)
+
+			const { json } = await gql(
+				`mutation { revokeSession(tier: shopOwner, accountId: "${_id.toHexString()}", id: "${first.field}") }`,
+				session.headers
+			)
+			expect(json.data?.revokeSession).toBe(true)
+
+			// Gone: the hash, and the row that listed it.
+			expect(await redisClient.hGetAll(first.key)).toEqual({})
+			expect(Object.keys(await redisClient.hGetAll(first.index))).toEqual([second.field])
+
+			// The read the victim service performs on the next refresh, run here verbatim. An empty hash
+			// is what every caller of it turns into a re-login.
+			expect(await readSessionHash(redisClient, first.token)).toEqual({})
+
+			// And the account's other login is untouched — a revocation is one session, not one account.
+			expect(await redisClient.hGetAll(second.key)).toMatchObject({ _id: _id.toHexString(), tier: TIER.shopOwner })
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	// `false` is the already-ended answer, and it has to survive the round trip: the console shows
+	// "already ended" on it, and an operator told "error" would retry a call that has nothing left to do.
+	it('revokeSession: answers false and still prunes when the session had already gone', async () => {
+		const session = await withOperator()
+		const _id = new mongoose.Types.ObjectId()
+		const { key, index, field } = await seedShopOwnerSession(_id)
+
+		try {
+			await redisClient.del(key)
+
+			const { json } = await gql(
+				`mutation { revokeSession(tier: shopOwner, accountId: "${_id.toHexString()}", id: "${field}") }`,
+				session.headers
+			)
+
+			expect(json.errors).toBeUndefined()
+			expect(json.data?.revokeSession).toBe(false)
+			expect(await redisClient.hGetAll(index)).toEqual({})
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	it('revokeAllSessions: ends every session the account holds and removes the index key itself', async () => {
+		const session = await withOperator()
+		const _id = new mongoose.Types.ObjectId()
+		const first = await seedShopOwnerSession(_id)
+		const second = await seedShopOwnerSession(_id)
+
+		try {
+			const { json } = await gql(
+				`mutation { revokeAllSessions(tier: shopOwner, accountId: "${_id.toHexString()}") }`,
+				session.headers
+			)
+
+			expect(json.data?.revokeAllSessions).toBe(2)
+
+			expect(await redisClient.hGetAll(first.key)).toEqual({})
+			expect(await redisClient.hGetAll(second.key)).toEqual({})
+			expect(await redisClient.hGetAll(first.index)).toEqual({})
+			expect(await readSessionHash(redisClient, second.token)).toEqual({})
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	/*
+	 * The console does not write this list — the three authorization services do, on a replay. Writing it
+	 * here with the *shipped* writer rather than an `lPush` spelled by hand is what makes this an
+	 * end-to-end assertion: if `recordReuseEvent` and `funReuseEvents` ever disagreed about the key name,
+	 * the field names or the order, this is the test that notices.
+	 */
+	it('reuseEvents: reads back exactly what the authorization services append, newest first', async () => {
+		const session = await withOperator()
+		const _id = new mongoose.Types.ObjectId()
+		const accountId = _id.toHexString()
+		const older = {
+			familyId: randomUUID(),
+			tier: TIER.shopOwner,
+			accountId,
+			action: 'refreshTokenReplayed',
+			at: '1754784000000'
+		}
+		const newer = { ...older, familyId: randomUUID(), at: '1754784060000' }
+
+		seededKeys.push(reuseEventsKey(TIER.shopOwner, accountId))
+
+		try {
+			await recordReuseEvent({ store: redisClient, event: older })
+			await recordReuseEvent({ store: redisClient, event: newer })
+
+			const { json } = await gql(
+				`{ reuseEvents(tier: shopOwner, accountId: "${accountId}") { familyId tier accountId action at } }`,
+				session.headers
+			)
+
+			expect(json.errors).toBeUndefined()
+			// Newest first, because `lPush` prepends and the console shows the most recent replay at the top.
+			expect(json.data?.reuseEvents).toEqual([newer, older])
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	it('reuseEvents: answers an empty trail for an account that has never had a replay', async () => {
+		const session = await withOperator()
+
+		try {
+			const { json } = await gql(
+				`{ reuseEvents(tier: shopOwner, accountId: "${new mongoose.Types.ObjectId().toHexString()}") { at } }`,
+				session.headers
+			)
+
+			expect(json.errors).toBeUndefined()
+			expect(json.data?.reuseEvents).toEqual([])
 		} finally {
 			await session.cleanup()
 		}

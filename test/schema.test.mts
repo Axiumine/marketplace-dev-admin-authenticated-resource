@@ -80,7 +80,7 @@ describe('schema', () => {
 		expect(result.errors).toBeUndefined()
 	})
 
-	it('exposes the nine admin queries', () => {
+	it('exposes the eleven admin queries', () => {
 		expect(fieldsOf('QueriesApi')).toEqual([
 			'infoAdminAfterLogin',
 			'shopOwnersActiveTbl',
@@ -90,11 +90,13 @@ describe('schema', () => {
 			'shopOwnerCompanies',
 			'companyItems',
 			'itemCategories',
-			'keygripStatus'
+			'keygripStatus',
+			'sessions',
+			'reuseEvents'
 		])
 	})
 
-	it('exposes the eighteen mutations', () => {
+	it('exposes the twenty mutations', () => {
 		expect(fieldsOf('MutationsApi')).toEqual([
 			'adminUpdatePwd',
 			'shopOwnerAdd',
@@ -113,7 +115,9 @@ describe('schema', () => {
 			'itemDel',
 			'itemUpdatePublished',
 			'keygripRotate',
-			'keygripRetire'
+			'keygripRetire',
+			'revokeSession',
+			'revokeAllSessions'
 		])
 	})
 
@@ -482,6 +486,114 @@ describe('object types', () => {
 		)
 
 		expect(nullable).toEqual([])
+	})
+
+	it('GraphQLSession carries the row and nothing a token or an address could hide in', () => {
+		expect(fieldsOf('GraphQLSession')).toEqual(['id', 'tier', 'mintedAt', 'familyId'])
+	})
+
+	it('GraphQLReuseEvent mirrors IReuseEvent field for field', () => {
+		expect(fieldsOf('GraphQLReuseEvent')).toEqual(['familyId', 'tier', 'accountId', 'action', 'at'])
+	})
+
+	/*
+	 * ⚠️ **The security property of the session console, asserted by name rather than by snapshot** (BCON-01,
+	 * E17 §2). Two separate rules are being held here at once, and both are absolute.
+	 *
+	 * No token: `id` is the session index field — the SHA-256 of a *prefixed* refresh token — and a digest
+	 * of a 128-bit random value is not invertible. `familyId` is a lineage handle that authenticates
+	 * nothing. A field named for a token, a cookie or a secret would be a credential on a screen, which the
+	 * user made a condition of this epic existing.
+	 *
+	 * Nothing network- or device-derived: no address, not truncated, not hashed, not salted — the standing
+	 * decision on session rows. The answer to "was this session used from somewhere strange" on this
+	 * platform is not available, deliberately; the answer to a compromise report is to end the sessions.
+	 *
+	 * By name, because a snapshot test answers a field added later by asking to be updated, and the update
+	 * looks like every other one. This list fails instead, and names what it refused.
+	 */
+	it.each(['GraphQLSession', 'GraphQLReuseEvent'])('exposes no credential and nothing network-derived on %s', (typeName) => {
+		const fields = fieldsOf(typeName)
+
+		expect(fields.length).toBeGreaterThan(0)
+		for (const banned of [
+			'token',
+			'refreshToken',
+			'accessToken',
+			'cookie',
+			'secret',
+			'hash',
+			'digest',
+			'ip',
+			'ipAddress',
+			'remoteAddress',
+			'userAgent',
+			'device',
+			'location'
+		])
+			expect(fields).not.toContain(banned)
+	})
+
+	// Nothing on a session row or a trail line is optional: every field is read out of a record that either
+	// existed or was dropped from the list entirely, so there is no half-answered state to render.
+	it('leaves nothing on the session console nullable', () => {
+		const nullable = ['GraphQLSession', 'GraphQLReuseEvent'].flatMap((t) =>
+			(types.get(t)?.fields ?? []).filter((f) => f.type.kind !== 'NON_NULL').map((f) => `${t}.${f.name}`)
+		)
+
+		expect(nullable).toEqual([])
+	})
+
+	/*
+	 * E17-S01: the generated union `marketplace-admin` renders from and the runtime values the backend
+	 * writes into Redis are the same set, because both are `REUSE_EVENT_ACTIONS`. A hand-written enum on
+	 * either side would drift the moment a third case is added, and the drift would surface as an operator
+	 * reading a blank cell rather than as a failing build.
+	 */
+	it('GraphQLReuseEventAction holds exactly the shared action list', async () => {
+		const { REUSE_EVENT_ACTIONS } = await import('@axiumine/marketplace-common/others/ReuseEventAction')
+
+		expect(enumValuesOf('GraphQLReuseEventAction')).toEqual([...REUSE_EVENT_ACTIONS])
+	})
+
+	// The same rule one layer down: a tier this enum accepted and `sessionIndexKey` did not would name a key
+	// that has never existed, and the console would answer "no sessions" for an account holding several.
+	it('GraphQLTier holds exactly the tiers the key builders know', async () => {
+		const { TIER } = await import('@axiumine/marketplace-common/others/Tier')
+
+		expect(enumValuesOf('GraphQLTier')).toEqual(Object.values(TIER))
+	})
+
+	/*
+	 * Both halves of the account on every console field, and the tier is an enum on all four: a query by id
+	 * alone could list — and then end — a stranger's sessions, since ids come from three collections that
+	 * can collide.
+	 *
+	 * ⚠️ **The description is asserted with the arguments, not as decoration.** These four are the only
+	 * fields on the operator surface that end a credential, and the text here is what an operator reads in
+	 * a schema explorer before deciding to fire one — `revokeAllSessions` saying it ends *every* session is
+	 * the blast radius, and a rewrite that softened it would change what an operator believes they are
+	 * about to do while changing nothing a behavioural test can see.
+	 */
+	it.each([
+		['QueriesApi', 'sessions', ['tier', 'accountId'], 'List the live sessions one account holds'],
+		[
+			'QueriesApi',
+			'reuseEvents',
+			['tier', 'accountId'],
+			'Read the trail of lineages this account has had revoked, newest first'
+		],
+		['MutationsApi', 'revokeSession', ['tier', 'accountId', 'id'], 'ends one session of one account and stops it being listed'],
+		[
+			'MutationsApi',
+			'revokeAllSessions',
+			['tier', 'accountId'],
+			'ends every session one account holds and answers how many there were'
+		]
+	])('%s.%s names the account by tier and id', (root, field, expected, description) => {
+		expect(argsOf(root, field).map((a) => a.name)).toEqual(expected)
+		expect(typeOfField(root, field)).not.toBeNull()
+		expect(types.get(root)?.fields?.find((f) => f.name === field)?.description).toBe(description)
 	})
 
 	// `idParent` is the one nullable field, and the nullability IS the tree: absent means top-level,

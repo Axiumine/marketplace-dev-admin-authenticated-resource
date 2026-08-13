@@ -4,6 +4,8 @@ import { companyItems } from './queries/companyItems.mjs'
 import { infoAdminAfterLogin } from './queries/infoAdminAfterLogin.mjs'
 import { itemCategories } from './queries/itemCategories.mjs'
 import { keygripStatus } from './queries/keygripStatus.mjs'
+import { reuseEvents } from './queries/reuseEvents.mjs'
+import { sessions } from './queries/sessions.mjs'
 import { shopOwnerById } from './queries/shopOwnerById.mjs'
 import { shopOwnerCompanies } from './queries/shopOwnerCompanies.mjs'
 import { shopOwnersActiveTbl } from './queries/shopOwnersActiveTbl.mjs'
@@ -21,7 +23,9 @@ const QueriesApi = new GraphQLObjectType({
 		shopOwnerCompanies,
 		companyItems,
 		itemCategories,
-		keygripStatus
+		keygripStatus,
+		sessions,
+		reuseEvents
 	}
 })
 
