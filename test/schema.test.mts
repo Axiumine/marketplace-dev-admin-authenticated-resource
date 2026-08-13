@@ -94,7 +94,7 @@ describe('schema', () => {
 		])
 	})
 
-	it('exposes the seventeen mutations', () => {
+	it('exposes the eighteen mutations', () => {
 		expect(fieldsOf('MutationsApi')).toEqual([
 			'adminUpdatePwd',
 			'shopOwnerAdd',
@@ -112,7 +112,8 @@ describe('schema', () => {
 			'itemCategoryUpdate',
 			'itemDel',
 			'itemUpdatePublished',
-			'keygripRotate'
+			'keygripRotate',
+			'keygripRetire'
 		])
 	})
 
@@ -157,6 +158,15 @@ describe('schema', () => {
 			'keygripRotate',
 			[],
 			'mints a new cookie-signing key for the whole platform and retires the ones nothing can still be signed with'
+		],
+		// ⚠️ One argument, and it is an id — the public half of a key, rendered by `keygripStatus` and the
+		// thing the fingerprint is computed over. Key material and a version are absent for the same reason
+		// they are absent from `keygripRotate`: either would be a way to decide what the record ends up
+		// holding, rather than which of the keys it already holds is dropped.
+		[
+			'keygripRetire',
+			['id'],
+			'drops one cookie-signing key from the whole platform, logging out everyone whose cookie it signed'
 		]
 	])('%s takes the arguments the resolver reads', (name, expected, description) => {
 		const field = types.get('MutationsApi')?.fields?.find((f) => f.name === name)

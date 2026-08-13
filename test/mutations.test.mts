@@ -17,6 +17,7 @@ const funAdminUpdatePwd = vi.fn()
 const endEverySession = vi.fn()
 const endEveryShopOwnerSession = vi.fn()
 const funKeygripRotate = vi.fn()
+const funKeygripRetire = vi.fn()
 const captureException = vi.fn()
 
 vi.mock('@axiumine/marketplace-common/models/MongoDB/ShopOwner', () => ({ ShopOwner: { create } }))
@@ -35,6 +36,7 @@ vi.mock('@lib/admin/funAdminUpdatePwd.mjs', () => ({ funAdminUpdatePwd }))
 vi.mock('@lib/auth/endEverySession.mjs', () => ({ endEverySession }))
 vi.mock('@lib/auth/endEveryShopOwnerSession.mjs', () => ({ endEveryShopOwnerSession }))
 vi.mock('@lib/keygrip/funKeygripRotate.mjs', () => ({ funKeygripRotate }))
+vi.mock('@lib/keygrip/funKeygripRetire.mjs', () => ({ funKeygripRetire }))
 // tryCatchRethrow is NOT mocked — the point of these tests is that a failure really travels
 // through it. Only its Sentry sink is stubbed.
 //
@@ -45,6 +47,7 @@ vi.mock('@sentry/node', () => ({ captureException }))
 
 const { adminUpdatePwd } = await import('../src/graphQLApi/schema/mutations/adminUpdatePwd.mts')
 const { keygripRotate } = await import('../src/graphQLApi/schema/mutations/keygripRotate.mts')
+const { keygripRetire } = await import('../src/graphQLApi/schema/mutations/keygripRetire.mts')
 const { companyAdd } = await import('../src/graphQLApi/schema/mutations/companyAdd.mts')
 const { companyDel } = await import('../src/graphQLApi/schema/mutations/companyDel.mts')
 const { companyUpdate } = await import('../src/graphQLApi/schema/mutations/companyUpdate.mts')
@@ -761,6 +764,48 @@ describe('keygripRotate', () => {
 		funKeygripRotate.mockRejectedValueOnce(error)
 
 		await expect(keygripRotate.resolve(null, {}, ctx)).rejects.toThrow('Internal Server Error')
+		expect(captureException).toHaveBeenCalledWith(error)
+	})
+})
+
+describe('keygripRetire', () => {
+	beforeEach(() => {
+		funKeygripRetire.mockReset().mockResolvedValue(undefined)
+		captureException.mockReset()
+	})
+
+	/*
+	 * ⚠️ The id from the request, the operator from the session, and in that order — an operator argument
+	 * would be a way to spend somebody else's rate-limit budget and sign somebody else's name to the audit
+	 * event. The answer is `true`; the key set afterwards is `keygripStatus`.
+	 */
+	it('retires the named key on behalf of the session account and answers true', async () => {
+		await expect(keygripRetire.resolve(null, { id: 'k2' }, ctx)).resolves.toBe(true)
+
+		expect(funKeygripRetire).toHaveBeenCalledExactlyOnceWith(_id, 'k2')
+	})
+
+	/*
+	 * ⚠️ A 404 here means "nothing was retired", and flattening it into a 500 would leave an operator
+	 * responding to a compromise unable to tell a broken platform from a key that is still live.
+	 */
+	it('preserves the status of a GraphQLError raised downstream', async () => {
+		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
+		funKeygripRetire.mockImplementationOnce(() => throwNotFoundError('no key in the current set is called k9'))
+
+		expect(await rejection(keygripRetire.resolve(null, { id: 'k9' }, ctx))).toEqual({
+			message: 'Oops',
+			http: { status: 404 },
+			description: 'no key in the current set is called k9'
+		})
+		expect(captureException).not.toHaveBeenCalled()
+	})
+
+	it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
+		const error = new Error('redis down')
+		funKeygripRetire.mockRejectedValueOnce(error)
+
+		await expect(keygripRetire.resolve(null, { id: 'k2' }, ctx)).rejects.toThrow('Internal Server Error')
 		expect(captureException).toHaveBeenCalledWith(error)
 	})
 })
