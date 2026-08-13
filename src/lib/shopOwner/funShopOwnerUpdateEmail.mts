@@ -12,11 +12,15 @@ import { Types } from 'mongoose'
  * credential and is the collection's one unique index. Editing it can collide, and collisions are the
  * only reason this helper is not two lines.
  *
- * ⚠️ Changing it does **not** invalidate the account's Redis sessions. The session key is derived from
- * the token, not from the address, so an shopOwner logged in when the operator edits this stays
- * logged in and simply signs in with the new address next time. That is the current behaviour of every
- * write on the platform, not a decision taken here — if it ever needs to change, it changes for
- * `adminUpdatePwd` first.
+ * ⚠️ **Changing it now ends the shopOwner's sessions, and the revoke is not in here** (E15-S06). It was
+ * true until 2026-08-13 that no write on this platform touched Redis; `adminUpdatePwd` changed that
+ * first, exactly as the note that used to stand here predicted, and this write followed. The teardown
+ * lives in the resolver — `shopOwnerUpdateEmail` calls `endEveryShopOwnerSession` after this returns —
+ * because this helper's contract is one Mongo write and its collision, and a Redis client reached from
+ * here would make every unit test of it a Redis test.
+ *
+ * The session key is still derived from the token rather than from the address, so nothing about the
+ * old address expires on its own: the sessions have to be deleted, and that is what the caller does.
  *
  * `matchedCount`, not `modifiedCount` — see `funShopOwnerUpdateStatus` for why.
  */

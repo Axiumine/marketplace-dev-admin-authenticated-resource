@@ -1,0 +1,80 @@
+import { Types } from 'mongoose'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const hKeys = vi.fn()
+const del = vi.fn()
+
+// Only the client is faked, as in `endEverySession.test.mts`: `revokeAllSessionsForAccount` runs for real,
+// so what this suite reads is the Redis conversation itself rather than that a mock was called.
+vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hKeys, del } }))
+
+const { endEveryShopOwnerSession } = await import('../src/lib/auth/endEveryShopOwnerSession.mts')
+
+const REDIS_KEY = 'test:'
+const SHOP_OWNER_ID = '507f1f77bcf86cd799439011'
+const FIELDS = ['a'.repeat(64), 'b'.repeat(64)]
+
+beforeEach(() => {
+	vi.stubEnv('REDIS_KEY', REDIS_KEY)
+	hKeys.mockReset().mockResolvedValue(FIELDS)
+	del.mockReset().mockResolvedValue(1)
+})
+
+afterEach(() => {
+	vi.unstubAllEnvs()
+})
+
+describe('endEveryShopOwnerSession', () => {
+	/*
+	 * ⚠️ **`idx:shopOwner:`, and the tier is the whole safety of this call.** All nine services share one
+	 * `REDIS_KEY` prefix and the tier is the only thing separating one account's index from another's, so
+	 * `TIER.admin` here would read the index of an operator carrying the same `_id` — none exists, the
+	 * revoke would delete nothing, and the mutation would report the shop owner locked out regardless.
+	 */
+	it('reads the shopOwner index of the account it was given', async () => {
+		await endEveryShopOwnerSession(SHOP_OWNER_ID)
+
+		expect(hKeys).toHaveBeenCalledExactlyOnceWith(`${REDIS_KEY}idx:shopOwner:${SHOP_OWNER_ID}`)
+	})
+
+	// The id arrives as an ObjectId from the resolver's argument and as a string from a test or a future
+	// caller; both have to reach the same index key, so the interpolation is asserted rather than assumed.
+	it('builds the same key from an ObjectId as from its string', async () => {
+		await endEveryShopOwnerSession(new Types.ObjectId(SHOP_OWNER_ID))
+
+		expect(hKeys).toHaveBeenCalledExactlyOnceWith(`${REDIS_KEY}idx:shopOwner:${SHOP_OWNER_ID}`)
+	})
+
+	// One single-key `del` per filed session, then the index key last — the routine's own contract, read
+	// here through its first cross-account call site.
+	it('deletes every filed session and the index last, one key per command', async () => {
+		await endEveryShopOwnerSession(SHOP_OWNER_ID)
+
+		expect(del.mock.calls).toEqual([
+			...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
+			[`${REDIS_KEY}idx:shopOwner:${SHOP_OWNER_ID}`]
+		])
+	})
+
+	/*
+	 * ⚠️ **No access key is deleted, and that is the limit worth pinning.** The operator does not hold the
+	 * shop owner's access token and no index files access keys, so the residual is one access-token
+	 * lifetime — the same one the `disabled` flag has always carried. A future reader seeing only refresh
+	 * deletes should find this test rather than assume a missing call.
+	 */
+	it('deletes nothing beyond the filed sessions and the index', async () => {
+		await endEveryShopOwnerSession(SHOP_OWNER_ID)
+
+		expect(del).toHaveBeenCalledTimes(FIELDS.length + 1)
+	})
+
+	// A shop owner with no live session revokes quietly: `hKeys` on a missing key answers an empty array,
+	// and the routine issues no `del` at all rather than guessing at a key to tidy.
+	it('completes without a single delete when the account has no live session', async () => {
+		hKeys.mockResolvedValueOnce([])
+
+		await expect(endEveryShopOwnerSession(SHOP_OWNER_ID)).resolves.toBeUndefined()
+
+		expect(del).not.toHaveBeenCalled()
+	})
+})
