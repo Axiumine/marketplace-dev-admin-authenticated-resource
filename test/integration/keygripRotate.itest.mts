@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 
 import { redisClient } from '@axiumine/koa-utils/dataSources/Redis'
@@ -29,8 +29,9 @@ import { ITEST_KEYGRIP_KEYS, ITEST_REDIS_KEY } from '../../vitest.keygrip.mts'
  * `eval` and can only assert the arguments it was handed.
  *
  * ⚠️ **The tests below run in order and share one record.** Rotation is a state machine over a single
- * Redis key — version 1 → 2 → 3 — so each test starts from what the previous one wrote, exactly as the
- * mutation does in production. vitest runs a file's tests sequentially; do not add `concurrent`.
+ * Redis key — version 1 → 2 → 3, and 4 once the retirement block at the bottom takes a key back out — so
+ * each test starts from what the previous one wrote, exactly as the mutation does in production. vitest
+ * runs a file's tests sequentially; do not add `concurrent`.
  *
  * Its own file rather than a block in index.itest.mts: that suite counts documents and drains session
  * keys, and this one rewrites the keyspace's keygrip record. Keeping them apart means neither can be
@@ -78,17 +79,25 @@ async function gql(query: string, headers: Record<string, string> = {}) {
 	}
 }
 
-/** An admin session in Redis, in the shape a real login writes — `tier` included, or the guard answers 403. */
-async function withSession() {
+/**
+ * A session in Redis, in the shape a real login writes — `tier` included, or the guard answers 403.
+ *
+ * ⚠️ **A fresh operator id every call, and its rate-limit counters registered before the seed.** The two
+ * write mutations meter per operator per hour (E16-S07), so a shared id would make each test spend the
+ * next one's allowance and the suite would start failing at whatever length it happened to reach. The
+ * counter keys are pushed ahead of the `hSet` for the reason the session key is: a seed that throws
+ * halfway still has to leave `afterAll` something to drain.
+ */
+async function withSession(tier: string = TIER.admin) {
 	const token = `access:${randomUUID()}`
 	const key = sessionKey(token)
+	const _id = new mongoose.Types.ObjectId().toHexString()
 
 	seededKeys.push(key)
-	await redisClient.hSet(key, {
-		_id: new mongoose.Types.ObjectId().toHexString(),
-		email: 'operator@marketplace.test',
-		tier: TIER.admin
-	})
+	for (const operation of ['rotate', 'retire'])
+		seededKeys.push(`${ITEST_REDIS_KEY}rl:keygrip:${operation}:${createHash('sha256').update(_id).digest('hex')}`)
+
+	await redisClient.hSet(key, { _id, email: 'operator@marketplace.test', tier })
 
 	return { authorization: `Bearer ${token}` }
 }
@@ -364,5 +373,144 @@ describe('keygripStatus over HTTP, against the record three rotations left behin
 
 		expect(json.data).toBeUndefined()
 		expect(json.errors?.[0].message).toMatch(/Cannot query field "material" on type "GraphQLKeygripKeyInfo"/)
+	})
+})
+
+/*
+ * `keygripRetire` over the same wire and the same record (ADR-034, E16-S04).
+ *
+ * ⚠️ **After the two blocks above, for the same reason `keygripStatus` is after the rotations.** This one
+ * takes the record to version 4 and leaves the key set three long; the status block asserts version 3 and
+ * four ids, so running this first would break it. It is the last thing that touches the record in this file.
+ *
+ * ⚠️ **Every refusal here is asserted against the record afterwards, not against the message alone.** This
+ * is the one mutation on the platform that logs customers out on purpose, and a refusal that answered 409
+ * while removing the key would be indistinguishable from a working guard if only the reply were read.
+ */
+describe('keygripRetire over HTTP, against the record the rotations left at version 3', () => {
+	const retire = (id: string) => `mutation { keygripRetire(id: "${id}") }`
+
+	it('refuses an unauthenticated retirement without touching the record', async () => {
+		const { status, json } = await gql(retire('k2'))
+
+		expect(status).toBe(412)
+		expect(json.message).toBe('Precondition Failed')
+
+		const record = await readRecord()
+
+		expect(record.version).toBe(3)
+		expect(record.keys).toHaveLength(4)
+	})
+
+	/*
+	 * ⚠️ Role is which collection you authenticated against (ADR-002), and a live ShopOwner session is a
+	 * real credential — the bearer gate has nothing to object to. `assertTier` is the whole defence, and
+	 * what it defends is the ability to log every customer on the platform out. 403, and the four keys are
+	 * still there.
+	 */
+	it('refuses a live session that authenticated against another collection', async () => {
+		const headers = await withSession(TIER.shopOwner)
+
+		const { status } = await gql(retire('k2'), headers)
+
+		expect(status).toBe(403)
+
+		const record = await readRecord()
+
+		expect(record.version).toBe(3)
+		expect(record.keys.map((key: IKeygripKeyMaterial) => key.id)).toEqual(['k4', 'k3', 'k2', 'k1'])
+	})
+
+	/*
+	 * ⚠️ 404, and it has to be read as "nothing was retired". An operator halfway through a compromise who
+	 * read this as "that key is already gone" would stop responding to a key that is still signing cookies,
+	 * which is why the description says so in words and why the record is asserted unchanged here.
+	 */
+	it('answers 404 and writes nothing when no key in the set is called that', async () => {
+		const headers = await withSession()
+
+		const { status, json } = await gql(retire('k9'), headers)
+
+		expect(status).toBe(404)
+		expect(json.errors?.[0]?.message).toBe('Oops')
+		expect(json.errors?.[0]?.extensions?.description).toBe(
+			'KEYGRIP_RETIRE_UNKNOWN: no key in the current set is called k9. Nothing was retired — read the key set again before assuming this key is gone.'
+		)
+
+		const record = await readRecord()
+
+		expect(record.version).toBe(3)
+		expect(record.keys).toHaveLength(4)
+	})
+
+	/*
+	 * The refusal the story is built around: dropping the key the fleet signs with leaves the platform with
+	 * no signer, so it is refused on the whole operation rather than checked and then removed. The message
+	 * names rotation, because rotation is what moves a suspect key out of index 0 — after which it can go.
+	 */
+	it('refuses to retire the key the platform is signing with', async () => {
+		const headers = await withSession()
+
+		const { status, json } = await gql(retire('k4'), headers)
+
+		expect(status).toBe(409)
+		expect(json.errors?.[0]?.message).toBe('Conflict')
+		expect(json.errors?.[0]?.extensions?.description).toBe(
+			'KEYGRIP_RETIRE_CURRENT: k4 is the key the platform is signing with and cannot be retired on its own. Rotate instead: that mints a fresh signer and moves this key down the array, and it can be retired from there.'
+		)
+
+		const record = await readRecord()
+
+		expect(record.version).toBe(3)
+		expect(record.keys[0].id).toBe('k4')
+	})
+
+	/*
+	 * The incident response itself, end to end. The suspect key is gone from the bytes Redis holds — asserted
+	 * on the material and not only on the ids, because a key left in the array under a changed id would still
+	 * verify every cookie it signed — the two innocent keys are untouched, and the version reaches the channel
+	 * so the fleet drops it now rather than within five minutes.
+	 */
+	it('drops the named key from the record and tells the fleet', async () => {
+		const headers = await withSession()
+		const before = await readRecord()
+		const retired = before.keys.find((key: IKeygripKeyMaterial) => key.id === 'k2') as IKeygripKeyMaterial
+
+		const { status, json } = await gql(retire('k2'), headers)
+
+		expect(status).toBe(200)
+		expect(json.errors).toBeUndefined()
+		expect(json.data?.keygripRetire).toBe(true)
+
+		const record = await readRecord()
+
+		expect(record.version).toBe(4)
+		expect(record.keys.map((key: IKeygripKeyMaterial) => key.id)).toEqual(['k4', 'k3', 'k1'])
+		expect(record.keys.map((key: IKeygripKeyMaterial) => key.material)).not.toContain(retired.material)
+		expect(record.keys).toEqual(before.keys.filter((key: IKeygripKeyMaterial) => key.id !== 'k2'))
+		expect(record.fp).toBe(keygripFingerprint(record.keys))
+		expect(await publishedVersion('4')).toBe(true)
+	})
+
+	/*
+	 * ⚠️ The metering, on the path that matters most: eleven attempts from one operator inside the hour, and
+	 * the eleventh is refused before the record is read. The first ten name a key that does not exist, so
+	 * every one of them is a refusal too — which is the point. A limiter that only counted successful writes
+	 * would let a loop guess ids at line speed, and the ids are what `keygripStatus` will not show an
+	 * unprivileged caller.
+	 */
+	it('refuses the eleventh retirement of the hour from one operator', async () => {
+		const headers = await withSession()
+
+		for (let attempt = 0; attempt < 10; attempt++) expect((await gql(retire('k9'), headers)).status).toBe(404)
+
+		const { status, json } = await gql(retire('k9'), headers)
+
+		expect(status).toBe(429)
+		expect(json.errors?.[0]?.message).toBe('Too Many Requests')
+
+		const record = await readRecord()
+
+		expect(record.version).toBe(4)
 	})
 })

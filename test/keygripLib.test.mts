@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import { unwrapKeygripKeys } from '@axiumine/marketplace-common/encryption/unwrapKeygripKeys'
 import { wrapKeygripKeys } from '@axiumine/marketplace-common/encryption/wrapKeygripKeys'
 import { IKeygripKeyMaterial } from '@axiumine/marketplace-common/others/IKeygripKeyMaterial'
@@ -11,6 +13,11 @@ const hGetAll = vi.fn()
 const evalRedis = vi.fn()
 const captureMessage = vi.fn()
 
+/** The three commands `assertUnderRateLimit` issues, so a metered write is visible rather than merely allowed. */
+const incr = vi.fn()
+const ttl = vi.fn()
+const expire = vi.fn()
+
 /*
  * ⚠️ Stubbed so that a *write* is visible, not so that one can happen. Neither function in this file may
  * file a holders row: both read with `readKeygrip`, and `loadKeygrip` — the variant that announces the
@@ -19,11 +26,13 @@ const captureMessage = vi.fn()
  */
 const hSet = vi.fn()
 
-vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hGetAll, hSet, eval: evalRedis } }))
+vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hGetAll, hSet, eval: evalRedis, incr, ttl, expire } }))
 vi.mock('@sentry/node', () => ({ captureMessage }))
 
 const { funKeygripRotate } = await import('../src/lib/keygrip/funKeygripRotate.mts')
+const { funKeygripRetire } = await import('../src/lib/keygrip/funKeygripRetire.mts')
 const { funKeygripStatus } = await import('../src/lib/keygrip/funKeygripStatus.mts')
+const { KEYGRIP_WRITES_PER_HOUR, KEYGRIP_WRITE_WINDOW_SECONDS } = await import('../src/lib/keygrip/guardKeygripWrite.mts')
 
 const KEK = Buffer.alloc(32, 7)
 const OPERATOR = new Types.ObjectId('507f1f77bcf86cd799439011')
@@ -90,15 +99,31 @@ const seedStatus = (keys: IKeygripKeyMaterial[], holders: Record<string, string>
 	return record.fp
 }
 
+/**
+ * The counter key a metered write increments.
+ *
+ * ⚠️ Spelled here from the parts rather than imported from `assertUnderRateLimit`, so the assertion is
+ * that the operator's *account id* is what gets metered. The digest is the point: a `KEYS` scan of the
+ * limiter's keyspace must not read back as a list of which operators touched the signing keys.
+ */
+const meterKey = (operation: string, operator: string) =>
+	`test:rl:keygrip:${operation}:${createHash('sha256').update(operator).digest('hex')}`
+
 /** A holders row as `recordKeygripHolder` writes it. */
 const heldAt = (fp: string, lastSeen: string) => `${fp}@${lastSeen}`
 
 beforeEach(() => {
 	vi.stubEnv('KEYGRIP_KEK', KEK.toString('base64'))
+	vi.stubEnv('REDIS_KEY', 'test:')
 	hGetAll.mockReset()
 	hSet.mockReset()
 	evalRedis.mockReset().mockResolvedValue(1)
 	captureMessage.mockReset()
+	// One write inside the window, with its TTL already armed — the state every test but the metered ones
+	// wants, and the one that makes `expire` a signal rather than noise.
+	incr.mockReset().mockResolvedValue(1)
+	ttl.mockReset().mockResolvedValue(KEYGRIP_WRITE_WINDOW_SECONDS)
+	expire.mockReset()
 })
 
 afterEach(() => {
@@ -267,6 +292,214 @@ describe('funKeygripRotate', () => {
 		)
 		expect(evalRedis).not.toHaveBeenCalled()
 		expect(captureMessage).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ Metered on the operator's account id, and metered *before* the record is read. Rotation reseals
+	 * the record and publishes a version bump six processes act on, so a runaway client must cost one
+	 * `INCR` rather than an unwrap — and the identity has to be the admin, because `app.proxy` is off and
+	 * the address this process sees is nginx's own, one bucket the whole platform would share.
+	 */
+	it('meters the operator before it reads anything', async () => {
+		seed(YOUNG)
+
+		await funKeygripRotate(OPERATOR)
+
+		expect(incr).toHaveBeenCalledExactlyOnceWith(meterKey('rotate', '507f1f77bcf86cd799439011'))
+		expect(expire).toHaveBeenCalledExactlyOnceWith(meterKey('rotate', '507f1f77bcf86cd799439011'), KEYGRIP_WRITE_WINDOW_SECONDS)
+	})
+
+	it('refuses the eleventh rotation of the hour without reading the record', async () => {
+		incr.mockResolvedValue(KEYGRIP_WRITES_PER_HOUR + 1)
+
+		const outcome = await rejection(funKeygripRotate(OPERATOR))
+
+		expect(outcome.message).toBe('Too Many Requests')
+		expect(outcome.http).toEqual({ status: 429 })
+		expect(hGetAll).not.toHaveBeenCalled()
+		expect(evalRedis).not.toHaveBeenCalled()
+	})
+})
+
+describe('funKeygripRetire', () => {
+	/** Four keys: one signing, three still verifying. The middle ones are what a retire may take. */
+	const FOUR: IKeygripKeyMaterial[] = [aged('k4', 1), aged('k3', 3), aged('k2', 6), aged('k1', 9)]
+
+	/*
+	 * The operation itself: the named key is gone, everything else is where it was, and the whole set is
+	 * resealed under the next version. Every customer holding a cookie signed by `k2` is logged out by
+	 * this — deliberately, which is why it is its own button and not something rotation does quietly.
+	 */
+	it('reseals the key set without the named key, under the next version', async () => {
+		seed(FOUR)
+
+		await expect(funKeygripRetire(OPERATOR, 'k2')).resolves.toBeUndefined()
+
+		const w = written()
+
+		expect(w.key).toBe('test:keygrip')
+		expect(w.channel).toBe('test:keygrip:rotated')
+		expect(w.expected).toBe('3')
+		expect(w.next).toBe('4')
+
+		const keys = unwrapKeygripKeys(w.wrapped, 4, KEK)
+
+		expect(keys.map((k) => k.id)).toEqual(['k4', 'k3', 'k1'])
+		expect(keys).toEqual([FOUR[0], FOUR[1], FOUR[3]])
+		expect(w.fp).toBe(keygripFingerprint(keys))
+		// Retiring is not holding, for the same reason rotating is not: this service signs no cookie.
+		expect(hSet).not.toHaveBeenCalled()
+	})
+
+	it('records which key was retired, by whom, at which version', async () => {
+		seed(FOUR)
+
+		await funKeygripRetire(OPERATOR, 'k2')
+
+		const fp = keygripFingerprint(unwrapKeygripKeys(written().wrapped, 4, KEK))
+
+		expect(captureMessage).toHaveBeenCalledExactlyOnceWith(
+			`keygrip key k2 retired at version 4 (${fp}) by admin 507f1f77bcf86cd799439011`,
+			'info'
+		)
+	})
+
+	/*
+	 * ⚠️ The epic's own line, on the operation that has the strongest reason to break it: an operator
+	 * retiring a leaked key is the one most likely to want to see it, and the id is the only part of a key
+	 * that may ever be shown.
+	 */
+	it('puts no key material in the audit event, not even the retired key’s', async () => {
+		seed(FOUR)
+
+		await funKeygripRetire(OPERATOR, 'k2')
+
+		const reported = JSON.stringify(captureMessage.mock.calls)
+
+		expect(FOUR).toHaveLength(4)
+		for (const entry of FOUR) expect(reported).not.toContain(entry.material)
+	})
+
+	/*
+	 * ⚠️ 404, and the wording matters as much as the status: an operator who read this as "already gone"
+	 * would stop responding to a compromise that is still live. Nothing is written, so the answer is
+	 * literally "the key set does not contain that, and it is unchanged".
+	 */
+	it('refuses an id no key carries with a 404, and writes nothing', async () => {
+		seed(FOUR)
+
+		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k9'))
+
+		// 'Oops' is what every 404 on this platform titles itself — the status and the description are what
+		// carry the meaning, which is why `rejection` unpacks all three.
+		expect(outcome.message).toBe('Oops')
+		expect(outcome.http).toEqual({ status: 404 })
+		expect(outcome.description).toBe(
+			'KEYGRIP_RETIRE_UNKNOWN: no key in the current set is called k9. Nothing was retired — read the key set again before assuming this key is gone.'
+		)
+		expect(evalRedis).not.toHaveBeenCalled()
+		expect(captureMessage).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ The key at index 0 is what `Keygrip` signs with, so dropping it alone would leave the platform
+	 * signing with a key the operator has just declared untrustworthy. 409 rather than 404: the id is real,
+	 * the state is what refuses, and the message says rotation is the way out.
+	 */
+	it('refuses the key the platform signs with, and points at rotation', async () => {
+		seed(FOUR)
+
+		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k4'))
+
+		expect(outcome.message).toBe('Conflict')
+		expect(outcome.http).toEqual({ status: 409 })
+		expect(outcome.description).toBe(
+			'KEYGRIP_RETIRE_CURRENT: k4 is the key the platform is signing with and cannot be retired on its own. Rotate instead: that mints a fresh signer and moves this key down the array, and it can be retired from there.'
+		)
+		expect(evalRedis).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ Losing the compare must not be reported as a retire. An operator told "done" about a key that is
+	 * still in the record would walk away from a live compromise, so the message says what did not happen
+	 * and names the key it did not happen to.
+	 */
+	it('tells the operator the key is still in use when another write landed first', async () => {
+		seed(FOUR)
+		evalRedis.mockResolvedValue(0)
+
+		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k2'))
+
+		expect(outcome.message).toBe('Conflict')
+		expect(outcome.http).toEqual({ status: 409 })
+		expect(outcome.description).toBe(
+			'The keygrip record changed while k2 was being retired, so nothing was written and that key is still in use. Reload the page and retire it again.'
+		)
+		expect(captureMessage).not.toHaveBeenCalled()
+	})
+
+	it('reports a missing record as a 500 carrying what to do about it', async () => {
+		hGetAll.mockResolvedValueOnce({})
+
+		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k2'))
+
+		expect(outcome.message).toBe('Internal Server Error')
+		expect(outcome.http).toEqual({ status: 500 })
+		expect(outcome.description).toBe(
+			'Error reported to Dev Team.KEYGRIP_RECORD_MISSING: no keygrip key set at "test:keygrip". Run "yarn seed:keygrip" in marketplace-db-setup before starting any service.'
+		)
+		expect(evalRedis).not.toHaveBeenCalled()
+	})
+
+	// The same platform-wide outage `funKeygripRotate` refuses for: resealing under a KEK the five signing
+	// services do not have would stop every one of them booting from that moment on.
+	it('writes nothing when its own KEK cannot open the record', async () => {
+		seed(FOUR, 3, Buffer.alloc(32, 8))
+
+		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k2'))
+
+		expect(outcome.message).toBe('Internal Server Error')
+		expect(outcome.description).toMatch(
+			/^Error reported to Dev Team\.KEYGRIP_KEK_MISMATCH: this service cannot unwrap keygrip record version 3 \(\w{12}\)\./
+		)
+		expect(evalRedis).not.toHaveBeenCalled()
+		expect(captureMessage).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ Its own counter, not one shared with rotation. Retiring is what an operator does *during* a
+	 * suspected compromise, and an afternoon of rotations must not have spent the allowance for the one
+	 * write that has to go through.
+	 */
+	it('meters retirement in a bucket of its own', async () => {
+		seed(FOUR)
+
+		await funKeygripRetire(OPERATOR, 'k2')
+
+		expect(incr).toHaveBeenCalledExactlyOnceWith(meterKey('retire', '507f1f77bcf86cd799439011'))
+	})
+
+	it('refuses the eleventh retirement of the hour without reading the record', async () => {
+		incr.mockResolvedValue(KEYGRIP_WRITES_PER_HOUR + 1)
+
+		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k2'))
+
+		expect(outcome.message).toBe('Too Many Requests')
+		expect(outcome.http).toEqual({ status: 429 })
+		expect(hGetAll).not.toHaveBeenCalled()
+		expect(evalRedis).not.toHaveBeenCalled()
+	})
+
+	// The window is armed by hand because `INCR` on a missing key creates it with no TTL — and repaired on
+	// a later call if that `EXPIRE` was ever lost, which would otherwise lock an operator out for good.
+	it('arms the hour on a counter that lost its TTL', async () => {
+		seed(FOUR)
+		incr.mockResolvedValue(2)
+		ttl.mockResolvedValue(-1)
+
+		await funKeygripRetire(OPERATOR, 'k2')
+
+		expect(expire).toHaveBeenCalledExactlyOnceWith(meterKey('retire', '507f1f77bcf86cd799439011'), KEYGRIP_WRITE_WINDOW_SECONDS)
 	})
 })
 

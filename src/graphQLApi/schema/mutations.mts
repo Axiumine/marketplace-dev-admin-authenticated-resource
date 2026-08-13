@@ -9,6 +9,7 @@ import { itemCategoryDel } from './mutations/itemCategoryDel.mjs'
 import { itemCategoryUpdate } from './mutations/itemCategoryUpdate.mjs'
 import { itemDel } from './mutations/itemDel.mjs'
 import { itemUpdatePublished } from './mutations/itemUpdatePublished.mjs'
+import { keygripRetire } from './mutations/keygripRetire.mjs'
 import { keygripRotate } from './mutations/keygripRotate.mjs'
 import { shopOwnerAdd } from './mutations/shopOwnerAdd.mjs'
 import { shopOwnerDel } from './mutations/shopOwnerDel.mjs'
@@ -37,7 +38,8 @@ const MutationsApi = new GraphQLObjectType({
 		itemCategoryUpdate,
 		itemDel,
 		itemUpdatePublished,
-		keygripRotate
+		keygripRotate,
+		keygripRetire
 	}
 })
 
