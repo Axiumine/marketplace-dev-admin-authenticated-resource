@@ -15,6 +15,7 @@ const funCompanyDelete = vi.fn()
 const funCompanyUpdate = vi.fn()
 const funAdminUpdatePwd = vi.fn()
 const endEverySession = vi.fn()
+const endEveryShopOwnerSession = vi.fn()
 const funKeygripRotate = vi.fn()
 const captureException = vi.fn()
 
@@ -32,6 +33,7 @@ vi.mock('@lib/admin/funAdminUpdatePwd.mjs', () => ({ funAdminUpdatePwd }))
 // Mocked here, and covered for real in `endEverySession.test.mts`: what this file asserts about it is
 // *when* the resolver calls it, which a stub answers exactly as well as a live Redis conversation would.
 vi.mock('@lib/auth/endEverySession.mjs', () => ({ endEverySession }))
+vi.mock('@lib/auth/endEveryShopOwnerSession.mjs', () => ({ endEveryShopOwnerSession }))
 vi.mock('@lib/keygrip/funKeygripRotate.mjs', () => ({ funKeygripRotate }))
 // tryCatchRethrow is NOT mocked — the point of these tests is that a failure really travels
 // through it. Only its Sentry sink is stubbed.
@@ -343,6 +345,7 @@ describe('shopOwnerUpdate', () => {
 describe('shopOwnerUpdateEmail', () => {
 	beforeEach(() => {
 		funShopOwnerUpdateEmail.mockReset().mockResolvedValue(undefined)
+		endEveryShopOwnerSession.mockReset().mockResolvedValue(undefined)
 		captureException.mockReset()
 	})
 
@@ -359,17 +362,18 @@ describe('shopOwnerUpdateEmail', () => {
 		})
 
 		expect(funShopOwnerUpdateEmail).not.toHaveBeenCalled()
+		expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
 	})
 
 	// The collision is a 409 the operator can act on, not a 500 — and it must not page anyone.
 	it('passes a duplicate-address conflict through with its own status', async () => {
 		const { throwAlreadyTakenError } = await import('@axiumine/koa-utils/graphQL/throw/throwAlreadyTakenError')
-		funShopOwnerUpdateEmail.mockImplementationOnce(() => throwAlreadyTakenError('email: già registrata'))
+		funShopOwnerUpdateEmail.mockImplementationOnce(() => throwAlreadyTakenError('email: already registered'))
 
 		expect(await rejection(shopOwnerUpdateEmail.resolve(null, { _id, email: 'updated@marketplace.test' }))).toEqual({
 			message: 'Conflict',
 			http: { status: 409 },
-			description: 'email: già registrata'
+			description: 'email: already registered'
 		})
 		expect(captureException).not.toHaveBeenCalled()
 	})
@@ -382,6 +386,45 @@ describe('shopOwnerUpdateEmail', () => {
 			'Internal Server Error'
 		)
 		expect(captureException).toHaveBeenCalledWith(error)
+	})
+
+	/*
+	 * ⚠️ **`login.email` is half of a credential, so writing it ends that account's sessions** (E15-S06).
+	 * The old address stops authenticating the moment this write lands; a session minted against it must
+	 * stop working for the same reason a session minted against the old password does. After the write,
+	 * for the reason S05 gives — a collision that never wrote must not log anybody out.
+	 */
+	it('ends every session the shop owner holds, after the address is written', async () => {
+		await expect(shopOwnerUpdateEmail.resolve(null, { _id, email: 'updated@marketplace.test' })).resolves.toBe(true)
+
+		expect(endEveryShopOwnerSession).toHaveBeenCalledExactlyOnceWith(_id)
+		expect(endEveryShopOwnerSession.mock.invocationCallOrder[0]).toBeGreaterThan(
+			funShopOwnerUpdateEmail.mock.invocationCallOrder[0]
+		)
+	})
+
+	// The account is the shop owner named by the argument, never the operator sending the mutation: an
+	// operator who has just edited somebody else's address has changed nothing about their own credentials,
+	// and logging them out mid-page would make the console unusable. E15-S05's caller rule is about *whose*
+	// credentials changed, and here the answer is not the caller's.
+	it('revokes nothing when the address was rejected before the write', async () => {
+		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
+		funShopOwnerUpdateEmail.mockImplementationOnce(() => throwNotFoundError('shopOwner not found'))
+
+		await rejection(shopOwnerUpdateEmail.resolve(null, { _id, email: 'updated@marketplace.test' }))
+
+		expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
+	})
+
+	// A revoke that fails fails the mutation: answering `true` would tell the operator the shop owner is
+	// locked out of the old address when they are not.
+	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
+		endEveryShopOwnerSession.mockRejectedValueOnce(new Error('redis down'))
+
+		expect(await rejection(shopOwnerUpdateEmail.resolve(null, { _id, email: 'updated@marketplace.test' }))).toMatchObject({
+			message: 'Internal Server Error',
+			http: { status: 500 }
+		})
 	})
 })
 
