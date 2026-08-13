@@ -1,5 +1,5 @@
 import { redisClient } from '@axiumine/koa-utils/dataSources/Redis'
-import { sessionIndexKey, sessionKeyFromIndexField } from '@axiumine/marketplace-common/others/sessionKeys'
+import { retireAccessSession, sessionIndexKey, sessionKeyFromIndexField } from '@axiumine/marketplace-common/others/sessionKeys'
 import { Tier } from '@axiumine/marketplace-common/others/Tier'
 import { guardSessionWrite } from '@lib/session/guardSessionWrite.mjs'
 import { Types } from 'mongoose'
@@ -22,15 +22,26 @@ import { Types } from 'mongoose'
  * and nothing here needs the token: the field *is* the body of the key to delete, which is what
  * `sessionKeyFromIndexField` exists for.
  *
- * ⚠️ **The access token minted from this refresh session keeps working until its own expiry** — minutes.
- * Only refresh sessions are indexed (`indexSession`), so this is the same residual the `disabled` flag has
- * always carried. An operator who needs it gone sooner is asking for an access-token deny list, which this
- * platform has deliberately not built.
+ * ⚠️ **The access token this refresh session minted goes with it, and goes first** (R54, 2026-08-13). Only
+ * refresh sessions are indexed (`indexSession`), so the row the operator clicked names one half of a pair;
+ * the other is named by the `accessKey` field inside the hash about to be deleted, which is why
+ * `retireAccessSession` runs before the `del` rather than after it. Until it did, ending a session left the
+ * account holding a working bearer token for up to 91 minutes — the surprise the console's own text used
+ * to have to warn about. No deny list was needed for this and none was built: the session records the key
+ * of its own access half, so ending it is one read and one delete.
+ *
+ * ⚠️ **A session that carries no bound key is still ended.** A hash minted before the field existed, and one
+ * that expired between the operator's read and their click, both answer `null` — the pre-2026-08-13
+ * behaviour, which is the floor here and never the result of a failed read.
  */
 export async function funRevokeSession(_id: Types.ObjectId, tier: Tier, accountId: string, sessionId: string): Promise<boolean> {
 	await guardSessionWrite('revoke', _id.toString())
 
-	const deleted = await redisClient.del(sessionKeyFromIndexField(sessionId))
+	const sessionKey = sessionKeyFromIndexField(sessionId)
+
+	await retireAccessSession(redisClient, sessionKey)
+
+	const deleted = await redisClient.del(sessionKey)
 
 	await redisClient.hDel(sessionIndexKey(tier, accountId), sessionId)
 
