@@ -431,6 +431,7 @@ describe('shopOwnerUpdateEmail', () => {
 describe('shopOwnerUpdateStatus', () => {
 	beforeEach(() => {
 		funShopOwnerUpdateStatus.mockReset().mockResolvedValue(undefined)
+		endEveryShopOwnerSession.mockReset().mockResolvedValue(undefined)
 		captureException.mockReset()
 	})
 
@@ -452,6 +453,56 @@ describe('shopOwnerUpdateStatus', () => {
 		await expect(shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false })).rejects.toThrow(
 			'Internal Server Error'
 		)
+	})
+
+	/*
+	 * ⚠️ **One row per target state, and the fourth is the one worth reading** (E15-S07). Either flag
+	 * standing means "this account must not be signed in", and until this story the flags said so without
+	 * doing anything for up to a refresh window — `checkShopOwnerApproval` and `checkUserAuthorizationDisDel`
+	 * only bite at the next rotation. Approving *and* enabling revokes nothing on purpose: nobody's
+	 * credentials changed, and logging an owner out as the consequence of being approved is not a control,
+	 * it is a bug the four rows below would otherwise hide behind an `||`.
+	 */
+	it.each([
+		[true, true, true],
+		[true, false, true],
+		[false, true, true],
+		[false, false, false]
+	])('disabled=%s waitApprov=%s revokes: %s', async (disabled, waitApprov, revokes) => {
+		await expect(shopOwnerUpdateStatus.resolve(null, { _id, disabled, waitApprov })).resolves.toBe(true)
+
+		if (revokes) expect(endEveryShopOwnerSession).toHaveBeenCalledExactlyOnceWith(_id)
+		else expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
+	})
+
+	// After the write, and gated on it: `funShopOwnerUpdateStatus` throws a 404 when `matchedCount !== 1`,
+	// so an id that matches nothing must not reach Redis at all — there is no account to log out.
+	it('revokes nothing when no shopOwner matched the id', async () => {
+		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
+		funShopOwnerUpdateStatus.mockImplementationOnce(() => throwNotFoundError('shopOwner not found'))
+
+		await rejection(shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false }))
+
+		expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
+	})
+
+	it('revokes only after the status is written', async () => {
+		await expect(shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false })).resolves.toBe(true)
+
+		expect(endEveryShopOwnerSession.mock.invocationCallOrder[0]).toBeGreaterThan(
+			funShopOwnerUpdateStatus.mock.invocationCallOrder[0]
+		)
+	})
+
+	// A revoke that fails fails the mutation: answering `true` would tell the operator a disabled shop
+	// owner is off the platform while their sessions are still live, which is the lie E15 exists to stop.
+	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
+		endEveryShopOwnerSession.mockRejectedValueOnce(new Error('redis down'))
+
+		expect(await rejection(shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: true }))).toMatchObject({
+			message: 'Internal Server Error',
+			http: { status: 500 }
+		})
 	})
 })
 
