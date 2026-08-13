@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rejection } from './errors.mts'
 
 const hGetAll = vi.fn()
+const hGet = vi.fn()
 const hKeys = vi.fn()
 const hDel = vi.fn()
 const del = vi.fn()
@@ -17,7 +18,7 @@ const ttl = vi.fn()
 const expire = vi.fn()
 
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({
-	redisClient: { hGetAll, hKeys, hDel, del, lRange, incr, ttl, expire }
+	redisClient: { hGetAll, hGet, hKeys, hDel, del, lRange, incr, ttl, expire }
 }))
 
 const { funSessions } = await import('../src/lib/session/funSessions.mts')
@@ -44,6 +45,12 @@ const FIELD_D = 'd'.repeat(64)
 /** The token these rows would have been minted from, if this suite ever let one near the store. */
 const LEAKED = 'refresh:27119032-9043-4a9f-bd4c-9d06fd576290'
 
+/*
+ * The access key a session hash records under `accessKey` (R54). Uppercase, so it cannot be confused with
+ * anything the revocation could derive from the field it holds: the only way to name it is to read it.
+ */
+const accessKeyOf = (field: string) => `test:${field}`.toUpperCase()
+
 /** A refresh session hash, exactly the five fields `IRefreshData` requires. */
 const session = (familyId: string, originalLogin: string) => ({
 	_id: ACCOUNT,
@@ -66,6 +73,9 @@ const meterKey = (operation: string, operator: string) =>
 beforeEach(() => {
 	vi.stubEnv('REDIS_KEY', 'test:')
 	hGetAll.mockReset()
+	// Every session carries a bound access key, which is the steady state after 2026-08-13: `retireAccessSession`
+	// reads this field, and a revocation ends both halves or it has not ended the session.
+	hGet.mockReset().mockImplementation((key: string) => Promise.resolve(key.toUpperCase()))
 	hKeys.mockReset().mockResolvedValue([])
 	hDel.mockReset()
 	del.mockReset().mockResolvedValue(1)
@@ -187,10 +197,31 @@ describe('funRevokeSession', () => {
 	it('deletes the session key first and prunes its index field second', async () => {
 		await expect(funRevokeSession(OPERATOR, 'shopOwner', ACCOUNT, FIELD_A)).resolves.toBe(true)
 
-		// One single-key `del` (BCON-08), built from the field verbatim — no rehashing, no token.
-		expect(del).toHaveBeenCalledExactlyOnceWith(`test:${FIELD_A}`)
+		// Single-key `del`s (BCON-08), the session's own built from the field verbatim — no rehashing, no token.
+		expect(del.mock.calls).toStrictEqual([[accessKeyOf(FIELD_A)], [`test:${FIELD_A}`]])
 		expect(hDel).toHaveBeenCalledExactlyOnceWith(INDEX_KEY, FIELD_A)
-		expect(del.mock.invocationCallOrder[0]).toBeLessThan(hDel.mock.invocationCallOrder[0] as number)
+		expect(del.mock.invocationCallOrder[1]).toBeLessThan(hDel.mock.invocationCallOrder[0] as number)
+	})
+
+	/*
+	 * ⚠️ R54: ending a session ends the access token it minted, and reads the key for it *before* deleting the
+	 * hash that holds it. The reverse order can read nothing at all, and leaves the account a working bearer
+	 * token for up to 91 minutes after an operator was told the session was over.
+	 */
+	it('retires the access token the session minted, before deleting the session', async () => {
+		await funRevokeSession(OPERATOR, 'shopOwner', ACCOUNT, FIELD_A)
+
+		expect(hGet).toHaveBeenCalledExactlyOnceWith(`test:${FIELD_A}`, 'accessKey')
+		expect(hGet.mock.invocationCallOrder[0]).toBeLessThan(del.mock.invocationCallOrder[1] as number)
+	})
+
+	// A session minted before the field existed carries no bound key, and is ended exactly as it always was.
+	it('ends a session that carries no bound access key, deleting only the session', async () => {
+		hGet.mockResolvedValue(null)
+
+		await expect(funRevokeSession(OPERATOR, 'shopOwner', ACCOUNT, FIELD_A)).resolves.toBe(true)
+
+		expect(del).toHaveBeenCalledExactlyOnceWith(`test:${FIELD_A}`)
 	})
 
 	it('prunes the index field of an already-dead session and answers false', async () => {
@@ -210,7 +241,9 @@ describe('funRevokeSession', () => {
 		expect(outcome.message).toBe('Too Many Requests')
 		expect(outcome.http).toEqual({ status: 429 })
 		expect(incr).toHaveBeenCalledExactlyOnceWith(meterKey('revoke', OPERATOR.toString()))
-		// The refusal lands before the store is touched: a metered call must not half-revoke.
+		// The refusal lands before the store is touched: a metered call must not half-revoke, and must not
+		// read a session it is not going to end either.
+		expect(hGet).not.toHaveBeenCalled()
 		expect(del).not.toHaveBeenCalled()
 		expect(hDel).not.toHaveBeenCalled()
 	})
@@ -229,7 +262,14 @@ describe('funRevokeAllSessions', () => {
 		hKeys.mockResolvedValueOnce([FIELD_A, FIELD_B]).mockResolvedValueOnce([])
 
 		await expect(funRevokeAllSessions(OPERATOR, 'shopOwner', ACCOUNT)).resolves.toBe(2)
-		expect(del.mock.calls).toStrictEqual([[`test:${FIELD_A}`], [`test:${FIELD_B}`], [INDEX_KEY]])
+		// Both halves of both sessions, the access ones first (R54), and the index key last of all.
+		expect(del.mock.calls).toStrictEqual([
+			[accessKeyOf(FIELD_A)],
+			[accessKeyOf(FIELD_B)],
+			[`test:${FIELD_A}`],
+			[`test:${FIELD_B}`],
+			[INDEX_KEY]
+		])
 	})
 
 	it('leaves the index key alive when a login lands mid-revoke, and prunes only what it ended', async () => {

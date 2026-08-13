@@ -2,12 +2,13 @@ import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hKeys = vi.fn()
+const hGet = vi.fn()
 const del = vi.fn()
 const hDel = vi.fn()
 
 // Only the client is faked, as in `endEverySession.test.mts`: `revokeAllSessionsForAccount` runs for real,
 // so what this suite reads is the Redis conversation itself rather than that a mock was called.
-vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hKeys, del, hDel } }))
+vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hKeys, hGet, del, hDel } }))
 
 const { endEveryShopOwnerSession } = await import('../src/lib/auth/endEveryShopOwnerSession.mts')
 
@@ -15,9 +16,13 @@ const REDIS_KEY = 'test:'
 const SHOP_OWNER_ID = '507f1f77bcf86cd799439011'
 const FIELDS = ['a'.repeat(64), 'b'.repeat(64)]
 
+// The access key each session records under `accessKey` (R54). Uppercase, so it is read rather than derived.
+const accessKeyOf = (field: string) => `${REDIS_KEY}${field}`.toUpperCase()
+
 beforeEach(() => {
 	vi.stubEnv('REDIS_KEY', REDIS_KEY)
 	hKeys.mockReset().mockResolvedValue(FIELDS)
+	hGet.mockReset().mockImplementation((key: string) => Promise.resolve(key.toUpperCase()))
 	del.mockReset().mockResolvedValue(1)
 	hDel.mockReset().mockResolvedValue(1)
 })
@@ -55,27 +60,30 @@ describe('endEveryShopOwnerSession', () => {
 		])
 	})
 
-	// One single-key `del` per filed session, then the index key last — the routine's own contract, read
-	// here through its first cross-account call site.
+	// One single-key `del` per key, both halves of every filed session, then the index key last — the
+	// routine's own contract, read here through its first cross-account call site.
 	it('deletes every filed session and the index last, one key per command', async () => {
 		await endEveryShopOwnerSession(SHOP_OWNER_ID)
 
 		expect(del.mock.calls).toEqual([
+			...FIELDS.map((field) => [accessKeyOf(field)]),
 			...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
 			[`${REDIS_KEY}idx:shopOwner:${SHOP_OWNER_ID}`]
 		])
 	})
 
 	/*
-	 * ⚠️ **No access key is deleted, and that is the limit worth pinning.** The operator does not hold the
-	 * shop owner's access token and no index files access keys, so the residual is one access-token
-	 * lifetime — the same one the `disabled` flag has always carried. A future reader seeing only refresh
-	 * deletes should find this test rather than assume a missing call.
+	 * ⚠️ **The access tokens go too, and the operator never sees one** (R54). This call site is the one that
+	 * makes the mechanism worth having: an operator disabling a shop owner holds none of that account's
+	 * tokens, so before the session hash was read for its `accessKey` there was no name for the access half
+	 * at all and the account kept a working bearer token for up to 91 minutes after being disabled. Nothing
+	 * beyond those two keys per session and the index is touched.
 	 */
-	it('deletes nothing beyond the filed sessions and the index', async () => {
+	it('deletes both halves of every session and nothing else', async () => {
 		await endEveryShopOwnerSession(SHOP_OWNER_ID)
 
-		expect(del).toHaveBeenCalledTimes(FIELDS.length + 1)
+		expect(hGet.mock.calls).toEqual(FIELDS.map((field) => [`${REDIS_KEY}${field}`, 'accessKey']))
+		expect(del).toHaveBeenCalledTimes(FIELDS.length * 2 + 1)
 	})
 
 	/*
@@ -95,7 +103,9 @@ describe('endEveryShopOwnerSession', () => {
 		await endEveryShopOwnerSession(SHOP_OWNER_ID)
 
 		expect(del.mock.calls).toEqual([
+			...FIELDS.map((field) => [accessKeyOf(field)]),
 			...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
+			[accessKeyOf(NEWCOMER)],
 			[`${REDIS_KEY}${NEWCOMER}`],
 			[`${REDIS_KEY}idx:shopOwner:${SHOP_OWNER_ID}`]
 		])

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IContextAdminAuthenticatedResource } from '../src/lib/auth/IContextAdminAuthenticatedResource.mts'
 
 const hKeys = vi.fn()
+const hGet = vi.fn()
 const del = vi.fn()
 const hDel = vi.fn()
 
@@ -12,7 +13,7 @@ const hDel = vi.fn()
  * this suite asserts is the Redis conversation itself — the key shapes, their order and their count —
  * rather than that two mocks were called. A mocked helper would agree with a wrong key.
  */
-vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hKeys, del, hDel } }))
+vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hKeys, hGet, del, hDel } }))
 
 const { endEverySession } = await import('../src/lib/auth/endEverySession.mts')
 
@@ -23,6 +24,12 @@ const ACCOUNT_ID = '507f1f77bcf86cd799439011'
 // the body of each refresh session's key, and this service never sees a refresh token to derive one from.
 const CALLER_REFRESH_FIELD = 'a'.repeat(64)
 const FIELDS = [CALLER_REFRESH_FIELD, 'b'.repeat(64), 'c'.repeat(64)]
+
+/*
+ * The access key each of those sessions records under `accessKey` (R54), which the revocation retires before
+ * it deletes the session. Uppercase, so it is unmistakably read rather than derived from the field.
+ */
+const accessKeyOf = (field: string) => `${REDIS_KEY}${field}`.toUpperCase()
 
 // The access token the mutation arrived with, and the digest of it written out as a literal — computed
 // elsewhere, because a test that hashed it with the same call the implementation makes would agree with
@@ -47,6 +54,7 @@ const ctxWithoutHeaders = () =>
 beforeEach(() => {
 	vi.stubEnv('REDIS_KEY', REDIS_KEY)
 	hKeys.mockReset().mockResolvedValue(FIELDS)
+	hGet.mockReset().mockImplementation((key: string) => Promise.resolve(key.toUpperCase()))
 	del.mockReset().mockResolvedValue(1)
 	hDel.mockReset().mockResolvedValue(1)
 })
@@ -68,7 +76,8 @@ describe('endEverySession', () => {
 
 		expect(hKeys.mock.calls).toEqual([[`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`], [`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`]])
 		expect(del.mock.calls.map(([key]) => key)).toContain(`${REDIS_KEY}${CALLER_REFRESH_FIELD}`)
-		expect(del.mock.calls.slice(0, FIELDS.length).flat()).toEqual(FIELDS.map((field) => `${REDIS_KEY}${field}`))
+		// The session `del`s follow the access-key ones the same round issued, so the slice starts where those end.
+		expect(del.mock.calls.slice(FIELDS.length, FIELDS.length * 2).flat()).toEqual(FIELDS.map((field) => `${REDIS_KEY}${field}`))
 	})
 
 	/*
@@ -114,7 +123,7 @@ describe('endEverySession', () => {
 			.map(([key], index) => ({ key, index }))
 			.filter(({ key }) => key === `${REDIS_KEY}${ACCESS_DIGEST}` || key === `${REDIS_KEY}${ACCESS_TOKEN}`)
 
-		expect(Math.min(...accessDeletes.map(({ index }) => index))).toBeGreaterThan(FIELDS.length - 1)
+		expect(Math.min(...accessDeletes.map(({ index }) => index))).toBeGreaterThan(FIELDS.length * 2 - 1)
 	})
 
 	// The index key is deleted last of the account's own keys, which is what makes an interrupted revocation
@@ -122,7 +131,7 @@ describe('endEverySession', () => {
 	it('deletes the account index after the sessions it names', async () => {
 		await endEverySession(ctx())
 
-		expect(del.mock.calls[FIELDS.length]).toEqual([`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`])
+		expect(del.mock.calls[FIELDS.length * 2]).toEqual([`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`])
 	})
 
 	/*
@@ -142,8 +151,10 @@ describe('endEverySession', () => {
 
 		await endEverySession(ctx())
 
-		expect(del.mock.calls.slice(0, FIELDS.length + 2)).toEqual([
+		expect(del.mock.calls.slice(0, FIELDS.length * 2 + 3)).toEqual([
+			...FIELDS.map((field) => [accessKeyOf(field)]),
 			...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
+			[accessKeyOf(NEWCOMER)],
 			[`${REDIS_KEY}${NEWCOMER}`],
 			[`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`]
 		])
@@ -159,7 +170,7 @@ describe('endEverySession', () => {
 	it('deletes no access key when the request carried no Authorization header', async () => {
 		await endEverySession(ctx({}))
 
-		expect(del).toHaveBeenCalledTimes(FIELDS.length + 1)
+		expect(del).toHaveBeenCalledTimes(FIELDS.length * 2 + 1)
 		expect(del.mock.calls.map(([key]) => key)).not.toContain(`${REDIS_KEY}${ACCESS_DIGEST}`)
 	})
 
@@ -173,7 +184,11 @@ describe('endEverySession', () => {
 	it('revokes the account’s sessions when the request carried no headers at all', async () => {
 		await expect(endEverySession(ctxWithoutHeaders())).resolves.toBeUndefined()
 
-		expect(del.mock.calls).toEqual([...FIELDS.map((field) => [`${REDIS_KEY}${field}`]), [`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`]])
+		expect(del.mock.calls).toEqual([
+			...FIELDS.map((field) => [accessKeyOf(field)]),
+			...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
+			[`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`]
+		])
 	})
 
 	// An account whose sessions have all expired revokes quietly: `hKeys` on a missing key answers an empty

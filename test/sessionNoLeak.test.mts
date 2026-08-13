@@ -35,6 +35,12 @@ const MINTED_AT = '1754784000000'
 /** The digest the index files this session under, and therefore the `id` the console renders. */
 const FIELD = hashSessionToken(TOKEN)
 
+/**
+ * The key of the access session that refresh session minted, as its `accessKey` field records it (R54).
+ * A digest of the *access* token, so it is a different one — and it is a key, never a credential.
+ */
+const ACCESS_KEY = `${process.env.REDIS_KEY}${'f'.repeat(64)}`
+
 const store = new Map<string, Record<string, string> | string[] | string>()
 
 const hashAt = (key: string) => (store.get(key) as Record<string, string> | undefined) ?? {}
@@ -47,6 +53,7 @@ const hashAt = (key: string) => (store.get(key) as Record<string, string> | unde
  */
 const redisClient = {
 	hGetAll: (key: string) => Promise.resolve({ ...hashAt(key) }),
+	hGet: (key: string, field: string) => Promise.resolve(hashAt(key)[field] ?? null),
 	hKeys: (key: string) => Promise.resolve(Object.keys(hashAt(key))),
 	hDel: (key: string, field: string) => {
 		const hash = store.get(key) as Record<string, string> | undefined
@@ -97,9 +104,14 @@ beforeEach(() => {
 		tier: 'shopOwner',
 		familyId: FAMILY,
 		originalLogin: MINTED_AT,
+		accessKey: ACCESS_KEY,
 		email: 'owner@marketplace.test',
 		disabled: 'false'
 	})
+
+	// The access half the session names, seeded so that a revocation reaching it is visible in the store —
+	// and so that anything forwarding a session hash wholesale would put a *key name* on the wire (E17 §2).
+	store.set(ACCESS_KEY, { _id: ACCOUNT, tier: 'shopOwner', email: 'owner@marketplace.test' })
 
 	store.set(`${prefix}reuse:shopOwner:${ACCOUNT}`, [
 		JSON.stringify({ familyId: FAMILY, tier: 'shopOwner', accountId: ACCOUNT, action: 'refreshTokenReplayed', at: MINTED_AT })
