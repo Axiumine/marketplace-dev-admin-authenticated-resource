@@ -19,6 +19,11 @@ import { trusted, Types } from 'mongoose'
  * without a default, which switches auto-generation off, so `create()` on a document without one throws
  * before it reaches MongoDB.
  *
+ * `published: false` is stamped here rather than taken from the input: publishing is
+ * `companyUpdatePublished`, a second call the operator makes on purpose. It is also the only value the
+ * validator would accept from a shop this new — `published: true` needs a `slug` and a `publicName`,
+ * both optional on the input.
+ *
  * The duplicate-key message names both unique indexes — `vatNumber_unique` and `certifiedEmail_unique`, both globally
  * unique — because the driver's error does not say which one it tripped on and guessing would send the
  * operator to the wrong box. These are the two indexes that used to sit on the now-gone shop
@@ -36,7 +41,7 @@ export async function funCompanyAdd(idShopOwner: Types.ObjectId, data: ICompanyV
 	if (owner === null) throwNotFoundError('shopOwner not found')
 
 	try {
-		await Company.create({ _id: new Types.ObjectId(), idShopOwner, ...data })
+		await Company.create({ _id: new Types.ObjectId(), idShopOwner, ...data, published: false })
 	} catch (e) {
 		if (duplicateKey(e)) throwAlreadyTakenError('VAT number or certified email already registered by another company')
 

@@ -16,6 +16,7 @@ session and `marketplace-dev-authenticated-logout` (4030) ends it.
 | `companyAdd`, `companyUpdate`, `companyDel` | any shop, not only the caller's |
 | `itemCategoryAdd`, `itemCategoryUpdate`, `itemCategoryDel` | **the only place category writes exist** |
 | `itemDel`, `itemUpdatePublished` | moderation — take an entry down or unpublish it |
+| `companyUpdatePublished` | the shop's own publish switch — see below |
 | `adminUpdatePwd` | the operator's own password |
 
 | Queries | |
@@ -32,6 +33,18 @@ not the same.** `companyAdd` here writes any shop; there it writes only the call
 `throwIfShopOwnerDontOwnCompany`. Copying a resolver between the two repos because the signature matches
 carries the wrong ownership assumption across a tier boundary — in one direction it breaks the admin, in
 the other it hands every shop owner the platform.
+
+⚠️ **Publishing is a separate operation, not a field of the card.** `published` is deliberately absent
+from `GraphQLInputCompany`: `companyUpdate` `$set`s the whole object, so a flag inside the input would
+make every save a write of the flag — and an operator who reopened a form loaded before somebody
+unpublished a shop would put it straight back without asking to. `companyAdd` stamps `false`;
+`companyUpdatePublished` is the only writer of the flag, matching `itemUpdatePublished` beside it and the
+same pair on 4026.
+
+A shop also has to be nameable before it can be published: the collection's `$expr` refuses
+`published: true` without both `slug` and `publicName`, so the save comes first and the publish second.
+An item is publicly visible only if its company is published too, which makes this switch a takedown of
+the whole catalogue in one write.
 
 ⚠️ **`itemCategory` writes live only here** because the tree is shared by every shop. `idParent` is a
 self-FK with **one level only** — a category or a subcategory, never a third level. Nothing in the

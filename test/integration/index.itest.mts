@@ -271,7 +271,7 @@ async function seedCompany(idShopOwner: mongoose.Types.ObjectId) {
 					// `published` joined the collection's `required` list in 20260804010000-alter-company-public,
 					// so a seed without it is refused by the validator before any resolver is reached. False is
 					// the honest value here: these tests exercise the legal entity, not the public shop page, and
-					// false is what `companyAdd` writes. `publicName` and `slug` stay off on purpose — the
+					// false is what `funCompanyAdd` stamps. `publicName` and `slug` stay off on purpose — the
 					// collection's `$expr` demands them only of a published document, and `slug` carries a unique index
 					// a fixed literal would collide on.
 					published: false,
@@ -1196,7 +1196,6 @@ describe('company mutations (real company collection, real unique indexes)', () 
 				position: { coordinates: [9.6, 45.72] }
 			}
 			registryExtract: "registryExtract-new"
-			published: false
 		}`
 	}
 
@@ -1260,8 +1259,9 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			// ⚠️ The list is in `.sort()` order and has to stay that way. It was written against the
 			// pre-rename field names and was never re-sorted afterwards, so it compared a sorted array
 			// against an unsorted literal and could only ever fail — which it did, silently folded into
-			// the same run's tier failures. `published` belongs here because it is `required` on the
-			// collection since 20260804010000-alter-company-public: it is stored, not dropped.
+			// the same run's tier failures. `published` belongs here even though the input no longer carries
+			// one: `funCompanyAdd` stamps it `false`, and the collection has it `required` since
+			// 20260804010000-alter-company-public.
 			expect(Object.keys(doc ?? {}).sort()).toEqual([
 				'__v',
 				'_id',
@@ -1492,6 +1492,80 @@ describe('company mutations (real company collection, real unique indexes)', () 
 			expect(json.errors?.[0]?.message).toBe('Oops')
 			expect(json.errors?.[0]?.extensions?.description).toBe('company not found')
 			expect(await db().collection('company').findOne({ _id: missing })).toBeNull()
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	/*
+	 * The publish switch, against the real collection — because the rule it has to respect lives there and
+	 * nowhere else: the `$expr` beside the `$jsonSchema` refuses `published: true` on a document without a
+	 * stored `slug` and `publicName`, and no unit test with a mocked model can observe it.
+	 */
+	const publish = (id: string, published: boolean, headers: Record<string, string>) =>
+		gql(`mutation { companyUpdatePublished(_id: "${id}", published: ${published}) }`, headers)
+
+	// A shop that has not been named cannot be published, and the refusal has to leave the flag alone
+	// rather than half-apply. `seedCompany` writes neither `slug` nor `publicName`, so this is the state
+	// every company is in the moment `companyAdd` creates it.
+	it('companyUpdatePublished: refuses a company with no slug and no publicName, and leaves the flag false', async () => {
+		const session = await withSession()
+		const owner = await seedShopOwner()
+		const company = await seedCompany(owner._id)
+
+		try {
+			const { json } = await publish(company._id.toHexString(), true, session.headers)
+
+			expect(json.errors).toBeDefined()
+			expect(await db().collection('company').findOne({ _id: company._id })).toMatchObject({ published: false })
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	// Named first, published second — and both directions, because taking a shop off the site is the same
+	// mutation with the flag the other way round and the `$expr` has nothing to say about `false`. The two
+	// fields go in with the raw driver: what is under test is the publish call, not the save.
+	it('companyUpdatePublished: publishes and unpublishes a named company, without touching the rest of the card', async () => {
+		const session = await withSession()
+		const owner = await seedShopOwner()
+		const company = await seedCompany(owner._id)
+		const _id = company._id.toHexString()
+
+		try {
+			await db()
+				.collection('company')
+				.updateOne({ _id: company._id }, { $set: { publicName: 'Itest Shop', slug: `itest-${randomUUID()}` } })
+
+			const published = await publish(_id, true, session.headers)
+			expect(published.json.errors).toBeUndefined()
+			expect(await db().collection('company').findOne({ _id: company._id })).toMatchObject({ published: true })
+
+			const withdrawn = await publish(_id, false, session.headers)
+			expect(withdrawn.json.errors).toBeUndefined()
+
+			// The legal card is asserted untouched on the way back out: this mutation writes one field, so a
+			// regression that widened it into a save would show up here as a lost `registryExtract`.
+			expect(await db().collection('company').findOne({ _id: company._id })).toMatchObject({
+				published: false,
+				legalName: company.legalName,
+				registryExtract: 'itest-registryExtract'
+			})
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	it('companyUpdatePublished: answers 404 when the _id matches no company', async () => {
+		const session = await withSession()
+		const missing = new mongoose.Types.ObjectId()
+
+		try {
+			const { status, json } = await publish(missing.toHexString(), false, session.headers)
+
+			expect(status).toBe(404)
+			expect(json.errors?.[0]?.message).toBe('Oops')
+			expect(json.errors?.[0]?.extensions?.description).toBe('company not found')
 		} finally {
 			await session.cleanup()
 		}

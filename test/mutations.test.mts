@@ -13,6 +13,7 @@ const funShopOwnerUpdateStatus = vi.fn()
 const funCompanyAdd = vi.fn()
 const funCompanyDelete = vi.fn()
 const funCompanyUpdate = vi.fn()
+const funCompanyUpdatePublished = vi.fn()
 const funAdminUpdatePwd = vi.fn()
 const endEverySession = vi.fn()
 const endEveryShopOwnerSession = vi.fn()
@@ -30,6 +31,7 @@ vi.mock('@lib/shopOwner/funShopOwnerUpdateStatus.mjs', () => ({ funShopOwnerUpda
 vi.mock('@lib/company/funCompanyAdd.mjs', () => ({ funCompanyAdd }))
 vi.mock('@lib/company/funCompanyDelete.mjs', () => ({ funCompanyDelete }))
 vi.mock('@lib/company/funCompanyUpdate.mjs', () => ({ funCompanyUpdate }))
+vi.mock('@lib/company/funCompanyUpdatePublished.mjs', () => ({ funCompanyUpdatePublished }))
 vi.mock('@lib/admin/funAdminUpdatePwd.mjs', () => ({ funAdminUpdatePwd }))
 // Mocked here, and covered for real in `endEverySession.test.mts`: what this file asserts about it is
 // *when* the resolver calls it, which a stub answers exactly as well as a live Redis conversation would.
@@ -51,6 +53,7 @@ const { keygripRetire } = await import('../src/graphQLApi/schema/mutations/keygr
 const { companyAdd } = await import('../src/graphQLApi/schema/mutations/companyAdd.mts')
 const { companyDel } = await import('../src/graphQLApi/schema/mutations/companyDel.mts')
 const { companyUpdate } = await import('../src/graphQLApi/schema/mutations/companyUpdate.mts')
+const { companyUpdatePublished } = await import('../src/graphQLApi/schema/mutations/companyUpdatePublished.mts')
 const { shopOwnerAdd } = await import('../src/graphQLApi/schema/mutations/shopOwnerAdd.mts')
 const { shopOwnerDel } = await import('../src/graphQLApi/schema/mutations/shopOwnerDel.mts')
 const { shopOwnerUpdate } = await import('../src/graphQLApi/schema/mutations/shopOwnerUpdate.mts')
@@ -692,6 +695,46 @@ describe('companyUpdate', () => {
 		funCompanyUpdate.mockRejectedValueOnce(new Error('mongo down'))
 
 		await expect(companyUpdate.resolve(null, { _id, company })).rejects.toThrow('Internal Server Error')
+	})
+})
+
+describe('companyUpdatePublished', () => {
+	beforeEach(() => {
+		funCompanyUpdatePublished.mockReset().mockResolvedValue(undefined)
+		captureException.mockReset()
+	})
+
+	// No `validate*` call, unlike `companyAdd` and `companyUpdate`: `Boolean!` is the whole contract, so
+	// GraphQL has already refused everything a validator would have. Both values are passed through
+	// untouched, and no input object appears — publishing is not a save of the card with one box ticked.
+	it.each([
+		['unpublishes', false],
+		['publishes', true]
+	])('%s a company, passing the flag straight through', async (_label, published) => {
+		await expect(companyUpdatePublished.resolve(null, { _id, published })).resolves.toBe(true)
+
+		expect(funCompanyUpdatePublished).toHaveBeenCalledExactlyOnceWith(_id, published)
+	})
+
+	// ⚠️ The collection's `$expr` refuses `published: true` on a shop with no `slug` and no `publicName`,
+	// and that refusal is an operator error rather than a platform failure: it has to keep its status and
+	// stay out of Sentry, exactly like the 409 on a duplicate VAT number.
+	it('preserves the status of a GraphQLError raised downstream', async () => {
+		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
+		funCompanyUpdatePublished.mockImplementationOnce(() => throwNotFoundError('company not found'))
+
+		expect(await rejection(companyUpdatePublished.resolve(null, { _id, published: true }))).toEqual({
+			message: 'Oops',
+			http: { status: 404 },
+			description: 'company not found'
+		})
+		expect(captureException).not.toHaveBeenCalled()
+	})
+
+	it('propagates the failure', async () => {
+		funCompanyUpdatePublished.mockRejectedValueOnce(new Error('mongo down'))
+
+		await expect(companyUpdatePublished.resolve(null, { _id, published: true })).rejects.toThrow('Internal Server Error')
 	})
 })
 

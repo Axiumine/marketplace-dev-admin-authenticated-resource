@@ -1,5 +1,5 @@
 import { GraphQLAddressFrag } from '@axiumine/marketplace-common/schema/types/fragments/GraphQLAddressFrag'
-import { GraphQLBoolean, GraphQLFloat, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql'
+import { GraphQLFloat, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql'
 
 /**
  * The company's legal seat, as the operator's form sends it.
@@ -36,6 +36,12 @@ const GraphQLInputCompanyAddress = new GraphQLInputObjectType({
  * to another owner by editing its card.
  *
  * Nullability mirrors the collection's `required` array — `taxCode` and `uniqueCode` are the two optional ones.
+ *
+ * ⚠️ **`published` is deliberately absent.** Publishing is its own operation on both tiers —
+ * `companyUpdatePublished` here and on 4026 — and not a side effect of saving the card. It used to be a
+ * `Boolean!` in this input, which meant every save wrote the flag: an operator who reopened a stale form
+ * republished a shop somebody had just taken down, without ever asking to. `companyAdd` stamps `false`,
+ * and the shop stays unpublished until someone publishes it on purpose.
  */
 export const GraphQLInputCompany = new GraphQLInputObjectType({
 	name: 'GraphQLInputCompany',
@@ -49,14 +55,11 @@ export const GraphQLInputCompany = new GraphQLInputObjectType({
 		certifiedEmail: { type: new GraphQLNonNull(GraphQLString) },
 		address: { type: new GraphQLNonNull(GraphQLInputCompanyAddress) },
 		registryExtract: { type: new GraphQLNonNull(GraphQLString) },
-		// ⚠️ The database refuses `published: true` unless `slug` and `publicName` both arrive with it —
-		// the collection validator carries that as an `$expr` beside its `$jsonSchema`, and an `$expr`
-		// runs on updates as well as inserts. So publishing a shop and naming it cannot be two saves:
-		// a `companyUpdate` that flips the flag while leaving either box empty is rejected by MongoDB,
-		// not by this schema.
+		// These three are what makes a shop publishable: the database refuses `published: true` unless
+		// `slug` and `publicName` are both stored on the document. So the card is saved here first and
+		// `companyUpdatePublished` comes second — which is the order the split already imposes.
 		publicName: { type: GraphQLString },
 		slug: { type: GraphQLString },
-		description: { type: GraphQLString },
-		published: { type: new GraphQLNonNull(GraphQLBoolean) }
+		description: { type: GraphQLString }
 	})
 })

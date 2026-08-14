@@ -22,6 +22,7 @@ const { duplicateKey } = await import('../src/lib/mongo/duplicateKey.mts')
 const { funCompanyAdd } = await import('../src/lib/company/funCompanyAdd.mts')
 const { funCompanyDelete } = await import('../src/lib/company/funCompanyDelete.mts')
 const { funCompanyUpdate } = await import('../src/lib/company/funCompanyUpdate.mts')
+const { funCompanyUpdatePublished } = await import('../src/lib/company/funCompanyUpdatePublished.mts')
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439014')
 const idShopOwner = new Types.ObjectId('507f1f77bcf86cd799439013')
@@ -95,11 +96,22 @@ describe('funCompanyAdd', () => {
 			'contactPerson',
 			'idShopOwner',
 			'legalName',
+			'published',
 			'registryExtract',
 			'taxCode',
 			'uniqueCode',
 			'vatNumber'
 		])
+	})
+
+	// ⚠️ Stamped here, never taken from the input: publishing is `companyUpdatePublished`, a second call
+	// the operator makes on purpose. `false` is also the only value the collection would accept from a
+	// shop this new — its `$expr` refuses `published: true` without a stored `slug` and `publicName`,
+	// both optional on the card.
+	it('stamps the new company as unpublished', async () => {
+		await funCompanyAdd(idShopOwner, data)
+
+		expect(create.mock.calls[0][0].published).toBe(false)
 	})
 
 	// Every marketplace-common model declares `_id` without a default, which switches auto-generation
@@ -196,6 +208,45 @@ describe('funCompanyUpdate', () => {
 		mockUpdateMatched(0)
 
 		expect(await rejection(funCompanyUpdate(_id, data))).toEqual({
+			message: 'Oops',
+			http: { status: 404 },
+			description: 'company not found'
+		})
+	})
+})
+
+describe('funCompanyUpdatePublished', () => {
+	beforeEach(() => updateOne.mockReset())
+
+	// One flag, one filter, and the filter is the id alone: the operator moderates every shop on the
+	// platform, so there is no owner to scope this by. ⚠️ `false`, never `$unset` — `published` is in the
+	// collection's `required` array, so unsetting it fails the write.
+	it.each([
+		['publishes', true],
+		['unpublishes', false]
+	])('%s a company, writing the flag as a boolean', async (_label, published) => {
+		mockUpdateMatched(1)
+
+		await expect(funCompanyUpdatePublished(_id, published)).resolves.toBeUndefined()
+
+		const [filter, update] = updateOne.mock.calls[0]
+		expect(updateOne).toHaveBeenCalledOnce()
+		expect(filter).toEqual({ _id })
+		expect(update).toEqual({ $set: { published } })
+	})
+
+	// `matchedCount`, not `modifiedCount`: publishing something already published matches one document and
+	// changes none, and that is the state the operator asked for.
+	it('accepts a write that changed nothing, as long as the company exists', async () => {
+		mockUpdateMatched(1)
+
+		await expect(funCompanyUpdatePublished(_id, true)).resolves.toBeUndefined()
+	})
+
+	it('raises a 404 when no company carries that id', async () => {
+		mockUpdateMatched(0)
+
+		expect(await rejection(funCompanyUpdatePublished(_id, true))).toEqual({
 			message: 'Oops',
 			http: { status: 404 },
 			description: 'company not found'

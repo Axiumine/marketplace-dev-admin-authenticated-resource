@@ -109,6 +109,7 @@ describe('schema', () => {
 			'companyAdd',
 			'companyDel',
 			'companyUpdate',
+			'companyUpdatePublished',
 			'itemCategoryAdd',
 			'itemCategoryDel',
 			'itemCategoryUpdate',
@@ -148,6 +149,9 @@ describe('schema', () => {
 		['companyAdd', ['idShopOwner', 'company'], 'adds a company to a shopOwner'],
 		['companyDel', ['_id'], 'deletes a company'],
 		['companyUpdate', ['_id', 'company'], 'updates a company'],
+		// The flag beside the `_id` and nothing else, exactly like `itemUpdatePublished`: publishing a shop
+		// is its own operation, not a save of the card with one box ticked.
+		['companyUpdatePublished', ['_id', 'published'], 'publishes or unpublishes a company'],
 		['itemCategoryAdd', ['itemCategory'], 'adds an item category'],
 		['itemCategoryDel', ['_id'], 'deletes an item category'],
 		['itemCategoryUpdate', ['_id', 'itemCategory'], 'updates an item category'],
@@ -612,13 +616,15 @@ describe('object types', () => {
 
 describe('input types', () => {
 	// The write shape of a company is the read shape minus the two fields the client does not get to
-	// choose: `_id` is minted by the lib, `idShopOwner` is a separate argument on the create and is
-	// nowhere at all on the update. Derived from the output type rather than spelled out, so a field
-	// added to one and forgotten on the other fails here instead of surfacing as a form that silently
-	// drops what the operator typed.
-	it('mirrors the company, minus the two fields the operator cannot set', () => {
+	// choose and the one that is a separate operation: `_id` is minted by the lib, `idShopOwner` is a
+	// separate argument on the create and is nowhere at all on the update, and `published` is written by
+	// `companyUpdatePublished` alone — a save of the card cannot carry it, and this assertion is what
+	// stops it coming back. Derived from the output type rather than spelled out, so a field added to one
+	// and forgotten on the other fails here instead of surfacing as a form that silently drops what the
+	// operator typed.
+	it('mirrors the company, minus the two fields the operator cannot set and the publish flag', () => {
 		expect(inputFieldsOf('GraphQLInputCompany')).toEqual(
-			fieldsOf('GraphQLCompany').filter((f) => f !== '_id' && f !== 'idShopOwner')
+			fieldsOf('GraphQLCompany').filter((f) => f !== '_id' && f !== 'idShopOwner' && f !== 'published')
 		)
 		expect(inputFieldsOf('GraphQLInputCompanyAddress')).toEqual(fieldsOf('GraphQLCompanyAddress'))
 	})
