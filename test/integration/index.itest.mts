@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import type { AddressInfo } from 'node:net'
 
 import { redisClient } from '@axiumine/koa-utils/dataSources/Redis'
 import { decryptDocument } from '@axiumine/marketplace-common/encryption/decryptDocument'
@@ -34,7 +33,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 // belt-and-suspenders load so the REDIS_*/MONGODB_URI values are present at this file's top level.
 dotenv.config()
 
-import { ENDPOINT, start } from '../../src/index.mts'
+import { ENDPOINT } from '../../src/index.mts'
+import { bootServer } from './bootServer.mts'
 
 const REDIS_KEY = process.env.REDIS_KEY as string
 const INTROSPECTION_CODE = process.env.INTROSPECTION_CODE as string
@@ -339,12 +339,9 @@ async function storedAdminHash(_id: mongoose.Types.ObjectId) {
 }
 
 beforeAll(async () => {
-	const server = await start()
-	if (!server) throw new Error('server failed to start against the real Redis cluster / MongoDB / clamd')
-	httpServer = server.httpServer
-	const address = httpServer.address() as AddressInfo | null
-	if (!address || typeof address === 'string') throw new Error('no TCP address on the booted server')
-	base = `http://127.0.0.1:${address.port}`
+	const booted = await bootServer()
+	httpServer = booted.httpServer
+	base = booted.base
 })
 
 /**
