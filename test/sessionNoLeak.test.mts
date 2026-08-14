@@ -160,8 +160,8 @@ describe('no operation the session console adds can put a credential on the wire
 	 * the platform stores `sha256(prefixedRefreshToken)` and never the token, so a console operation
 	 * cannot leak it by forwarding something — only by reconstructing it, which sha256 does not permit.
 	 * The loop's token assertion is therefore a *regression* guard rather than a live check: it is the
-	 * test that fails if raw-token storage ever comes back, whether through `legacySessionKey` outliving
-	 * its deadline or a new field written in the clear.
+	 * test that fails if raw-token storage ever comes back — E13-S10 deleted the last reader of the raw
+	 * shape, so the only way back in now is a new field written in the clear.
 	 */
 	it('is checking a store that holds the key in the clear and the token nowhere at all', () => {
 		const serialisedStore = JSON.stringify([...store.entries()])
