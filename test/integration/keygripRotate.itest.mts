@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from 'node:crypto'
-import type { AddressInfo } from 'node:net'
 
 import { redisClient } from '@axiumine/koa-utils/dataSources/Redis'
 import { unwrapKeygripKeys } from '@axiumine/marketplace-common/encryption/unwrapKeygripKeys'
@@ -15,8 +14,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 // Same belt-and-suspenders load as index.itest.mts: the Redis parameters come from `.env`.
 dotenv.config()
 
-import { ENDPOINT, start } from '../../src/index.mts'
+import { ENDPOINT } from '../../src/index.mts'
 import { ITEST_KEYGRIP_KEYS, ITEST_REDIS_KEY } from '../../vitest.keygrip.mts'
+import { bootServer } from './bootServer.mts'
 
 /*
  * `keygripRotate` end to end (ADR-034): a real HTTP request, a real admin session in the real Redis
@@ -127,12 +127,9 @@ async function publishedVersion(version: string) {
 }
 
 beforeAll(async () => {
-	const server = await start()
-	if (!server) throw new Error('server failed to start against the real Redis cluster / MongoDB / clamd')
-	httpServer = server.httpServer
-	const address = httpServer.address() as AddressInfo | null
-	if (!address || typeof address === 'string') throw new Error('no TCP address on the booted server')
-	base = `http://127.0.0.1:${address.port}`
+	const booted = await bootServer()
+	httpServer = booted.httpServer
+	base = booted.base
 
 	/*
 	 * A second connection, because node-redis refuses ordinary commands on a client in subscriber mode —

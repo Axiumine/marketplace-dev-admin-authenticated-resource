@@ -1,6 +1,8 @@
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { armSessionIndex } from './sessionIndexMocks.mts'
+
 const hKeys = vi.fn()
 const hGet = vi.fn()
 const del = vi.fn()
@@ -20,11 +22,7 @@ const FIELDS = ['a'.repeat(64), 'b'.repeat(64)]
 const accessKeyOf = (field: string) => `${REDIS_KEY}${field}`.toUpperCase()
 
 beforeEach(() => {
-	vi.stubEnv('REDIS_KEY', REDIS_KEY)
-	hKeys.mockReset().mockResolvedValue(FIELDS)
-	hGet.mockReset().mockImplementation((key: string) => Promise.resolve(key.toUpperCase()))
-	del.mockReset().mockResolvedValue(1)
-	hDel.mockReset().mockResolvedValue(1)
+	armSessionIndex({ hKeys, hGet, del, hDel }, REDIS_KEY, FIELDS)
 })
 
 afterEach(() => {

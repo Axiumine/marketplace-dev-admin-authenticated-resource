@@ -2,6 +2,7 @@ import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { IContextAdminAuthenticatedResource } from '../src/lib/auth/IContextAdminAuthenticatedResource.mts'
+import { armSessionIndex } from './sessionIndexMocks.mts'
 
 const hKeys = vi.fn()
 const hGet = vi.fn()
@@ -52,11 +53,7 @@ const ctxWithoutHeaders = () =>
 	({ state: { user: { _id: new Types.ObjectId(ACCOUNT_ID) } }, request: {} }) as unknown as IContextAdminAuthenticatedResource
 
 beforeEach(() => {
-	vi.stubEnv('REDIS_KEY', REDIS_KEY)
-	hKeys.mockReset().mockResolvedValue(FIELDS)
-	hGet.mockReset().mockImplementation((key: string) => Promise.resolve(key.toUpperCase()))
-	del.mockReset().mockResolvedValue(1)
-	hDel.mockReset().mockResolvedValue(1)
+	armSessionIndex({ hKeys, hGet, del, hDel }, REDIS_KEY, FIELDS)
 })
 
 afterEach(() => {
