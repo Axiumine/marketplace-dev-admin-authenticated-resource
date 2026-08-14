@@ -566,11 +566,10 @@ describe('validateCompany', () => {
 		uniqueCode: ' ABC1234 ',
 		certifiedEmail: ' certified@boutique.test ',
 		address,
-		registryExtract: ' registryExtract-2026 ',
-		// Present and `false`, because `GraphQLInputCompany` declares it `Boolean!` — the resolver is
-		// never handed a company without it, and the validator passes it straight through. The three
-		// public fields beside it are genuinely optional and are exercised on their own below.
-		published: false
+		registryExtract: ' registryExtract-2026 '
+		// No `published`: it left `GraphQLInputCompany` when publishing became its own operation, so the
+		// validator is never handed one. The three public fields are genuinely optional and are exercised
+		// on their own below.
 	} as never
 
 	it('returns a trimmed copy, with the seat normalised like any other address', () => {
@@ -589,9 +588,16 @@ describe('validateCompany', () => {
 				province: 'MA',
 				position: { type: 'Point', coordinates: [9.19, 45.46] }
 			},
-			registryExtract: 'registryExtract-2026',
-			published: false
+			registryExtract: 'registryExtract-2026'
 		})
+	})
+
+	// ⚠️ The flag is dropped, not passed through: `companyUpdate` `$set`s this object whole, so a
+	// `published` surviving validation would make every save of the card a write of the flag — which is
+	// exactly what `companyUpdatePublished` exists to stop. Asserted against an input that carries one,
+	// because a caller reaching the resolver past the schema is the case that matters.
+	it('drops a published flag that reached it anyway', () => {
+		expect(validateCompany({ ...(validate as object), published: true } as never)).not.toHaveProperty('published')
 	})
 
 	// The two optional fields, and the same absence rule as a landline: a key present holding `undefined`
@@ -613,16 +619,16 @@ describe('validateCompany', () => {
 				'uniqueCode',
 				'certifiedEmail',
 				'address',
-				'registryExtract',
-				'published'
+				'registryExtract'
 			].filter((k) => !(k in patch))
 		)
 	})
 
 	// The shop listing, from 20260804000200. All three are optional because a company exists as a legal
-	// entity long before its owner writes a public page for it — and `published` is not checked against
-	// them here on purpose: the collection's `$expr` refuses `published: true` without a slug and a
-	// publicName, and that copy of the rule is the one no write can bypass.
+	// entity long before its operator writes a public page for it — and nothing here checks them against
+	// `published`, on purpose twice over: the flag is not this path's to write at all, and the
+	// collection's `$expr` refuses `published: true` without a slug and a publicName, which is the copy
+	// of the rule no write can bypass.
 	it('carries the three public fields through, trimmed, when the shop has a listing', () => {
 		const result = validateCompany({
 			...(validate as object),

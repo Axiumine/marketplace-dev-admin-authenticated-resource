@@ -39,7 +39,7 @@ const MAX_SLUG = 120
 const MAX_DESCRIPTION = 2000
 
 /** What the `GraphQLInputCompany` argument carries: the stored document minus the fields nobody sends. */
-export type ICompanyInput = Omit<ICompanySchema, '_id' | 'idShopOwner' | 'address' | '__v'> & {
+export type ICompanyInput = Omit<ICompanySchema, '_id' | 'idShopOwner' | 'address' | '__v' | 'published'> & {
 	address: IAddressInput
 }
 
@@ -49,8 +49,11 @@ export type ICompanyInput = Omit<ICompanySchema, '_id' | 'idShopOwner' | 'addres
  * `_id` and `idShopOwner` stay out: the first is minted by `funCompanyAdd`, the second is a separate
  * argument on the create path and is **never** written by the update path — moving a company between
  * owners is not a flow anybody has asked for, and `$set` of this object cannot do it by accident.
+ *
+ * `published` stays out for the same reason one level up: it is written by `companyUpdatePublished`
+ * alone, so a saved card cannot carry it and the `$set` this type feeds cannot touch it.
  */
-export type ICompanyValidated = Omit<ICompanySchema, '_id' | 'idShopOwner' | '__v'>
+export type ICompanyValidated = Omit<ICompanySchema, '_id' | 'idShopOwner' | '__v' | 'published'>
 
 /**
  * A company, every field of it.
@@ -62,12 +65,12 @@ export type ICompanyValidated = Omit<ICompanySchema, '_id' | 'idShopOwner' | '__
  * The path prefix is `company.` throughout because the fields arrive inside one input object, which is
  * the argument the operator's form maps onto.
  *
- * ⚠️ `published` is passed through untouched and is **not** checked against `slug` and `publicName`
- * here. The collection's `$expr` refuses `published: true` without both, and that is where the rule
- * belongs: an `$expr` runs on updates as well as inserts, so it holds for every write that will ever
- * reach the collection, including the ones written after this file is forgotten. Restating it here
- * would add a second copy that can drift from the first — and the copy in the database is the one that
- * cannot be bypassed.
+ * ⚠️ `published` is not here at all — it is neither read from the input nor returned. Publishing is
+ * `companyUpdatePublished`, and the rule that a published shop needs a `slug` and a `publicName` lives
+ * in the collection's `$expr`, not here: an `$expr` runs on updates as well as inserts, so it holds for
+ * every write that will ever reach the collection, including the ones written after this file is
+ * forgotten. Restating it here would add a second copy that can drift from the first — and the copy in
+ * the database is the one that cannot be bypassed.
  */
 export const validateCompany = (company: ICompanyInput): ICompanyValidated => {
 	const taxCode = optionalTextExactLength(company.taxCode, 'company.taxCode', TAX_CODE_LENGTH)
@@ -93,7 +96,6 @@ export const validateCompany = (company: ICompanyInput): ICompanyValidated => {
 		registryExtract: requiredText(company.registryExtract, 'company.registryExtract', MAX_REGISTRY_EXTRACT),
 		...(publicName === undefined ? {} : { publicName }),
 		...(slug === undefined ? {} : { slug }),
-		...(description === undefined ? {} : { description }),
-		published: company.published
+		...(description === undefined ? {} : { description })
 	}
 }
