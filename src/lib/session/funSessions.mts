@@ -11,11 +11,10 @@ import { Tier } from '@axiumine/marketplace-common/others/Tier'
  * written down here.
  *
  * *Safe to show*, because a digest of a 128-bit random value is not invertible and because no code path
- * anywhere accepts a bare digest as a credential: every legacy raw-token key is built as
- * `${REDIS_KEY}access:…` or `${REDIS_KEY}refresh:…` — see `legacySessionKey`, whose input always arrives
- * with its scheme prefix already attached — while an index field is bare hex. The prefix is what stops a
- * row id being replayed as the token it names, which is precisely why `hashSessionToken` insists on
- * hashing the prefixed value.
+ * anywhere accepts a bare digest as a credential: every reader hashes the **prefixed** token — `access:…`
+ * or `refresh:…` — before it names a key, so a bare digest handed back matches nothing. The prefix is what
+ * stops a row id being replayed as the token it names, which is precisely why `hashSessionToken` insists
+ * on hashing the prefixed value.
  *
  * *Safe to take back*, because `revokeSession` uses it only to name a Redis key and a hash field of an
  * account the caller has already named. It authenticates nothing.
