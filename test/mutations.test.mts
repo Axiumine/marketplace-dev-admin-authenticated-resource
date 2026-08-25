@@ -10,6 +10,7 @@ const funShopOwnerUpdateEmail = vi.fn()
 const funShopOwnerUpdateNote = vi.fn()
 const funShopOwnerUpdatePreferences = vi.fn()
 const funShopOwnerUpdateStatus = vi.fn()
+const funUserUpdateStatus = vi.fn()
 const funCompanyAdd = vi.fn()
 const funCompanyDelete = vi.fn()
 const funCompanyUpdate = vi.fn()
@@ -17,6 +18,7 @@ const funCompanyUpdatePublished = vi.fn()
 const funAdminUpdatePwd = vi.fn()
 const endEverySession = vi.fn()
 const endEveryShopOwnerSession = vi.fn()
+const endEveryUserSession = vi.fn()
 const funKeygripRotate = vi.fn()
 const funKeygripRetire = vi.fn()
 const captureException = vi.fn()
@@ -28,6 +30,7 @@ vi.mock('@lib/shopOwner/funShopOwnerUpdateEmail.mjs', () => ({ funShopOwnerUpdat
 vi.mock('@lib/shopOwner/funShopOwnerUpdateNote.mjs', () => ({ funShopOwnerUpdateNote }))
 vi.mock('@lib/shopOwner/funShopOwnerUpdatePreferences.mjs', () => ({ funShopOwnerUpdatePreferences }))
 vi.mock('@lib/shopOwner/funShopOwnerUpdateStatus.mjs', () => ({ funShopOwnerUpdateStatus }))
+vi.mock('@lib/user/funUserUpdateStatus.mjs', () => ({ funUserUpdateStatus }))
 vi.mock('@lib/company/funCompanyAdd.mjs', () => ({ funCompanyAdd }))
 vi.mock('@lib/company/funCompanyDelete.mjs', () => ({ funCompanyDelete }))
 vi.mock('@lib/company/funCompanyUpdate.mjs', () => ({ funCompanyUpdate }))
@@ -37,6 +40,7 @@ vi.mock('@lib/admin/funAdminUpdatePwd.mjs', () => ({ funAdminUpdatePwd }))
 // *when* the resolver calls it, which a stub answers exactly as well as a live Redis conversation would.
 vi.mock('@lib/auth/endEverySession.mjs', () => ({ endEverySession }))
 vi.mock('@lib/auth/endEveryShopOwnerSession.mjs', () => ({ endEveryShopOwnerSession }))
+vi.mock('@lib/auth/endEveryUserSession.mjs', () => ({ endEveryUserSession }))
 vi.mock('@lib/keygrip/funKeygripRotate.mjs', () => ({ funKeygripRotate }))
 vi.mock('@lib/keygrip/funKeygripRetire.mjs', () => ({ funKeygripRetire }))
 // tryCatchRethrow is NOT mocked — the point of these tests is that a failure really travels
@@ -61,6 +65,7 @@ const { shopOwnerUpdateEmail } = await import('../src/graphQLApi/schema/mutation
 const { shopOwnerUpdateNote } = await import('../src/graphQLApi/schema/mutations/shopOwnerUpdateNote.mts')
 const { shopOwnerUpdatePreferences } = await import('../src/graphQLApi/schema/mutations/shopOwnerUpdatePreferences.mts')
 const { shopOwnerUpdateStatus } = await import('../src/graphQLApi/schema/mutations/shopOwnerUpdateStatus.mts')
+const { userUpdateStatus } = await import('../src/graphQLApi/schema/mutations/userUpdateStatus.mts')
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
 const login = { email: 'shop@marketplace.test', password: 'clear' } as never
@@ -509,6 +514,85 @@ describe('shopOwnerUpdateStatus', () => {
 			message: 'Internal Server Error',
 			http: { status: 500 }
 		})
+	})
+})
+
+describe('userUpdateStatus', () => {
+	beforeEach(() => {
+		funUserUpdateStatus.mockReset().mockResolvedValue(undefined)
+		endEveryUserSession.mockReset().mockResolvedValue(undefined)
+		captureException.mockReset()
+	})
+
+	// The flag travels exactly as sent — `false` is a value here, not an omission, which is why the
+	// argument is non-null in the schema. Two rows and no third: there is no `waitApprov` on a customer.
+	it.each([[true], [false]])('forwards disabled=%s unchanged', async (disabled) => {
+		await expect(userUpdateStatus.resolve(null, { _id, disabled })).resolves.toBe(true)
+
+		expect(funUserUpdateStatus).toHaveBeenCalledExactlyOnceWith(_id, disabled)
+	})
+
+	it('propagates the failure', async () => {
+		funUserUpdateStatus.mockRejectedValueOnce(new Error('mongo down'))
+
+		await expect(userUpdateStatus.resolve(null, { _id, disabled: true })).rejects.toThrow('Internal Server Error')
+	})
+
+	/*
+	 * ⚠️ **Disabling revokes; re-enabling revokes nothing** (E15-S07's rule, and the reading
+	 * `shopOwnerUpdateStatus` already gives). Until this mutation existed the flag was a label — the three
+	 * gates that read `user.disabled` only bite at the next rotation, so a suspended customer kept a live
+	 * session for a whole refresh window. The second row is the one worth reading: signing a customer out
+	 * as the consequence of being *re-enabled* is not a control, and an unconditional revoke would hide
+	 * behind the first row forever.
+	 */
+	it.each([
+		[true, true],
+		[false, false]
+	])('disabled=%s revokes: %s', async (disabled, revokes) => {
+		await expect(userUpdateStatus.resolve(null, { _id, disabled })).resolves.toBe(true)
+
+		if (revokes) expect(endEveryUserSession).toHaveBeenCalledExactlyOnceWith(_id)
+		else expect(endEveryUserSession).not.toHaveBeenCalled()
+	})
+
+	// After the write, and gated on it: `funUserUpdateStatus` raises a 404 when `matchedCount !== 1`, so an
+	// id matching no customer must not reach Redis — there is no account to sign out.
+	it('revokes nothing when no user matched the id', async () => {
+		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
+		funUserUpdateStatus.mockImplementationOnce(() => throwNotFoundError('user not found'))
+
+		await rejection(userUpdateStatus.resolve(null, { _id, disabled: true }))
+
+		expect(endEveryUserSession).not.toHaveBeenCalled()
+	})
+
+	it('revokes only after the status is written', async () => {
+		await expect(userUpdateStatus.resolve(null, { _id, disabled: true })).resolves.toBe(true)
+
+		expect(endEveryUserSession.mock.invocationCallOrder[0]).toBeGreaterThan(funUserUpdateStatus.mock.invocationCallOrder[0])
+	})
+
+	// A revoke that fails fails the mutation: answering `true` would tell the operator a suspended customer
+	// is off the platform while their sessions are still live, which is the lie E15 exists to stop.
+	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
+		endEveryUserSession.mockRejectedValueOnce(new Error('redis down'))
+
+		expect(await rejection(userUpdateStatus.resolve(null, { _id, disabled: true }))).toMatchObject({
+			message: 'Internal Server Error',
+			http: { status: 500 }
+		})
+	})
+
+	// ⚠️ The cross-account revoke ends the customer's sessions and nobody else's. `endEverySession` is the
+	// caller's own teardown (E15-S05) and firing it here would sign the operator out of the console for
+	// having suspended somebody — asserted as an absence because that is how it would arrive: a copied line.
+	it('leaves the operator signed in', async () => {
+		endEverySession.mockReset()
+
+		await expect(userUpdateStatus.resolve(null, { _id, disabled: true })).resolves.toBe(true)
+
+		expect(endEverySession).not.toHaveBeenCalled()
 	})
 })
 

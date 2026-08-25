@@ -21,6 +21,7 @@ import { shopOwnerUpdateEmail } from './mutations/shopOwnerUpdateEmail.mjs'
 import { shopOwnerUpdateNote } from './mutations/shopOwnerUpdateNote.mjs'
 import { shopOwnerUpdatePreferences } from './mutations/shopOwnerUpdatePreferences.mjs'
 import { shopOwnerUpdateStatus } from './mutations/shopOwnerUpdateStatus.mjs'
+import { userUpdateStatus } from './mutations/userUpdateStatus.mjs'
 
 const MutationsApi = new GraphQLObjectType({
 	name: 'MutationsApi',
@@ -33,6 +34,7 @@ const MutationsApi = new GraphQLObjectType({
 		shopOwnerUpdateNote,
 		shopOwnerUpdatePreferences,
 		shopOwnerUpdateStatus,
+		userUpdateStatus,
 		companyAdd,
 		companyDel,
 		companyUpdate,
