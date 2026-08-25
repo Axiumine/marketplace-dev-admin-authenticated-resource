@@ -97,7 +97,7 @@ describe('schema', () => {
 		])
 	})
 
-	it('exposes the twenty mutations', () => {
+	it('exposes the twenty-two mutations', () => {
 		expect(fieldsOf('MutationsApi')).toEqual([
 			'adminUpdatePwd',
 			'shopOwnerAdd',
@@ -107,6 +107,7 @@ describe('schema', () => {
 			'shopOwnerUpdateNote',
 			'shopOwnerUpdatePreferences',
 			'shopOwnerUpdateStatus',
+			'userUpdateStatus',
 			'companyAdd',
 			'companyDel',
 			'companyUpdate',
@@ -144,6 +145,10 @@ describe('schema', () => {
 			'updates the login preferences of the shopOwner'
 		],
 		['shopOwnerUpdateStatus', ['_id', 'disabled', 'waitApprov'], 'updates the status of the shopOwner account'],
+		// ⚠️ Two arguments where the shop owner's takes three, and the missing one is not an omission:
+		// `user` gets no approval gate, ever (`epics/E07.md` §6). A `waitApprov` here would be a lever
+		// nothing on the customer's own tier reads.
+		['userUpdateStatus', ['_id', 'disabled'], 'updates the status of the user account'],
 		// `idShopOwner` sits beside the input object on the create, and is absent from the update: a
 		// company cannot be handed to another owner by saving its card. The schema is where that is
 		// enforced — the resolver never sees an argument the type system does not declare.

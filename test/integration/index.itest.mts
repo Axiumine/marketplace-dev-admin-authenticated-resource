@@ -94,8 +94,14 @@ async function withSession(email = 'operator@marketplace.test', _id = new mongoo
 }
 
 /**
- * A live *ShopOwner* session on the cluster: the refresh hash a login writes, plus the entry that login
- * files under the account's session index (E15-S02). What `shopOwnerUpdateStatus` has to be able to end.
+ * A live session on the cluster for one account of one tier: the refresh hash a login writes, plus the
+ * entry that login files under the account's session index (E15-S02). What `shopOwnerUpdateStatus` and
+ * `userUpdateStatus` have to be able to end.
+ *
+ * ⚠️ **The tier is a parameter because the index key is per tier and nothing else separates two accounts
+ * that happen to share an `_id`.** Seeding a customer's session under `TIER.shopOwner` would give the
+ * revocation an index it can find, so a `userUpdateStatus` reading the wrong index would pass — the
+ * single failure E19-S03 has to catch.
  *
  * ⚠️ **`indexSession` writes the index rather than a literal `hSet` here, deliberately.** The field name
  * is the digest of the *prefixed* token and nothing about it is guessable from the outside; spelling it
@@ -105,13 +111,13 @@ async function withSession(email = 'operator@marketplace.test', _id = new mongoo
  *
  * `sessionCapDays: '1'` because nothing here rotates — the field TTL only has to outlive the test.
  */
-async function seedShopOwnerSession(_id: mongoose.Types.ObjectId) {
+async function seedSession(tier: (typeof TIER)[keyof typeof TIER], _id: mongoose.Types.ObjectId) {
 	const token = `refresh:${randomUUID()}`
 	const key = sessionKey(token)
-	const index = sessionIndexKey(TIER.shopOwner, _id.toHexString())
+	const index = sessionIndexKey(tier, _id.toHexString())
 	const refreshData = {
 		_id: _id.toHexString(),
-		tier: TIER.shopOwner,
+		tier,
 		familyId: randomUUID(),
 		originalLogin: `${Date.now()}`,
 		sessionCapDays: '1'
@@ -139,6 +145,10 @@ async function seedShopOwnerSession(_id: mongoose.Types.ObjectId) {
 
 	return { key, index, token, field: added[0], familyId: refreshData.familyId }
 }
+
+/** The two tiers an operator can end a session on from this service. */
+const seedShopOwnerSession = (_id: mongoose.Types.ObjectId) => seedSession(TIER.shopOwner, _id)
+const seedUserSession = (_id: mongoose.Types.ObjectId) => seedSession(TIER.user, _id)
 
 /****************************************************************************************
  * Seeds. The end-to-end reads need MongoDB to actually hold an shopOwner, so they write
@@ -1369,6 +1379,171 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 			expect(status).toBe(400)
 			expect(json.errors?.[0]?.extensions?.description).toBe('onboardingStep: max 4 characters')
 			expect(await login(_id)).not.toHaveProperty('onboardingStep')
+		} finally {
+			await session.cleanup()
+		}
+	})
+})
+
+/**
+ * `userUpdateStatus` (E19-S03) — the first write this platform has ever made to a customer account from
+ * the operator tier, and the only writer `user.disabled` has.
+ *
+ * ⚠️ **The refusal these tests would ideally assert happens on three other services** — `tryLoginUser` on
+ * 4028, `tokenInfoUser` on 4031, `funUserUpdatePwd` on 4032 — none of which this suite boots. What is
+ * shared is MongoDB and Redis, so what is asserted here is the document and the keyspace: the flag is
+ * present or absent, and the customer's sessions are gone or untouched. After that the three gates refuse
+ * by construction.
+ */
+describe('userUpdateStatus mutation (real user collection, real session index)', () => {
+	function updateStatus(_id: mongoose.Types.ObjectId, disabled: boolean, headers: Record<string, string>) {
+		return gql(`mutation { userUpdateStatus(_id: "${_id.toHexString()}", disabled: ${disabled}) }`, headers)
+	}
+
+	// The flag is absent-or-true, never `false`, exactly as it is on `shopOwner` — and here the second
+	// spelling would be visible in the operator's own table within a page load: `usersActiveTbl` selects
+	// the live customers with `{disabled: {$exists: false}}`, so a stored `false` would drop every
+	// re-enabled customer off the default page and list them among the suspended.
+	it('stores the flag, then removes it rather than storing false', async () => {
+		const session = await withSession()
+		const { _id } = await seedUser()
+
+		try {
+			expect((await updateStatus(_id, true, session.headers)).json.data?.userUpdateStatus).toBe(true)
+			expect((await db().collection('user').findOne({ _id }))?.disabled).toBe(true)
+
+			expect((await updateStatus(_id, false, session.headers)).json.errors).toBeUndefined()
+			expect(await db().collection('user').findOne({ _id })).not.toHaveProperty('disabled')
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	// ⚠️ The write names `disabled` and nothing else. `user` is encrypted whole, so a write that reached
+	// any other path would either be refused by the validator's `binData` declaration or — worse — store
+	// readable plaintext in a collection whose whole premise is that it holds none.
+	it('leaves the encrypted document exactly as it found it', async () => {
+		const session = await withSession()
+		const { _id, email } = await seedUser()
+		const before = await db().collection('user').findOne({ _id })
+
+		try {
+			await updateStatus(_id, true, session.headers)
+
+			const after = await db().collection('user').findOne({ _id })
+
+			expect(after?.login).toEqual(before?.login)
+			expect(after?.registeredAt).toEqual(before?.registeredAt)
+			// And it still reads back decrypted through the table, which is what would fail if the update
+			// had rewritten `login` as plaintext: the driver decrypts only what it encrypted, and the raw
+			// handle these findOne calls use holds no key at all.
+			const { json } = await gql('{ usersActiveTbl(disabled: true, limit: 100) { items { _id email } } }', session.headers)
+			const rows = (json.data?.usersActiveTbl as { items: Array<{ _id: string; email: string }> }).items
+
+			expect(rows.find((row) => row._id === _id.toHexString())?.email).toBe(email)
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	/*
+	 * E15-S07 on the customer tier: suspending an account ends the sessions it was holding at that moment.
+	 *
+	 * ⚠️ **The session is seeded under `idx:user:` and the revocation has to read that key.** This is the
+	 * test that fails on the one mistake E19-S03 can make — `TIER.shopOwner` copied along with the rest of
+	 * `endEveryShopOwnerSession` — because that index does not exist for this `_id`, `hKeys` answers empty,
+	 * nothing is deleted, and the mutation still answers `true`.
+	 */
+	it('suspending a customer deletes the sessions they were holding, index included', async () => {
+		const session = await withSession()
+		const { _id } = await seedUser()
+		const { key, index } = await seedUserSession(_id)
+
+		try {
+			// The seed is asserted live first: a revocation that deleted nothing and a seed that wrote
+			// nothing leave the same empty keyspace behind, and only this line separates them.
+			expect(await redisClient.hGetAll(key)).toMatchObject({ _id: _id.toHexString(), tier: TIER.user })
+			expect(Object.keys(await redisClient.hGetAll(index))).toHaveLength(1)
+
+			expect((await updateStatus(_id, true, session.headers)).json.data?.userUpdateStatus).toBe(true)
+
+			expect(await redisClient.hGetAll(key)).toEqual({})
+			expect(await redisClient.hGetAll(index)).toEqual({})
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	// The other half of the rule: re-enabling is not a credential event and leaves whoever is signed in
+	// signed in. Nothing revokes on the way out of a suspension.
+	it('re-enabling a customer leaves their live sessions alone', async () => {
+		const session = await withSession()
+		const { _id } = await seedUser({ disabled: true })
+		const { key, index } = await seedUserSession(_id)
+
+		try {
+			expect((await updateStatus(_id, false, session.headers)).json.errors).toBeUndefined()
+
+			expect(await redisClient.hGetAll(key)).toMatchObject({ _id: _id.toHexString(), tier: TIER.user })
+			expect(Object.keys(await redisClient.hGetAll(index))).toHaveLength(1)
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	// ⚠️ The operator's own session survives. This is the cross-account revoke, not E15-S05's "the caller
+	// goes too" — and the caller here authenticates against a different collection on a different tier, so
+	// a revocation reaching them would mean the tier separation had failed in both directions at once.
+	it('leaves the operator signed in', async () => {
+		const session = await withSession()
+		const { _id } = await seedUser()
+
+		try {
+			await updateStatus(_id, true, session.headers)
+
+			const { json } = await gql('{ infoAdminAfterLogin { email } }', session.headers)
+
+			expect(json.errors).toBeUndefined()
+			expect(json.data?.infoAdminAfterLogin).toMatchObject({ email: 'operator@marketplace.test' })
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	// An id matching no customer is a 404, and it is a 404 the operator can actually get: a row left open
+	// in a second tab of a table somebody else has since acted on.
+	it('answers 404 for an id no customer carries', async () => {
+		const session = await withSession()
+
+		try {
+			const { status, json } = await updateStatus(new mongoose.Types.ObjectId(), true, session.headers)
+
+			expect(status).toBe(404)
+			expect(json.errors?.[0]?.message).toBe('Oops')
+			expect(json.errors?.[0]?.extensions?.description).toBe('user not found')
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	/*
+	 * ⚠️ **There is no `waitApprov` argument and there never will be** (`epics/E07.md` §6, closed
+	 * 2026-08-25). Nothing on the customer's own tier reads such a flag, so an argument accepted here would
+	 * write a field that gates nothing while the operator believes it gates a login. graphql-js refuses it
+	 * at validation, before any resolver runs.
+	 */
+	it('rejects a waitApprov argument at schema validation', async () => {
+		const session = await withSession()
+		const { _id } = await seedUser()
+
+		try {
+			const { json } = await gql(
+				`mutation { userUpdateStatus(_id: "${_id.toHexString()}", disabled: true, waitApprov: true) }`,
+				session.headers
+			)
+
+			expect(json.errors?.[0]?.message).toContain('waitApprov')
+			expect(await db().collection('user').findOne({ _id })).not.toHaveProperty('disabled')
 		} finally {
 			await session.cleanup()
 		}
