@@ -1,6 +1,6 @@
 import { throwErrorWrongUserInput } from '@axiumine/koa-utils/graphQL/throw/throwErrorWrongUserInput'
 import { ItemCategory } from '@axiumine/marketplace-common/models/MongoDB/ItemCategory'
-import { trusted, Types } from 'mongoose'
+import { ClientSession, trusted, Types } from 'mongoose'
 
 /**
  * The other half of the depth cap: a category that already has subcategories cannot be given a parent.
@@ -15,9 +15,17 @@ import { trusted, Types } from 'mongoose'
  * Deleted children do not count. They are invisible to every read path, so they cannot be the third
  * level of anything a customer sees, and refusing over them would make a category permanently
  * unmovable for a subcategory somebody retired a year ago.
+ *
+ * This count needs no `$inc` of its own to be safe against a child appearing between it and the update
+ * it guards, and the reason is worth stating: the racing `itemCategoryAdd` writes the parent it files
+ * under — `throwIfParentNotTopLevel` sees to that — while this update writes that same document itself.
+ * The two collide on it, one is aborted with a `WriteConflict` and retried, and the retry counts the
+ * child that appeared. Reading in the caller's session is all this has to do.
  */
-export async function throwIfHasChildren(_id: Types.ObjectId) {
-	const children = await ItemCategory.countDocuments({ idParent: _id, deleted: trusted({ $exists: false }) }).lean()
+export async function throwIfHasChildren(_id: Types.ObjectId, session: ClientSession) {
+	const children = await ItemCategory.countDocuments({ idParent: _id, deleted: trusted({ $exists: false }) })
+		.session(session)
+		.lean()
 
 	if (children > 0) {
 		throwErrorWrongUserInput('itemCategory.idParent: this category has subcategories — move or remove them first')

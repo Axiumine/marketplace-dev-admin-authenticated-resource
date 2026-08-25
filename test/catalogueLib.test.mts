@@ -6,21 +6,47 @@ import { rejection } from './errors.mts'
 const itemUpdateOne = vi.fn()
 const itemCountDocuments = vi.fn()
 const itemCategoryCreate = vi.fn()
-const itemCategoryFindOne = vi.fn()
+const itemCategoryFindOneAndUpdate = vi.fn()
 const itemCategoryUpdateOne = vi.fn()
 const itemCategoryCountDocuments = vi.fn()
+
+// `vi.hoisted`, unlike the plain consts above, because this file imports `mongoose` itself: the mock
+// factory runs while that import is evaluated, which is before any top-level `const` here has been
+// initialised. Same shape as `userMutations.test.mts` on 4027. The stand-in `withTransaction` runs the
+// work it is handed exactly once — the retry a real one performs on a `WriteConflict` is asked for
+// explicitly by the one test that needs it.
+const { endSession, session, startSession, withTransaction } = vi.hoisted(() => {
+	const endSessionFn = vi.fn()
+	const withTransactionFn = vi.fn(async (work: () => Promise<void>) => await work())
+	const sessionObj = { withTransaction: withTransactionFn, endSession: endSessionFn }
+
+	return {
+		endSession: endSessionFn,
+		session: sessionObj,
+		startSession: vi.fn(async () => sessionObj),
+		withTransaction: withTransactionFn
+	}
+})
+
+vi.mock('mongoose', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('mongoose')>()
+
+	return { ...actual, default: { ...actual.default, startSession } }
+})
 
 vi.mock('@sentry/node', () => ({ captureException: vi.fn() }))
 // ⚠️ Neither mock carries `deleteOne`, for the reason `companyLib.test.mts` leaves it off Company:
 // every delete on this tier is a stamp, and a regression to a hard removal has to fail here rather
-// than against a real database. A call to a method the mock does not have throws.
+// than against a real database. A call to a method the mock does not have throws — which is what also
+// holds the parent check shut: `findOne` is deliberately absent, so reading the parent without writing
+// it, the shape that reopens the write-skew window, throws instead of passing.
 vi.mock('@axiumine/marketplace-common/models/MongoDB/Item', () => ({
 	Item: { updateOne: itemUpdateOne, countDocuments: itemCountDocuments }
 }))
 vi.mock('@axiumine/marketplace-common/models/MongoDB/ItemCategory', () => ({
 	ItemCategory: {
 		create: itemCategoryCreate,
-		findOne: itemCategoryFindOne,
+		findOneAndUpdate: itemCategoryFindOneAndUpdate,
 		updateOne: itemCategoryUpdateOne,
 		countDocuments: itemCategoryCountDocuments
 	}
@@ -40,9 +66,26 @@ const idParent = new Types.ObjectId('507f1f77bcf86cd799439030')
 const itemExec = vi.fn()
 const categoryExec = vi.fn()
 
-/** `updateOne()` ends `.exec()`; `countDocuments()` and `findOne()` end `.lean()`. */
-const counting = (found: number) => ({ lean: vi.fn().mockResolvedValue(found) })
-const finding = (doc: unknown) => ({ lean: vi.fn().mockResolvedValue(doc) })
+/**
+ * Every query the three category paths make now runs `.session(s)` before its `.lean()` or `.exec()`,
+ * so the chain mocks are shaped that way and `threaded` collects what each one was handed. A source line
+ * that drops the `.session()` reaches for a `.lean()` this mock does not have and fails here, rather than
+ * committing on its own outside the transaction it was meant to join.
+ *
+ * `Item.updateOne` is the exception: the two item paths are single writes and open no session at all.
+ */
+const threaded: unknown[] = []
+
+const sessioned = (tail: object) => ({
+	session: vi.fn((clientSession: unknown) => {
+		threaded.push(clientSession)
+
+		return tail
+	})
+})
+
+const counting = (found: number) => sessioned({ lean: vi.fn().mockResolvedValue(found) })
+const finding = (doc: unknown) => sessioned({ lean: vi.fn().mockResolvedValue(doc) })
 
 /** A category as `validateItemCategory` hands it over: top-level unless a parent is spread in. */
 const data = { name: 'Footwear', slug: 'footwear', position: 0 } as never
@@ -50,13 +93,20 @@ const data = { name: 'Footwear', slug: 'footwear', position: 0 } as never
 /** The absence clause every read on this tier shares, tagged so `sanitizeFilter` leaves it alone. */
 const live = trusted({ $exists: false })
 
+/** The session the three write paths open, as the guards receive it — the mock is not a `ClientSession`. */
+const inSession = session as never
+
 beforeEach(() => {
+	threaded.length = 0
+	startSession.mockClear()
+	withTransaction.mockClear()
+	endSession.mockClear()
 	itemUpdateOne.mockReset().mockReturnValue({ exec: itemExec })
 	itemExec.mockReset().mockResolvedValue({ matchedCount: 1 })
 	itemCountDocuments.mockReset().mockReturnValue(counting(0))
 	itemCategoryCreate.mockReset().mockResolvedValue(undefined)
-	itemCategoryFindOne.mockReset().mockReturnValue(finding({ _id: idParent }))
-	itemCategoryUpdateOne.mockReset().mockReturnValue({ exec: categoryExec })
+	itemCategoryFindOneAndUpdate.mockReset().mockReturnValue(finding({ _id: idParent }))
+	itemCategoryUpdateOne.mockReset().mockReturnValue(sessioned({ exec: categoryExec }))
 	categoryExec.mockReset().mockResolvedValue({ matchedCount: 1 })
 	itemCategoryCountDocuments.mockReset().mockReturnValue(counting(0))
 })
@@ -126,12 +176,23 @@ describe('funItemUpdatePublished', () => {
 })
 
 describe('throwIfParentNotTopLevel', () => {
-	// The projection is the point: this asks one question — does the parent have a parent — and pulling
-	// the whole document to answer it would put the name, slug and position on the wire for nothing.
-	it('passes when the parent exists, is live and is top-level', async () => {
-		await expect(throwIfParentNotTopLevel(idParent)).resolves.toBeUndefined()
+	// ⚠️ The read is a write, and the `$inc` is the entire reason this is not a `findOne`. MongoDB
+	// transactions are snapshot-isolated rather than serialisable, so snapshot isolation permits write
+	// skew: read the parent, have `itemCategoryDel` retire it, write the child, and both transactions
+	// commit having each seen a consistent snapshot. Touching `__v` puts this transaction on the very
+	// document that delete stamps, one of the two is aborted with a `WriteConflict`, and `withTransaction`
+	// retries it. `__v` because nothing reads it and the validator already declares it `bsonType: 'int'`.
+	// The projection is the other half: this asks one question — does the parent have a parent — and
+	// pulling the whole document to answer it would put the name, slug and position on the wire for nothing.
+	it('reads the parent with a write, in the caller session, projecting one field', async () => {
+		await expect(throwIfParentNotTopLevel(idParent, inSession)).resolves.toBeUndefined()
 
-		expect(itemCategoryFindOne).toHaveBeenCalledExactlyOnceWith({ _id: idParent, deleted: live }, { idParent: 1 })
+		expect(itemCategoryFindOneAndUpdate).toHaveBeenCalledExactlyOnceWith(
+			{ _id: idParent, deleted: live },
+			{ $inc: { __v: 1 } },
+			{ projection: { idParent: 1 } }
+		)
+		expect(threaded).toEqual([session])
 	})
 
 	// ⚠️ Compared as strings, and the fixture is two *distinct* ObjectId instances holding one value —
@@ -142,29 +203,30 @@ describe('throwIfParentNotTopLevel', () => {
 		const same = new Types.ObjectId('507f1f77bcf86cd799439030')
 
 		expect(same).not.toBe(idParent)
-		expect(await rejection(throwIfParentNotTopLevel(same, idParent))).toEqual({
+		expect(await rejection(throwIfParentNotTopLevel(same, inSession, idParent))).toEqual({
 			message: 'Bad Request',
 			http: { status: 400 },
 			description: 'itemCategory.idParent: a category cannot be its own parent'
 		})
-		expect(itemCategoryFindOne).not.toHaveBeenCalled()
+		expect(itemCategoryFindOneAndUpdate).not.toHaveBeenCalled()
 	})
 
 	// The update path passes `_id` on every call, so a document being edited under a *different* parent has to
 	// get past the self-check and reach the read.
 	it('still reads when the category being edited is not the parent named', async () => {
-		await expect(throwIfParentNotTopLevel(idParent, _id)).resolves.toBeUndefined()
+		await expect(throwIfParentNotTopLevel(idParent, inSession, _id)).resolves.toBeUndefined()
 
-		expect(itemCategoryFindOne).toHaveBeenCalledOnce()
+		expect(itemCategoryFindOneAndUpdate).toHaveBeenCalledOnce()
 	})
 
 	// 404 and not 400: an id naming nothing is the ordinary stale-client failure. A soft-deleted parent
 	// counts as missing — the `deleted` clause above is what makes it so, and a subcategory under an
-	// invisible parent is unreachable from `/category/:slug/:subSlug`.
+	// invisible parent is unreachable from `/category/:slug/:subSlug`. It is also the answer the retried
+	// transaction lands on when it lost the race to a concurrent delete.
 	it('answers 404 when the parent is absent or retired', async () => {
-		itemCategoryFindOne.mockReturnValueOnce(finding(null))
+		itemCategoryFindOneAndUpdate.mockReturnValueOnce(finding(null))
 
-		expect(await rejection(throwIfParentNotTopLevel(idParent))).toEqual({
+		expect(await rejection(throwIfParentNotTopLevel(idParent, inSession))).toEqual({
 			message: 'Oops',
 			http: { status: 404 },
 			description: 'parent category not found'
@@ -174,9 +236,9 @@ describe('throwIfParentNotTopLevel', () => {
 	// ⚠️ The depth cap itself, and this function is its entire enforcement on the platform: no
 	// `$jsonSchema` can read a second document to ask whether the parent has a parent.
 	it('answers 400 when the parent is itself a subcategory', async () => {
-		itemCategoryFindOne.mockReturnValueOnce(finding({ _id: idParent, idParent: _id }))
+		itemCategoryFindOneAndUpdate.mockReturnValueOnce(finding({ _id: idParent, idParent: _id }))
 
-		expect(await rejection(throwIfParentNotTopLevel(idParent))).toEqual({
+		expect(await rejection(throwIfParentNotTopLevel(idParent, inSession))).toEqual({
 			message: 'Bad Request',
 			http: { status: 400 },
 			description: 'itemCategory.idParent: the taxonomy is two levels deep — a subcategory cannot have children'
@@ -187,10 +249,14 @@ describe('throwIfParentNotTopLevel', () => {
 describe('throwIfHasChildren', () => {
 	// Retired children do not count, which is what the `deleted` clause buys: refusing over a subcategory
 	// somebody withdrew a year ago would make the parent permanently unmovable.
-	it('passes for a category with no live subcategory', async () => {
-		await expect(throwIfHasChildren(_id)).resolves.toBeUndefined()
+	//
+	// No `$inc` of its own, and that is not an oversight: the racing `itemCategoryAdd` writes the parent it
+	// files under, while the update this count guards writes that same document. The two collide there.
+	it('counts live subcategories in the caller session', async () => {
+		await expect(throwIfHasChildren(_id, inSession)).resolves.toBeUndefined()
 
 		expect(itemCategoryCountDocuments).toHaveBeenCalledExactlyOnceWith({ idParent: _id, deleted: live })
+		expect(threaded).toEqual([session])
 	})
 
 	// The downwards half of the cap. Without it, handing a parent to a category that already has three
@@ -198,7 +264,7 @@ describe('throwIfHasChildren', () => {
 	it('answers 400 when the category still has subcategories', async () => {
 		itemCategoryCountDocuments.mockReturnValueOnce(counting(1))
 
-		expect(await rejection(throwIfHasChildren(_id))).toEqual({
+		expect(await rejection(throwIfHasChildren(_id, inSession))).toEqual({
 			message: 'Bad Request',
 			http: { status: 400 },
 			description: 'itemCategory.idParent: this category has subcategories — move or remove them first'
@@ -212,23 +278,57 @@ describe('funItemCategoryAdd', () => {
 	it('creates a top-level category with a fresh _id, reading no parent', async () => {
 		await expect(funItemCategoryAdd(data)).resolves.toBeUndefined()
 
-		const [doc] = itemCategoryCreate.mock.calls[0]
-		expect(itemCategoryFindOne).not.toHaveBeenCalled()
+		const [[doc], options] = itemCategoryCreate.mock.calls[0]
+		expect(itemCategoryFindOneAndUpdate).not.toHaveBeenCalled()
 		expect(doc).toMatchObject(data)
 		// Minted here rather than by mongoose: every model in marketplace-common declares `_id` without a
 		// default, which switches auto-generation off and makes `create()` throw on a document without one.
 		expect(doc._id).toBeInstanceOf(Types.ObjectId)
+		// ⚠️ The array form because it is the only one that carries options, and the session has to be one of
+		// them: a create outside the session commits on its own and outlives an abort of the transaction that
+		// checked the parent.
+		expect(options).toEqual({ session })
 	})
 
 	it('checks the parent before writing a subcategory', async () => {
 		await expect(funItemCategoryAdd({ ...(data as object), idParent } as never)).resolves.toBeUndefined()
 
-		expect(itemCategoryFindOne).toHaveBeenCalledOnce()
+		expect(itemCategoryFindOneAndUpdate).toHaveBeenCalledOnce()
 		expect(itemCategoryCreate).toHaveBeenCalledOnce()
 	})
 
+	// ⚠️ Inside the transaction, not before it. A parent checked outside is a parent checked against a
+	// snapshot the create never shares, which is the window this whole change exists to close.
+	it('checks the parent inside the transaction', async () => {
+		withTransaction.mockImplementationOnce(async (work) => {
+			expect(itemCategoryFindOneAndUpdate).not.toHaveBeenCalled()
+
+			await work()
+		})
+
+		await expect(funItemCategoryAdd({ ...(data as object), idParent } as never)).resolves.toBeUndefined()
+
+		expect(itemCategoryFindOneAndUpdate).toHaveBeenCalledOnce()
+	})
+
+	// ⚠️ The `_id` is minted once, outside the callback, and a retry is exactly what the `$inc` provokes:
+	// the loser of a `WriteConflict` is re-run by `withTransaction`. A retry that re-mints would create a
+	// second document for one request the moment two operators file subcategories under one parent.
+	it('re-uses one _id when the transaction is retried', async () => {
+		withTransaction.mockImplementationOnce(async (work) => {
+			await work()
+			await work()
+		})
+
+		await expect(funItemCategoryAdd(data)).resolves.toBeUndefined()
+
+		const ids = itemCategoryCreate.mock.calls.map(([[doc]]) => String(doc._id))
+		expect(ids).toHaveLength(2)
+		expect(ids[0]).toBe(ids[1])
+	})
+
 	it('does not write when the parent is a subcategory', async () => {
-		itemCategoryFindOne.mockReturnValueOnce(finding({ _id: idParent, idParent: _id }))
+		itemCategoryFindOneAndUpdate.mockReturnValueOnce(finding({ _id: idParent, idParent: _id }))
 
 		await expect(funItemCategoryAdd({ ...(data as object), idParent } as never)).rejects.toThrow('Bad Request')
 		expect(itemCategoryCreate).not.toHaveBeenCalled()
@@ -236,7 +336,8 @@ describe('funItemCategoryAdd', () => {
 
 	// `slug` is the collection's only unique index and it is unique **across both levels**, since
 	// `/category/:slug` and `/category/:slug/:subSlug` share one namespace of first segments. A 409 named
-	// after the field, not the 500 `tryCatchRethrow` would otherwise report to Sentry.
+	// after the field, not the 500 `tryCatchRethrow` would otherwise report to Sentry. Caught outside
+	// `withTransaction`: a duplicate key carries no transient label, so it aborts and arrives here untouched.
 	it('turns a duplicate slug into a 409 naming the field', async () => {
 		itemCategoryCreate.mockRejectedValueOnce(Object.assign(new Error('E11000 duplicate key'), { code: 11000 }))
 
@@ -262,11 +363,14 @@ describe('funItemCategoryDelete', () => {
 	// same tier. `item.idCategory` is required, so retiring a stocked category leaves items filed under
 	// a category no read path returns — resolvable items, a filter that does not exist, and nothing
 	// anywhere saying so.
-	it('stamps deleted once nothing live points at it', async () => {
+	it('stamps deleted once nothing live points at it, counting and writing in one session', async () => {
 		await expect(funItemCategoryDelete(_id)).resolves.toBeUndefined()
 
 		expect(itemCategoryCountDocuments).toHaveBeenCalledExactlyOnceWith({ idParent: _id, deleted: live })
 		expect(itemCountDocuments).toHaveBeenCalledExactlyOnceWith({ idCategory: _id, deleted: live })
+		// Both counts and the stamp: three queries, one session. A count taken outside it reads a snapshot
+		// the stamp does not share, and the subcategory it missed survives under a retired parent.
+		expect(threaded).toEqual([session, session, session])
 
 		const [filter, update] = itemCategoryUpdateOne.mock.calls[0]
 		expect(filter).toEqual({ _id })
@@ -319,7 +423,7 @@ describe('funItemCategoryUpdate', () => {
 	it('clears the parent when none was sent, and checks nothing', async () => {
 		await expect(funItemCategoryUpdate(_id, data)).resolves.toBeUndefined()
 
-		expect(itemCategoryFindOne).not.toHaveBeenCalled()
+		expect(itemCategoryFindOneAndUpdate).not.toHaveBeenCalled()
 		expect(itemCategoryCountDocuments).not.toHaveBeenCalled()
 		expect(itemCategoryUpdateOne).toHaveBeenCalledExactlyOnceWith(
 			{ _id },
@@ -335,19 +439,37 @@ describe('funItemCategoryUpdate', () => {
 	// Both halves of the cap on the one path that needs both — upwards at the parent, downwards at this
 	// document's own children — and the empty `$unset` is what keeps `$set` and `$unset` from ever naming the
 	// same path, which the driver refuses with a conflict.
-	it('writes the parent after checking upwards then downwards', async () => {
+	it('writes the parent after checking upwards then downwards, all in one session', async () => {
 		await expect(funItemCategoryUpdate(_id, { ...(data as object), idParent } as never)).resolves.toBeUndefined()
 
-		expect(itemCategoryFindOne).toHaveBeenCalledOnce()
+		expect(itemCategoryFindOneAndUpdate).toHaveBeenCalledOnce()
 		expect(itemCategoryCountDocuments).toHaveBeenCalledExactlyOnceWith({ idParent: _id, deleted: live })
+		expect(threaded).toEqual([session, session, session])
 		expect(itemCategoryUpdateOne).toHaveBeenCalledExactlyOnceWith(
 			{ _id },
 			{ $set: { name: 'Footwear', slug: 'footwear', position: 0, idParent }, $unset: {} }
 		)
 	})
 
+	// ⚠️ Both guards inside the transaction, like the create path: a parent that read as top-level outside
+	// it can be given a parent of its own before this update lands, and the third level appears without a
+	// single write naming it.
+	it('runs both checks inside the transaction', async () => {
+		withTransaction.mockImplementationOnce(async (work) => {
+			expect(itemCategoryFindOneAndUpdate).not.toHaveBeenCalled()
+			expect(itemCategoryCountDocuments).not.toHaveBeenCalled()
+
+			await work()
+		})
+
+		await expect(funItemCategoryUpdate(_id, { ...(data as object), idParent } as never)).resolves.toBeUndefined()
+
+		expect(itemCategoryFindOneAndUpdate).toHaveBeenCalledOnce()
+		expect(itemCategoryCountDocuments).toHaveBeenCalledOnce()
+	})
+
 	it('does not look downwards, or write, when the parent is not top-level', async () => {
-		itemCategoryFindOne.mockReturnValueOnce(finding({ _id: idParent, idParent: _id }))
+		itemCategoryFindOneAndUpdate.mockReturnValueOnce(finding({ _id: idParent, idParent: _id }))
 
 		await expect(funItemCategoryUpdate(_id, { ...(data as object), idParent } as never)).rejects.toThrow('Bad Request')
 		expect(itemCategoryCountDocuments).not.toHaveBeenCalled()
@@ -392,5 +514,44 @@ describe('funItemCategoryUpdate', () => {
 			http: { status: 404 },
 			description: 'category not found'
 		})
+	})
+})
+
+/*
+ * ⚠️ The three category write paths are transactions and the two item paths are not, and the split is
+ * deliberate rather than partial work. Each category path is a read that decides whether a write is legal
+ * followed by that write, on two different documents; the item paths are single writes, which are atomic
+ * on their own and would gain nothing but a session.
+ *
+ * `withTransaction` rather than a hand-rolled `startTransaction`/`commitTransaction` pair because it is
+ * the form that retries a `TransientTransactionError` — which is exactly what the `$inc` in
+ * `throwIfParentNotTopLevel` provokes when two operators race. Without the retry the loser would answer a
+ * `WriteConflict` to a request with nothing wrong with it.
+ */
+describe('every itemCategory write path is one transaction that ends its session', () => {
+	const boom = new Error('connection reset')
+
+	const paths = [
+		['funItemCategoryAdd', () => funItemCategoryAdd(data), () => itemCategoryCreate.mockRejectedValueOnce(boom)],
+		['funItemCategoryUpdate', () => funItemCategoryUpdate(_id, data), () => categoryExec.mockRejectedValueOnce(boom)],
+		['funItemCategoryDelete', () => funItemCategoryDelete(_id), () => categoryExec.mockRejectedValueOnce(boom)]
+	] as const
+
+	it.each(paths)('%s opens one session and does its work inside it', async (_label, run) => {
+		await expect(run()).resolves.toBeUndefined()
+
+		expect(startSession).toHaveBeenCalledOnce()
+		expect(withTransaction).toHaveBeenCalledOnce()
+		expect(endSession).toHaveBeenCalledOnce()
+	})
+
+	// The `finally`, proved on its own: a session left open on the failure path holds a server-side slot
+	// until the server times it out, and every one of these paths can fail — a dead connection, a duplicate
+	// slug, a guard refusing.
+	it.each(paths)('%s ends the session when the work throws', async (_label, run, fail) => {
+		fail()
+
+		await expect(run()).rejects.toBe(boom)
+		expect(endSession).toHaveBeenCalledOnce()
 	})
 })
