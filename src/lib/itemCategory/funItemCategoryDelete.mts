@@ -27,12 +27,15 @@ import mongoose, { trusted, Types } from 'mongoose'
  * so the two transactions collide on it, the loser is aborted with a `WriteConflict`, and
  * `withTransaction` retries it against the taxonomy the winner left. See `throwIfParentNotTopLevel`.
  *
- * ⚠️ **The item half is not closed and cannot be from here.** The write that races the item count is an
- * `itemAdd` on the ShopOwner tier, and it creates a document that does not exist yet — there is nothing
- * for this transaction to collide with. Closing it means the item write paths in
- * `marketplace-dev-authenticated-resource` touching the category they file under, the way this service's
- * own add does. Until then an item created in that instant can be left filed under a category retired
- * in the same one — the items stay resolvable, which is the reason a category is never hard-deleted.
+ * ⚠️ **The item half is closed the same way, and from the other service.** The write that races the item
+ * count is an `itemAdd` or an `itemUpdate` on the ShopOwner tier, creating or re-filing a document this
+ * transaction cannot see — on its own there was nothing here for it to collide with. `holdItemCategory`
+ * in `marketplace-dev-authenticated-resource` supplies the collision: both item write paths `$inc` the
+ * category they file under, inside the transaction that carries the item write, so one of the two loses
+ * this document and is retried against the taxonomy the winner left. Either the category is gone and the
+ * item write answers 404, or the item exists and this refuses with "the category still holds items".
+ * ⚠️ **Changing one side without the other reopens the window**, and nothing in either repo fails when it
+ * does.
  *
  * `Date.now()`, a number, cast to the schema's `Date` path by mongoose on the way out. `matchedCount`,
  * not `modifiedCount`, and a 404 when nothing matched — same convention as the rest of this tier.
