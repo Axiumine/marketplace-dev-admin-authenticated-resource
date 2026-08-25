@@ -80,7 +80,7 @@ describe('schema', () => {
 		expect(result.errors).toBeUndefined()
 	})
 
-	it('exposes the eleven admin queries', () => {
+	it('exposes the twelve admin queries', () => {
 		expect(fieldsOf('QueriesApi')).toEqual([
 			'infoAdminAfterLogin',
 			'shopOwnersActiveTbl',
@@ -88,6 +88,7 @@ describe('schema', () => {
 			'shopOwnersPerPeriod',
 			'shopOwnerById',
 			'shopOwnerCompanies',
+			'usersActiveTbl',
 			'companyItems',
 			'itemCategories',
 			'keygripStatus',
@@ -197,6 +198,14 @@ describe('schema', () => {
 		['itemCategories', [], 'Get all the item categories'],
 		['shopOwnerById', ['idShopOwner'], 'Get a shopOwner by id'],
 		['shopOwnersActiveTbl', ['offset', 'limit', 'search', 'sortBy', 'sortDir'], 'Get shopOwners for the table'],
+		// Seven arguments where the shop-owner table has five: no `search` (E19-S05), and three filters
+		// where that one hard-codes `disabled`/`deleted` into its filter. The absence of `search` is
+		// asserted by this list being exact.
+		[
+			'usersActiveTbl',
+			['offset', 'limit', 'disabled', 'deleted', 'emailVerified', 'sortBy', 'sortDir'],
+			'Get users for the table'
+		],
 		['shopOwnersPerPeriod', ['period'], 'Time series of registered shopOwners'],
 		['shopOwnersStats', [], 'ShopOwners stats'],
 		['infoAdminAfterLogin', [], 'Info after login'],
@@ -240,6 +249,80 @@ describe('shopOwnersActiveTbl paging contract', () => {
 
 	it('returns a page, not a list', () => {
 		expect(fieldsOf('GraphQLShopOwnersActiveTblPage')).toEqual(['items', 'total'])
+	})
+})
+
+describe('usersActiveTbl paging contract', () => {
+	// ⚠️ The defaults are the answer to "what does an operator see on arrival" (E19.md §6, question 5),
+	// and they are read from the assembled schema rather than from the resolver's source, so what is
+	// checked is what a client sending nothing actually gets: the newest 25 live, enabled customers,
+	// verified or not.
+	it('defaults to the newest 25 live, enabled accounts', () => {
+		const defaults = Object.fromEntries(argsOf('QueriesApi', 'usersActiveTbl').map((a) => [a.name, a.defaultValue]))
+
+		expect(defaults).toEqual({
+			offset: '0',
+			limit: '25',
+			disabled: 'false',
+			deleted: 'false',
+			// null, not 'false': the one nullable argument, because "do not filter on it" is a real
+			// state of this table and a distinct one from "show me the unverified". It is nullable
+			// precisely because it is the filter OUTSIDE `tbl_active_registeredAt` — the other two are
+			// the index's leading fields and every page has to name one state of each.
+			emailVerified: null,
+			sortBy: 'REGISTERED_AT',
+			sortDir: 'DESC'
+		})
+	})
+
+	// ⚠️ **Exactly one member, and this is the assertion that keeps it one** (E19-S05). `sortBy` becomes
+	// a key of the Mongo sort document; on `user` the names and the city are randomly encrypted, so a
+	// second member here would order the customer base by ciphertext — an order that is stable,
+	// arbitrary, and looks exactly like a working sort until somebody checks it against the data.
+	it('offers exactly one sortable column, and reuses the shared direction enum', () => {
+		expect(enumValuesOf('GraphQLUsersTblSortField')).toEqual(['REGISTERED_AT'])
+		expect(enumValuesOf('GraphQLSortDirection')).toEqual(['ASC', 'DESC'])
+	})
+
+	it('returns a page, not a list', () => {
+		expect(fieldsOf('GraphQLUsersActiveTblPage')).toEqual(['items', 'total'])
+	})
+
+	// ⚠️ The row is the epic's boundary in one line: the login address and three flags, and **nothing
+	// from `personalData` or `addresses[]`**. Asserted exactly, so a name or a city column added to the
+	// type fails here before it reaches a screen — every one of those fields is ciphertext the driver
+	// decrypts on the way out, and this tier has no stated task for any of them (ADR-029, R25).
+	it('GraphQLUserActiveTbl carries the address and the flags, and no other personal field', () => {
+		expect(fieldsOf('GraphQLUserActiveTbl')).toEqual(['_id', 'registeredAt', 'email', 'disabled', 'deleted', 'emailVerified'])
+	})
+
+	// `deleted` is a timestamp and not a flag (ADR-011), while the query's `deleted` ARGUMENT is a
+	// Boolean. The two spellings of one word are the reason this is pinned: a `Boolean` here would
+	// read as correct and hand the frontend `true` for a date it has to render.
+	it('reports deleted as the timestamp it is, and the two flags as nullable Booleans', () => {
+		expect(typeOfField('GraphQLUserActiveTbl', 'deleted')).toEqual({ kind: 'SCALAR', name: 'DateTime', ofType: null })
+		expect(typeOfField('GraphQLUserActiveTbl', 'disabled')).toEqual({ kind: 'SCALAR', name: 'Boolean', ofType: null })
+		expect(typeOfField('GraphQLUserActiveTbl', 'emailVerified')).toEqual({ kind: 'SCALAR', name: 'Boolean', ofType: null })
+	})
+
+	// The two fields on this row with resolvers of their own, so the two introspection cannot check:
+	// every other field is answered by the default resolver reading a same-named key. The document
+	// nests both, the table renders two flat columns, and a resolver returning the row itself — or a
+	// constant — still introspects as `String!` / `Boolean`.
+	it('flattens login.email and emailVerify.valid onto the row', async () => {
+		const { GraphQLUserActiveTbl } = await import('../src/graphQLApi/schema/types/GraphQLUserActiveTbl.mts')
+
+		const fields = GraphQLUserActiveTbl.getFields()
+		const row = { login: { email: 'customer@example.com' }, emailVerify: { valid: true } }
+
+		expect(fields.email.resolve?.(row, {}, undefined, undefined as never)).toBe('customer@example.com')
+		expect(fields.emailVerified.resolve?.(row, {}, undefined, undefined as never)).toBe(true)
+
+		// ⚠️ The unconfirmed account, which is the majority state of a fresh registration:
+		// `enableEmailAccess` is what writes `valid`, so until it runs there is no `emailVerify` object
+		// at all. Without the optional chain this row is a TypeError that fails the WHOLE page — `items`
+		// is a non-null list of non-null rows — for every customer who has not clicked the link yet.
+		expect(fields.emailVerified.resolve?.({ login: { email: 'x@y.z' } }, {}, undefined, undefined as never)).toBeUndefined()
 	})
 })
 

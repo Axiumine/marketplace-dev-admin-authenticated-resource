@@ -11,6 +11,7 @@ const itemCategoryFind = vi.fn()
 const shopOwnersStatsDb = vi.fn()
 const shopOwnersPerPeriodDb = vi.fn()
 const shopOwnersActiveTblDb = vi.fn()
+const usersActiveTblDb = vi.fn()
 const funKeygripStatus = vi.fn()
 const captureException = vi.fn()
 
@@ -33,6 +34,12 @@ vi.mock('@lib/shopOwner/shopOwnersActiveTblDb.mjs', () => ({
 	default: shopOwnersActiveTblDb,
 	SHOP_OWNERS_TBL_DEFAULT_LIMIT: 25
 }))
+// Same shape, same reason. The customers table is the shop-owner one minus `search`, so the mock
+// carries the default limit and nothing else — its real value is asserted through the schema.
+vi.mock('@lib/user/usersActiveTblDb.mjs', () => ({
+	default: usersActiveTblDb,
+	USERS_TBL_DEFAULT_LIMIT: 25
+}))
 vi.mock('@lib/keygrip/funKeygripStatus.mjs', () => ({ funKeygripStatus }))
 // tryCatchRethrow is NOT mocked, as in mutations.test.mts — only its Sentry sink is, so a failure
 // really travels through the wrapper this resolver puts around the lib.
@@ -41,6 +48,7 @@ vi.mock('@sentry/node', () => ({ captureException }))
 const { shopOwnerCompanies } = await import('../src/graphQLApi/schema/queries/shopOwnerCompanies.mts')
 const { shopOwnerById } = await import('../src/graphQLApi/schema/queries/shopOwnerById.mts')
 const { shopOwnersActiveTbl } = await import('../src/graphQLApi/schema/queries/shopOwnersActiveTbl.mts')
+const { usersActiveTbl } = await import('../src/graphQLApi/schema/queries/usersActiveTbl.mts')
 const { shopOwnersPerPeriod } = await import('../src/graphQLApi/schema/queries/shopOwnersPerPeriod.mts')
 const { shopOwnersStats } = await import('../src/graphQLApi/schema/queries/shopOwnersStats.mts')
 const { infoAdminAfterLogin } = await import('../src/graphQLApi/schema/queries/infoAdminAfterLogin.mts')
@@ -181,6 +189,32 @@ describe('shopOwnersActiveTbl', () => {
 
 		await expect(shopOwnersActiveTbl.resolve(null, args)).resolves.toBe(page)
 		expect(shopOwnersActiveTblDb).toHaveBeenCalledExactlyOnceWith(args)
+	})
+})
+
+describe('usersActiveTbl', () => {
+	beforeEach(() => usersActiveTblDb.mockReset())
+
+	// A pass-through, asserted as one — same contract as `shopOwnersActiveTbl` above. Forwarding the
+	// args OBJECT unchanged matters more here than there: seven arguments, three of them filters whose
+	// defaults decide what an operator sees on arrival, and rebuilding the object field by field is
+	// where a second, drifting set of defaults would take root.
+	it('hands its arguments to the lib and returns the page untouched', async () => {
+		const page = { items: [{ _id }], total: 1 }
+		usersActiveTblDb.mockResolvedValueOnce(page)
+
+		const args = {
+			offset: 25,
+			limit: 10,
+			disabled: true,
+			deleted: false,
+			emailVerified: false,
+			sortBy: 'REGISTERED_AT',
+			sortDir: 'ASC'
+		} as const
+
+		await expect(usersActiveTbl.resolve(null, args)).resolves.toBe(page)
+		expect(usersActiveTblDb).toHaveBeenCalledExactlyOnceWith(args)
 	})
 })
 
