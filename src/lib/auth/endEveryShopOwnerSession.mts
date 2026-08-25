@@ -15,10 +15,13 @@ import { Types } from 'mongoose'
  * index files access keys. E15-S05's "the caller goes too" rule does not apply and is not being relaxed —
  * it is a rule about *whose* credentials changed, and the answer here is not the caller's.
  *
- * ⚠️ **The residual is one access-token lifetime, same as the `disabled` flag has always carried.** The
- * shop owner's refresh sessions die here, so nothing new can be minted, but an access token already in
- * their hands keeps working until it expires on its own. Closing that gap needs an access-token deny
- * list, which this platform has deliberately not built.
+ * ⚠️ **There is no residual, and this comment claimed one until 2026-08-25.** It was written before R54
+ * and described the routine as it then was: refresh sessions revoked, an access token already in the shop
+ * owner's hands left working until it expired on its own. Since R54 `revokeAllSessionsForAccount` retires
+ * **both halves of every session**, reading each `accessKey` out of the session hash before it deletes it,
+ * so the device the shop owner is signed in on stops working on this call. No access-token deny list is
+ * needed for that, and none was built: the index reaches the access half through the refresh half it
+ * already names.
  *
  * `TIER.shopOwner`, and the tier is not incidental: the index key is per tier, so the wrong constant
  * reads an index belonging to an operator with the same `_id` — none exists, so the revoke would delete

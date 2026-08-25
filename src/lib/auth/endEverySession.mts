@@ -17,17 +17,21 @@ import { IContextAdminAuthenticatedResource } from '@lib/auth/IContextAdminAuthe
  * rule an attacker can aim at. It matters most here of the three tiers: an Admin session reaches every
  * shop owner, every company and the keygrip rotation.
  *
- * ⚠️ **Refresh sessions first, the caller's access key second, and that order is the safe residue.**
- * A process death between the two leaves the caller's access token alive for the minutes it has left —
- * exactly the residual every *other* session already carries, since an access key is the digest of a
- * string this account's index cannot name. The reverse order leaves the refresh sessions alive, which
- * is the whole attack: the intruder simply refreshes and gets another access token.
+ * ⚠️ **Refresh sessions first, the caller's access key second, and the order is what makes an interrupted
+ * run safe.** The reverse leaves the refresh sessions alive, which is the whole attack: the intruder
+ * simply refreshes and gets another access token. This way a process death between the two steps leaves at
+ * worst the caller's own access token alive for the minutes it has left, and since R54 usually not even
+ * that — see below.
  *
- * ⚠️ **Only the caller's access key can be deleted here, and that is a limit rather than an oversight.**
- * The index files refresh sessions alone (`indexSession`), so the other devices' access tokens keep
- * working until they expire on their own — minutes, and the same residual the `disabled` flag has
- * always carried. Shortening it needs an access-token deny list, which this platform has deliberately
- * not built.
+ * ⚠️ **The second step is a backstop, not the only way an access token dies here — this docblock said
+ * otherwise until 2026-08-25.** It predated R54 and described the other devices' access tokens as
+ * surviving until their own expiry. They do not: the index files refresh
+ * sessions alone (`indexSession`), but each refresh hash records the key of the access session minted
+ * beside it, and `revokeAllSessionsForAccount` retires that half of every session before it deletes the
+ * hash. What the explicit `deleteSession` below still covers is the pair R54 cannot reach — a session
+ * minted before the `accessKey` field existed, and a refresh hash that expired between the index read and
+ * the `hGet` — and it costs one `del` of a key this service is the only one able to name, since the caller
+ * handed it the token.
  *
  * `TIER.admin`, and the tier is not incidental: the index key is per tier, so the wrong constant here
  * reads an index that is empty or — worse — another tier's, and revokes nothing while reporting success.
