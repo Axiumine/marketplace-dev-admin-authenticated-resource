@@ -1527,7 +1527,7 @@ describe('userUpdateStatus mutation (real user collection, real session index)',
 	})
 
 	/*
-	 * ⚠️ **There is no `waitApprov` argument and there never will be** (`epics/E07.md` §6, closed
+	 * ⚠️ **There is no `waitApprov` argument and there never will be** (`phase5/CUSTOMER_ACCOUNT_ADDRESSES.md` §6, closed
 	 * 2026-08-25). Nothing on the customer's own tier reads such a flag, so an argument accepted here would
 	 * write a field that gates nothing while the operator believes it gates a login. graphql-js refuses it
 	 * at validation, before any resolver runs.

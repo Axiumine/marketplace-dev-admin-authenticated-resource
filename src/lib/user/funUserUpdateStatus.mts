@@ -7,7 +7,7 @@ import { Types } from 'mongoose'
  *
  * ⚠️ **`disabled` is the only flag, and the collection has no second one to add later.** `waitApprov` is a
  * `shopOwner` field and a customer will never carry one — the approval gate was closed on 2026-08-25
- * (`epics/E07.md` §6, ADR-INDEX §4), so nothing before a customer's first login stands between them and
+ * (`phase5/CUSTOMER_ACCOUNT_ADDRESSES.md` §6, ADR-INDEX §4), so nothing before a customer's first login stands between them and
  * the platform, and this is the only lever there is after it.
  *
  * **False removes the field, it does not store `false`**, exactly as `funShopOwnerUpdateStatus` does and
