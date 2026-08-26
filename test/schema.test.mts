@@ -146,7 +146,7 @@ describe('schema', () => {
 		],
 		['shopOwnerUpdateStatus', ['_id', 'disabled', 'waitApprov'], 'updates the status of the shopOwner account'],
 		// ⚠️ Two arguments where the shop owner's takes three, and the missing one is not an omission:
-		// `user` gets no approval gate, ever (`epics/E07.md` §6). A `waitApprov` here would be a lever
+		// `user` gets no approval gate, ever (`phase5/CUSTOMER_ACCOUNT_ADDRESSES.md` §6). A `waitApprov` here would be a lever
 		// nothing on the customer's own tier reads.
 		['userUpdateStatus', ['_id', 'disabled'], 'updates the status of the user account'],
 		// `idShopOwner` sits beside the input object on the create, and is absent from the update: a
