@@ -78,8 +78,9 @@ export async function funKeygripStatus(): Promise<IKeygripStatus> {
 		keys: record.keys.map((key) => ({
 			id: key.id,
 			createdAt: key.createdAt,
-			// Floored, so "29" means the key has not finished its thirtieth day and the rotation will still
-			// refuse to retire it. Rounding would show 30 for a key the server considers 29 days old.
+			// The key's own age, floored — "29" means it has not finished its thirtieth day, and rounding
+			// would show 30 for a key the server considers 29 days old. ⚠️ Not what the rotation retires
+			// on: that measures from the demotion instant, see `isTailRetirable`.
 			ageDays: Math.floor((now - new Date(key.createdAt).getTime()) / DAY_MS)
 		})),
 		// Sorted by service name so the table does not reshuffle between polls — Redis hash fields come
