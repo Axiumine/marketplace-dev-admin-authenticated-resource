@@ -190,9 +190,9 @@
   integrity sha512-OnBROgaMfVOriERRPU3lQBrZ8xJg4zZs3LxVeeEr/IrTqSjB2xqgmlDlSZSPyYH9XYwZkp5b9SwvIzc+9JvfQQ==
 
 "@axiumine/marketplace-common@^2.0.0":
-  version "2.0.2"
-  resolved "https://registry.npmjs.org/@axiumine/marketplace-common/-/marketplace-common-2.0.2.tgz#8a35821e1dbf1981c601e81e9317a5f665799686"
-  integrity sha512-k6XSoQd2zmWBPCrP3qGaK6RoSM+w9dZfcqnlRczQXeX9CIkYNWArD6Juaq+MlJYAlfg9+GkOXxEq6WV5PxBiUQ==
+  version "2.0.3"
+  resolved "https://registry.npmjs.org/@axiumine/marketplace-common/-/marketplace-common-2.0.3.tgz#6350c7d81c2a0fdcb15022855bb8329a0d6f921a"
+  integrity sha512-1sUvjgztbdBny/4vu1vz+/d55aAsWGOWBUSOiGbQl0whRldRmSEzjbCUt8O6fvAfV74pSc5+/WqrFofF2ZHP1Q==
   dependencies:
     graphql-scalars "^1.25.0"
 

@@ -5,6 +5,7 @@ import { throwNotFoundError } from '@axiumine/koa-utils/graphQL/throw/throwNotFo
 import { KEYGRIP_RETIRE_UNKNOWN, retireKeygripKey } from '@axiumine/marketplace-common/encryption/retireKeygripKey'
 import { IKeygripKeyMaterial } from '@axiumine/marketplace-common/others/IKeygripKeyMaterial'
 import { keygripFingerprint } from '@axiumine/marketplace-common/others/keygripFingerprint'
+import { readKek } from '@axiumine/marketplace-common/others/readKek'
 import { IKeygripRecord, readKeygrip } from '@axiumine/marketplace-common/others/readKeygrip'
 import { guardKeygripWrite } from '@lib/keygrip/guardKeygripWrite.mjs'
 import { keygripCasWrite } from '@lib/keygrip/keygripCas.mjs'
@@ -44,7 +45,8 @@ export async function funKeygripRetire(_id: Types.ObjectId, keyId: string): Prom
 		throwInternalError((e as Error).message)
 	}
 
-	const kek = Buffer.from(process.env.KEYGRIP_KEK as string, 'base64')
+	// One decode site, for the reason `funKeygripRotate` states in full (ADR-040).
+	const kek = readKek()
 
 	let keys: IKeygripKeyMaterial[]
 	try {
