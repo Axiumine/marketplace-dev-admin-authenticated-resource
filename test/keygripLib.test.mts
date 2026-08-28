@@ -4,6 +4,7 @@ import { unwrapKeygripKeys } from '@axiumine/marketplace-common/encryption/unwra
 import { wrapKeygripKeys } from '@axiumine/marketplace-common/encryption/wrapKeygripKeys'
 import { IKeygripKeyMaterial } from '@axiumine/marketplace-common/others/IKeygripKeyMaterial'
 import { keygripFingerprint } from '@axiumine/marketplace-common/others/keygripFingerprint'
+import { sha256Hex } from '@axiumine/marketplace-common/others/sha256Hex'
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -206,9 +207,26 @@ describe('funKeygripRotate', () => {
 		const fp = keygripFingerprint(unwrapKeygripKeys(written().wrapped, 4, KEK))
 
 		expect(captureMessage).toHaveBeenCalledExactlyOnceWith(
-			`keygrip rotated to version 4 (${fp}) by admin 507f1f77bcf86cd799439011`,
+			`keygrip rotated to version 4 (${fp}) by admin ${sha256Hex(OPERATOR.toString())}`,
 			'info'
 		)
+	})
+
+	/*
+	 * ⚠️ E17 §6 question 5, as a test. The message becomes `event.message`, the one bag `sentryBeforeSend`
+	 * does not walk, so an operator id written here reaches the vendor verbatim. Asserting the digest is
+	 * present is not enough on its own — this asserts the id is *absent*, which is the half a future edit
+	 * would break by appending a friendlier "by admin <id>" next to it.
+	 */
+	it('names the operator by digest and never by id', async () => {
+		seed(YOUNG)
+
+		await funKeygripRotate(OPERATOR)
+
+		const reported = JSON.stringify(captureMessage.mock.calls)
+
+		expect(reported).toContain(sha256Hex(OPERATOR.toString()))
+		expect(reported).not.toContain(OPERATOR.toString())
 	})
 
 	/*
@@ -365,9 +383,24 @@ describe('funKeygripRetire', () => {
 		const fp = keygripFingerprint(unwrapKeygripKeys(written().wrapped, 4, KEK))
 
 		expect(captureMessage).toHaveBeenCalledExactlyOnceWith(
-			`keygrip key k2 retired at version 4 (${fp}) by admin 507f1f77bcf86cd799439011`,
+			`keygrip key k2 retired at version 4 (${fp}) by admin ${sha256Hex(OPERATOR.toString())}`,
 			'info'
 		)
+	})
+
+	/*
+	 * ⚠️ The same line as `funKeygripRotate`'s, tested separately on purpose: the two writers are the same
+	 * decision on the same screen, and a fix applied to one of them is the way this drifts back apart.
+	 */
+	it('names the operator by digest and never by id', async () => {
+		seed(FOUR)
+
+		await funKeygripRetire(OPERATOR, 'k2')
+
+		const reported = JSON.stringify(captureMessage.mock.calls)
+
+		expect(reported).toContain(sha256Hex(OPERATOR.toString()))
+		expect(reported).not.toContain(OPERATOR.toString())
 	})
 
 	/*

@@ -7,6 +7,7 @@ import { IKeygripKeyMaterial } from '@axiumine/marketplace-common/others/IKeygri
 import { keygripFingerprint } from '@axiumine/marketplace-common/others/keygripFingerprint'
 import { readKek } from '@axiumine/marketplace-common/others/readKek'
 import { IKeygripRecord, readKeygrip } from '@axiumine/marketplace-common/others/readKeygrip'
+import { sha256Hex } from '@axiumine/marketplace-common/others/sha256Hex'
 import { guardKeygripWrite } from '@lib/keygrip/guardKeygripWrite.mjs'
 import { keygripCasWrite } from '@lib/keygrip/keygripCas.mjs'
 import * as Sentry from '@sentry/node'
@@ -72,10 +73,18 @@ export async function funKeygripRetire(_id: Types.ObjectId, keyId: string): Prom
 			`The keygrip record changed while ${keyId} was being retired, so nothing was written and that key is still in use. Reload the page and retire it again.`
 		)
 
-	// The audit trail. The id is safe to name — it is what the fingerprint is computed over, and what the
-	// status screen shows — and it is the only way to answer "when did we drop that key?" afterwards.
+	/*
+	 * The audit trail. The *key* id is safe to name — it is what the fingerprint is computed over, and what
+	 * the status screen shows — and it is the only way to answer "when did we drop that key?" afterwards.
+	 *
+	 * ⚠️ **The *operator* is not, and is named by digest** (E17 §6 question 5). Two identifiers meet on this
+	 * line and only one of them is the platform's own: `keyId` describes a key, `_id` describes a person.
+	 * The message becomes `event.message`, which `sentryBeforeSend` does not walk, so an id written here
+	 * reaches the vendor verbatim. See `funKeygripRotate` for the full reasoning; the two lines must keep
+	 * answering this the same way, because they are the same decision on the same screen.
+	 */
 	Sentry.captureMessage(
-		`keygrip key ${keyId} retired at version ${version} (${keygripFingerprint(keys)}) by admin ${_id.toString()}`,
+		`keygrip key ${keyId} retired at version ${version} (${keygripFingerprint(keys)}) by admin ${sha256Hex(_id.toString())}`,
 		'info'
 	)
 }

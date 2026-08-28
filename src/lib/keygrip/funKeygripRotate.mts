@@ -6,6 +6,7 @@ import { IKeygripKeyMaterial } from '@axiumine/marketplace-common/others/IKeygri
 import { keygripFingerprint } from '@axiumine/marketplace-common/others/keygripFingerprint'
 import { readKek } from '@axiumine/marketplace-common/others/readKek'
 import { IKeygripRecord, readKeygrip } from '@axiumine/marketplace-common/others/readKeygrip'
+import { sha256Hex } from '@axiumine/marketplace-common/others/sha256Hex'
 import { guardKeygripWrite } from '@lib/keygrip/guardKeygripWrite.mjs'
 import { keygripCasWrite } from '@lib/keygrip/keygripCas.mjs'
 import * as Sentry from '@sentry/node'
@@ -79,6 +80,18 @@ export async function funKeygripRotate(_id: Types.ObjectId): Promise<void> {
 	 * most powerful thing an operator can do to sessions on this platform, and it leaves no document
 	 * behind — the record it writes holds no author. `captureMessage` at info level is what the boot
 	 * banner already uses; a missing DSN makes it inert rather than fatal.
+	 *
+	 * ⚠️ **The operator is named by digest, never by id** (E17 §6 question 5). This message becomes
+	 * `event.message`, and `sentryBeforeSend` walks `event.request`, `event.user`, `contexts.trace.data`
+	 * and the breadcrumbs — never the top-level message — so whatever is written here leaves the host
+	 * verbatim. The digest keeps the trail attributable to whoever holds the `admin` collection, which is
+	 * the only party that ever needs to resolve it, and hands the vendor a string that names nobody. It is
+	 * the same handling `assertUnderRateLimit` already gives this exact value, and `sha256Hex` states the
+	 * limit of it: this is pseudonymisation, and an id space this small is enumerable by anyone who
+	 * already holds the collection. That is the intended reader, not the threat.
 	 */
-	Sentry.captureMessage(`keygrip rotated to version ${version} (${keygripFingerprint(keys)}) by admin ${_id.toString()}`, 'info')
+	Sentry.captureMessage(
+		`keygrip rotated to version ${version} (${keygripFingerprint(keys)}) by admin ${sha256Hex(_id.toString())}`,
+		'info'
+	)
 }
