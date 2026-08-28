@@ -4,6 +4,7 @@ import { throwInternalError } from '@axiumine/koa-utils/graphQL/throw/throwInter
 import { rotateKeygripKeys } from '@axiumine/marketplace-common/encryption/rotateKeygripKeys'
 import { IKeygripKeyMaterial } from '@axiumine/marketplace-common/others/IKeygripKeyMaterial'
 import { keygripFingerprint } from '@axiumine/marketplace-common/others/keygripFingerprint'
+import { readKek } from '@axiumine/marketplace-common/others/readKek'
 import { IKeygripRecord, readKeygrip } from '@axiumine/marketplace-common/others/readKeygrip'
 import { guardKeygripWrite } from '@lib/keygrip/guardKeygripWrite.mjs'
 import { keygripCasWrite } from '@lib/keygrip/keygripCas.mjs'
@@ -49,9 +50,11 @@ export async function funKeygripRotate(_id: Types.ObjectId): Promise<void> {
 		throwInternalError((e as Error).message)
 	}
 
-	// The same variable `readKeygrip` has just proved is present and exactly 32 bytes — an unwrap that
-	// succeeded is a stronger check than re-validating the length here would be.
-	const kek = Buffer.from(process.env.KEYGRIP_KEK as string, 'base64')
+	// The one decode site on the platform (ADR-040). `readKeygrip` has already proved this variable is
+	// present and exactly 32 bytes — an unwrap that succeeded is a stronger check than the length check
+	// `readKek` repeats — so what this call buys is not a guard but a single place an adopter has to change
+	// when the KEK stops coming from `process.env`. A private `Buffer.from` here is a regression.
+	const kek = readKek()
 
 	// The key-lifecycle rules — mint, prepend, retire what stopped signing longer ago than the longest
 	// session this platform issues, never fall below two, refuse rather than trim — are one shared
