@@ -537,8 +537,8 @@ describe('object types', () => {
 
 	it('GraphQLKeygripStatus carries the record and who is holding it', () => {
 		expect(fieldsOf('GraphQLKeygripStatus')).toEqual(['version', 'fingerprint', 'keys', 'holders'])
-		// Ids and dates, no material — see the absence assertion below. `ageDays` is computed by the
-		// server because the retirement rule is measured on the server's clock.
+		// Ids and dates, no material — see the absence assertion below. `ageDays` is the key's own age,
+		// computed by the server because every keygrip decision is taken against the server's clock.
 		expect(fieldsOf('GraphQLKeygripKeyInfo')).toEqual(['id', 'createdAt', 'ageDays'])
 		// `current` is answered server-side against the record the same read returned, so a row cannot be
 		// compared against a fingerprint a rotation apart from the one shown above it.

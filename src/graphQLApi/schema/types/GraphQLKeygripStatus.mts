@@ -13,10 +13,19 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
  * precisely so that publishing it is harmless. None of it narrows a 64-byte secret by one bit.
  */
 
-// One key in the array, as an operator needs to see it. `ageDays` is computed rather than left to the
-// client: the retirement rule is "older than SESSION_CAP_DAYS_REMEMBERED days", and it is the server's
-// clock that decides, so a screen that did the arithmetic against the browser's clock could show a key
-// as retirable while the rotation refuses it.
+/*
+ * One key in the array, as an operator needs to see it.
+ *
+ * `ageDays` is the key's own age, computed here rather than left to the client because it is the
+ * server's clock that every keygrip decision is taken against, and a browser one rotation behind would
+ * be doing the arithmetic against a record that no longer exists.
+ *
+ * ⚠️ **It is not the retirement predicate, and reading it as one is the mistake the 2026-08-28 amendment
+ * to ADR-034 records.** A rotation retires the tail once thirty days have passed since it *stopped
+ * signing* — `isTailRetirable`, which reads the `createdAt` of the key in front of it. Under a cadence
+ * faster than monthly the two diverge, and a key young by `ageDays` can already be retirable. Rendering
+ * the demotion age is E17-S08's call; this field answers what it always answered.
+ */
 export const GraphQLKeygripKeyInfo = new GraphQLObjectType({
 	name: 'GraphQLKeygripKeyInfo',
 	fields: () => ({
