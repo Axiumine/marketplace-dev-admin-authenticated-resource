@@ -38,7 +38,11 @@ const KEK = Buffer.alloc(32, 7)
 const OPERATOR = new Types.ObjectId('507f1f77bcf86cd799439011')
 const DAY_MS = 86_400_000
 
-/** `SESSION_CAP_DAYS_REMEMBERED` is 30; a key older than that can no longer be verifying anything. */
+/**
+ * `SESSION_CAP_DAYS_REMEMBERED` is 30, and the clock runs from the moment a key stopped signing rather
+ * than from the moment it was minted — so an aged-out fixture ages the key *in front* of the one being
+ * dropped, which is what says when the demotion happened.
+ */
 const AGED_OUT = 31
 
 /**
@@ -170,10 +174,10 @@ describe('funKeygripRotate', () => {
 		expect(written().fp).toBe(keygripFingerprint(keys))
 	})
 
-	// The retirement half of the same rule, through the real seal: a key nothing can still have been
-	// signed with 30 days ago is dropped, so the array does not grow forever.
+	// The retirement half of the same rule, through the real seal: a key demoted 30 days ago can have
+	// signed nothing that is still presentable, so it is dropped and the array does not grow forever.
 	it('drops a key that has aged past the longest session this platform issues', async () => {
-		seed([aged('k2', 1), aged('k1', AGED_OUT)])
+		seed([aged('k2', AGED_OUT), aged('k1', AGED_OUT + 60)])
 
 		await funKeygripRotate(OPERATOR)
 
@@ -236,7 +240,9 @@ describe('funKeygripRotate', () => {
 
 		expect(outcome.message).toBe('Conflict')
 		expect(outcome.http).toEqual({ status: 409 })
-		expect(outcome.description).toMatch(/^KEYGRIP_ROTATE_CAP: the key set already holds 5 keys and none is older than 30 days\./)
+		expect(outcome.description).toMatch(
+			/^KEYGRIP_ROTATE_CAP: the key set already holds 5 keys and none of them stopped signing more than 30 days ago\./
+		)
 		expect(evalRedis).not.toHaveBeenCalled()
 		expect(captureMessage).not.toHaveBeenCalled()
 	})

@@ -53,9 +53,10 @@ export async function funKeygripRotate(_id: Types.ObjectId): Promise<void> {
 	// succeeded is a stronger check than re-validating the length here would be.
 	const kek = Buffer.from(process.env.KEYGRIP_KEK as string, 'base64')
 
-	// The key-lifecycle rules — mint, prepend, retire what has aged past the longest session this
-	// platform issues, never fall below two, refuse rather than trim — are one shared function, so the
-	// admin panel and any future automation cannot disagree about them. Its only failure is the cap.
+	// The key-lifecycle rules — mint, prepend, retire what stopped signing longer ago than the longest
+	// session this platform issues, never fall below two, refuse rather than trim — are one shared
+	// function, so the admin panel and any future automation cannot disagree about them. Its only failure
+	// is the cap.
 	let keys: IKeygripKeyMaterial[]
 	try {
 		keys = rotateKeygripKeys(record.keys, new Date())
