@@ -307,7 +307,16 @@ describe('usersActiveTbl paging contract', () => {
 	// type fails here before it reaches a screen — every one of those fields is ciphertext the driver
 	// decrypts on the way out, and this tier has no stated task for any of them (ADR-029, R25).
 	it('GraphQLUserActiveTbl carries the address and the flags, and no other personal field', () => {
-		expect(fieldsOf('GraphQLUserActiveTbl')).toEqual(['_id', 'registeredAt', 'email', 'disabled', 'deleted', 'emailVerified'])
+		expect(fieldsOf('GraphQLUserActiveTbl')).toEqual([
+			'_id',
+			'registeredAt',
+			'email',
+			'disabled',
+			'disabledBy',
+			'disabledReason',
+			'deleted',
+			'emailVerified'
+		])
 	})
 
 	// `deleted` is a timestamp and not a flag (ADR-011), while the query's `deleted` ARGUMENT is a
@@ -383,6 +392,8 @@ describe('object types', () => {
 			'registeredAt',
 			'deleted',
 			'disabled',
+			'disabledBy',
+			'disabledReason',
 			'waitApprov',
 			'notes',
 			'resetPwd'
