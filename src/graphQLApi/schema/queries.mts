@@ -12,6 +12,8 @@ import { shopOwnersActiveTbl } from './queries/shopOwnersActiveTbl.mjs'
 import { shopOwnersPerPeriod } from './queries/shopOwnersPerPeriod.mjs'
 import { shopOwnersStats } from './queries/shopOwnersStats.mjs'
 import { usersActiveTbl } from './queries/usersActiveTbl.mjs'
+import { usersPerPeriod } from './queries/usersPerPeriod.mjs'
+import { usersStats } from './queries/usersStats.mjs'
 
 const QueriesApi = new GraphQLObjectType({
 	name: 'QueriesApi',
@@ -23,6 +25,8 @@ const QueriesApi = new GraphQLObjectType({
 		shopOwnerById,
 		shopOwnerCompanies,
 		usersActiveTbl,
+		usersStats,
+		usersPerPeriod,
 		companyItems,
 		itemCategories,
 		keygripStatus,

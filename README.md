@@ -24,9 +24,20 @@ session and `marketplace-dev-authenticated-logout` (4030) ends it.
 | `infoAdminAfterLogin` | what the admin SPA loads on entry |
 | `shopOwnerById`, `shopOwnersActiveTbl`, `shopOwnerCompanies`, `companyItems` | the operator's drill-down path |
 | `itemCategories` | the tree, readable everywhere, writable only here |
-| `shopOwnersStats`, `shopOwnersPerPeriod` | dashboard aggregates |
+| `usersActiveTbl` | the customers table — the shopOwners one **minus `search`**, see below |
+| `shopOwnersStats`, `shopOwnersPerPeriod` | shopOwners dashboard aggregates |
+| `usersStats`, `usersPerPeriod` | the same two over `user` — one count, one series |
 
 ## What will bite you here
+
+⚠️ **The two customers/shopOwners query pairs went opposite ways, and copying either pattern onto the
+other is the mistake.** The two *table* queries are separate files that duplicate a lot —
+`usersActiveTblDb` is `shopOwnersActiveTblDb` with `search` cut out, because every field the shop-owner
+table searches is RANDOM ciphertext on `user` (ADR-029), so the two genuinely diverge and always will.
+The two *chart* pairs are two lines each over one shared file, `@lib/stats/registeredAtSeriesDb.mjs`,
+because nothing they touch is encrypted — `registeredAt` is clear on both collections — so they have no
+axis to differ along, and two copies of that file's month-length clamp would be wrong in one of them for
+a year before anybody noticed in February. Read a lib's header before assuming which kind it is.
 
 ⚠️ **The mutation names overlap `marketplace-dev-authenticated-resource` on purpose, and the resolvers are
 not the same.** `companyAdd` here writes any shop; there it writes only the caller's, behind

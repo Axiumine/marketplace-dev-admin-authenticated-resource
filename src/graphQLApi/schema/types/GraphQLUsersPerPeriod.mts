@@ -5,8 +5,8 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 // first day — so the client has one parse path and reads `granularity` to decide how to label it.
 // String rather than a date scalar because the platform has none, and because the value is already
 // a bucket KEY: it is not a moment in time, it is the name of an interval.
-export const GraphQLShopOwnersPerPeriodPoint = new GraphQLObjectType({
-	name: 'GraphQLShopOwnersPerPeriodPoint',
+export const GraphQLUsersPerPeriodPoint = new GraphQLObjectType({
+	name: 'GraphQLUsersPerPeriodPoint',
 	fields: () => ({
 		date: { type: new GraphQLNonNull(GraphQLString) },
 		total: { type: new GraphQLNonNull(GraphQLInt) }
@@ -17,10 +17,14 @@ export const GraphQLShopOwnersPerPeriodPoint = new GraphQLObjectType({
 // the client infers from the points, because inferring it means guessing from spacing — and a range
 // in which every month happens to hold one registration is indistinguishable from a daily series
 // with a lot of gaps.
-export const GraphQLShopOwnersPerPeriod = new GraphQLObjectType({
-	name: 'GraphQLShopOwnersPerPeriod',
+//
+// ⚠️ Structurally identical to `GraphQLShopOwnersPerPeriod` and deliberately not the same type. One
+// shared `GraphQLPerPeriod` would make the two charts' fields interchangeable in a query document, so
+// a codegen rename in the admin app could point a customers chart at shopOwner data and still compile.
+export const GraphQLUsersPerPeriod = new GraphQLObjectType({
+	name: 'GraphQLUsersPerPeriod',
 	fields: () => ({
 		granularity: { type: new GraphQLNonNull(GraphQLPeriodGranularity) },
-		points: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLShopOwnersPerPeriodPoint))) }
+		points: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLUsersPerPeriodPoint))) }
 	})
 })
