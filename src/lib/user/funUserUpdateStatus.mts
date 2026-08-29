@@ -6,14 +6,14 @@ import { Types } from 'mongoose'
 export interface IUserStatus {
 	_id: Types.ObjectId
 	disabled: boolean
-	/** The operator making the change — `ctx.state.user._id`, never anything from the request body. */
+	/** The admin making the change — `ctx.state.user._id`, never anything from the request body. */
 	adminId: Types.ObjectId
 	/** Present exactly when `disabled` is true; `validateDisabledReason` is what guarantees that. */
 	disabledReason?: string
 }
 
 /**
- * The one account flag an operator can flip on a customer: the disable switch.
+ * The one account flag an admin can flip on a customer: the disable switch.
  *
  * ⚠️ **`disabled` is the only flag, and the collection has no second one to add later.** `waitApprov` is a
  * `shopOwner` field and a customer will never carry one — the approval gate was closed on 2026-08-25
@@ -37,13 +37,13 @@ export interface IUserStatus {
  * ⚠️ **No cascade here, and none is missing.** A customer owns no company and no item — the FK chain runs
  * `shopOwner → company → item` and `user` sits outside it (ADR-045 touches nothing on this tier).
  *
- * ⚠️ **There is no closure counterpart on this tier for an operator to call.** A customer closes their own
+ * ⚠️ **There is no closure counterpart on this tier for an admin to call.** A customer closes their own
  * account through `funUserDel`, which stamps `deleted` and never touches any `disabled*` field: `deleted`
  * is the subject giving the account up, `disabled` is the platform taking it away, and a path that could
  * write the second could lift a sanction against itself.
  *
  * `matchedCount`, not `modifiedCount`: 0 matched means no such customer, which is a 404; a flag re-set to
- * the value it already held is still the state the operator asked for and not an error.
+ * the value it already held is still the state the admin asked for and not an error.
  */
 export async function funUserUpdateStatus({ _id, disabled, adminId, disabledReason }: IUserStatus) {
 	// `$set` and `$unset` are never both present here — one flag, one branch — so no

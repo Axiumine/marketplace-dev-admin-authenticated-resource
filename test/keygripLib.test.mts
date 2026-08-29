@@ -36,7 +36,7 @@ const { funKeygripStatus } = await import('../src/lib/keygrip/funKeygripStatus.m
 const { KEYGRIP_WRITES_PER_HOUR, KEYGRIP_WRITE_WINDOW_SECONDS } = await import('../src/lib/keygrip/guardKeygripWrite.mts')
 
 const KEK = Buffer.alloc(32, 7)
-const OPERATOR = new Types.ObjectId('507f1f77bcf86cd799439011')
+const ADMIN = new Types.ObjectId('507f1f77bcf86cd799439011')
 const DAY_MS = 86_400_000
 
 /**
@@ -108,11 +108,11 @@ const seedStatus = (keys: IKeygripKeyMaterial[], holders: Record<string, string>
  * The counter key a metered write increments.
  *
  * ⚠️ Spelled here from the parts rather than imported from `assertUnderRateLimit`, so the assertion is
- * that the operator's *account id* is what gets metered. The digest is the point: a `KEYS` scan of the
- * limiter's keyspace must not read back as a list of which operators touched the signing keys.
+ * that the admin's *account id* is what gets metered. The digest is the point: a `KEYS` scan of the
+ * limiter's keyspace must not read back as a list of which admins touched the signing keys.
  */
-const meterKey = (operation: string, operator: string) =>
-	`test:rl:keygrip:${operation}:${createHash('sha256').update(operator).digest('hex')}`
+const meterKey = (operation: string, admin: string) =>
+	`test:rl:keygrip:${operation}:${createHash('sha256').update(admin).digest('hex')}`
 
 /** A holders row as `recordKeygripHolder` writes it. */
 const heldAt = (fp: string, lastSeen: string) => `${fp}@${lastSeen}`
@@ -139,7 +139,7 @@ describe('funKeygripRotate', () => {
 	it('seals the new key set under the next version and announces it on the channel', async () => {
 		seed(YOUNG)
 
-		await expect(funKeygripRotate(OPERATOR)).resolves.toBeUndefined()
+		await expect(funKeygripRotate(ADMIN)).resolves.toBeUndefined()
 
 		const w = written()
 
@@ -164,7 +164,7 @@ describe('funKeygripRotate', () => {
 	it('prepends a fresh 64-byte key and leaves the ones still verifying cookies untouched', async () => {
 		seed(YOUNG)
 
-		await funKeygripRotate(OPERATOR)
+		await funKeygripRotate(ADMIN)
 
 		const keys = unwrapKeygripKeys(written().wrapped, 4, KEK)
 
@@ -180,7 +180,7 @@ describe('funKeygripRotate', () => {
 	it('drops a key that has aged past the longest session this platform issues', async () => {
 		seed([aged('k2', AGED_OUT), aged('k1', AGED_OUT + 60)])
 
-		await funKeygripRotate(OPERATOR)
+		await funKeygripRotate(ADMIN)
 
 		expect(unwrapKeygripKeys(written().wrapped, 4, KEK).map((k) => k.id)).toEqual(['k3', 'k2'])
 	})
@@ -194,7 +194,7 @@ describe('funKeygripRotate', () => {
 	it('binds the sealed blob to the version it is filed under', async () => {
 		seed(YOUNG)
 
-		await funKeygripRotate(OPERATOR)
+		await funKeygripRotate(ADMIN)
 
 		expect(() => unwrapKeygripKeys(written().wrapped, 3, KEK)).toThrow()
 	})
@@ -202,42 +202,42 @@ describe('funKeygripRotate', () => {
 	it('records who rotated, to what, in the only place this event is written down', async () => {
 		seed(YOUNG)
 
-		await funKeygripRotate(OPERATOR)
+		await funKeygripRotate(ADMIN)
 
 		const fp = keygripFingerprint(unwrapKeygripKeys(written().wrapped, 4, KEK))
 
 		expect(captureMessage).toHaveBeenCalledExactlyOnceWith(
-			`keygrip rotated to version 4 (${fp}) by admin ${sha256Hex(OPERATOR.toString())}`,
+			`keygrip rotated to version 4 (${fp}) by admin ${sha256Hex(ADMIN.toString())}`,
 			'info'
 		)
 	})
 
 	/*
 	 * ⚠️ E17 §6 question 5, as a test. The message becomes `event.message`, the one bag `sentryBeforeSend`
-	 * does not walk, so an operator id written here reaches the vendor verbatim. Asserting the digest is
+	 * does not walk, so an admin id written here reaches the vendor verbatim. Asserting the digest is
 	 * present is not enough on its own — this asserts the id is *absent*, which is the half a future edit
 	 * would break by appending a friendlier "by admin <id>" next to it.
 	 */
-	it('names the operator by digest and never by id', async () => {
+	it('names the admin by digest and never by id', async () => {
 		seed(YOUNG)
 
-		await funKeygripRotate(OPERATOR)
+		await funKeygripRotate(ADMIN)
 
 		const reported = JSON.stringify(captureMessage.mock.calls)
 
-		expect(reported).toContain(sha256Hex(OPERATOR.toString()))
-		expect(reported).not.toContain(OPERATOR.toString())
+		expect(reported).toContain(sha256Hex(ADMIN.toString()))
+		expect(reported).not.toContain(ADMIN.toString())
 	})
 
 	/*
 	 * ⚠️ The story's own line, as a test: no path logs, returns or captures key material. The audit event
-	 * is the one place tempted to carry it — "which key did we mint?" — and an operator who could read the
+	 * is the one place tempted to carry it — "which key did we mint?" — and an admin who could read the
 	 * material back would be able to mint a session cookie for any account on the platform.
 	 */
 	it('puts no key material in the audit event, not even the key it just minted', async () => {
 		seed(YOUNG)
 
-		await funKeygripRotate(OPERATOR)
+		await funKeygripRotate(ADMIN)
 
 		const material = unwrapKeygripKeys(written().wrapped, 4, KEK).map((k) => k.material)
 		const reported = JSON.stringify(captureMessage.mock.calls)
@@ -248,13 +248,13 @@ describe('funKeygripRotate', () => {
 
 	/*
 	 * ⚠️ Refused, not trimmed: five keys and none of them old enough means every one is still verifying
-	 * somebody's cookie, and making room would log those customers out. 409 rather than 500 — the operator
+	 * somebody's cookie, and making room would log those customers out. 409 rather than 500 — the admin
 	 * did nothing wrong, the answer is "not yet", and the message says how long.
 	 */
 	it('refuses a rotation that would retire a key still verifying cookies, and writes nothing', async () => {
 		seed([aged('k5', 1), aged('k4', 2), aged('k3', 3), aged('k2', 4), aged('k1', 5)])
 
-		const outcome = await rejection(funKeygripRotate(OPERATOR))
+		const outcome = await rejection(funKeygripRotate(ADMIN))
 
 		expect(outcome.message).toBe('Conflict')
 		expect(outcome.http).toEqual({ status: 409 })
@@ -266,30 +266,30 @@ describe('funKeygripRotate', () => {
 	})
 
 	/*
-	 * ⚠️ The compare-and-set losing is the case this whole script exists for: two operators, one record.
+	 * ⚠️ The compare-and-set losing is the case this whole script exists for: two admins, one record.
 	 * The loser must be told, and must not report a rotation that never happened — a Sentry line for a
 	 * write Redis rejected would be an audit trail that lies.
 	 */
-	it('tells the operator to retry when another rotation landed first, and claims nothing', async () => {
+	it('tells the admin to retry when another rotation landed first, and claims nothing', async () => {
 		seed(YOUNG)
 		evalRedis.mockResolvedValue(0)
 
-		const outcome = await rejection(funKeygripRotate(OPERATOR))
+		const outcome = await rejection(funKeygripRotate(ADMIN))
 
 		expect(outcome.message).toBe('Conflict')
 		expect(outcome.http).toEqual({ status: 409 })
 		expect(outcome.description).toBe(
-			'The keygrip record changed while this rotation was being prepared, so nothing was written. Another operator rotated a moment ago — reload the page and rotate again if you still need to.'
+			'The keygrip record changed while this rotation was being prepared, so nothing was written. Another admin rotated a moment ago — reload the page and rotate again if you still need to.'
 		)
 		expect(captureMessage).not.toHaveBeenCalled()
 	})
 
-	// A record nobody has seeded. The operator's fix is the seed script, and the message says so — this
+	// A record nobody has seeded. The admin's fix is the seed script, and the message says so — this
 	// is the same refusal every signing service gives at boot, reached from the one service that writes.
 	it('reports a missing record as a 500 carrying what to do about it', async () => {
 		hGetAll.mockResolvedValueOnce({})
 
-		const outcome = await rejection(funKeygripRotate(OPERATOR))
+		const outcome = await rejection(funKeygripRotate(ADMIN))
 
 		expect(outcome.message).toBe('Internal Server Error')
 		expect(outcome.http).toEqual({ status: 500 })
@@ -308,7 +308,7 @@ describe('funKeygripRotate', () => {
 	it('writes nothing when its own KEK cannot open the record', async () => {
 		seed(YOUNG, 3, Buffer.alloc(32, 8))
 
-		const outcome = await rejection(funKeygripRotate(OPERATOR))
+		const outcome = await rejection(funKeygripRotate(ADMIN))
 
 		expect(outcome.message).toBe('Internal Server Error')
 		expect(outcome.description).toMatch(
@@ -319,15 +319,15 @@ describe('funKeygripRotate', () => {
 	})
 
 	/*
-	 * ⚠️ Metered on the operator's account id, and metered *before* the record is read. Rotation reseals
+	 * ⚠️ Metered on the admin's account id, and metered *before* the record is read. Rotation reseals
 	 * the record and publishes a version bump six processes act on, so a runaway client must cost one
 	 * `INCR` rather than an unwrap — and the identity has to be the admin, because `app.proxy` is off and
 	 * the address this process sees is nginx's own, one bucket the whole platform would share.
 	 */
-	it('meters the operator before it reads anything', async () => {
+	it('meters the admin before it reads anything', async () => {
 		seed(YOUNG)
 
-		await funKeygripRotate(OPERATOR)
+		await funKeygripRotate(ADMIN)
 
 		expect(incr).toHaveBeenCalledExactlyOnceWith(meterKey('rotate', '507f1f77bcf86cd799439011'))
 		expect(expire).toHaveBeenCalledExactlyOnceWith(meterKey('rotate', '507f1f77bcf86cd799439011'), KEYGRIP_WRITE_WINDOW_SECONDS)
@@ -336,7 +336,7 @@ describe('funKeygripRotate', () => {
 	it('refuses the eleventh rotation of the hour without reading the record', async () => {
 		incr.mockResolvedValue(KEYGRIP_WRITES_PER_HOUR + 1)
 
-		const outcome = await rejection(funKeygripRotate(OPERATOR))
+		const outcome = await rejection(funKeygripRotate(ADMIN))
 
 		expect(outcome.message).toBe('Too Many Requests')
 		expect(outcome.http).toEqual({ status: 429 })
@@ -357,7 +357,7 @@ describe('funKeygripRetire', () => {
 	it('reseals the key set without the named key, under the next version', async () => {
 		seed(FOUR)
 
-		await expect(funKeygripRetire(OPERATOR, 'k2')).resolves.toBeUndefined()
+		await expect(funKeygripRetire(ADMIN, 'k2')).resolves.toBeUndefined()
 
 		const w = written()
 
@@ -378,12 +378,12 @@ describe('funKeygripRetire', () => {
 	it('records which key was retired, by whom, at which version', async () => {
 		seed(FOUR)
 
-		await funKeygripRetire(OPERATOR, 'k2')
+		await funKeygripRetire(ADMIN, 'k2')
 
 		const fp = keygripFingerprint(unwrapKeygripKeys(written().wrapped, 4, KEK))
 
 		expect(captureMessage).toHaveBeenCalledExactlyOnceWith(
-			`keygrip key k2 retired at version 4 (${fp}) by admin ${sha256Hex(OPERATOR.toString())}`,
+			`keygrip key k2 retired at version 4 (${fp}) by admin ${sha256Hex(ADMIN.toString())}`,
 			'info'
 		)
 	})
@@ -392,26 +392,26 @@ describe('funKeygripRetire', () => {
 	 * ⚠️ The same line as `funKeygripRotate`'s, tested separately on purpose: the two writers are the same
 	 * decision on the same screen, and a fix applied to one of them is the way this drifts back apart.
 	 */
-	it('names the operator by digest and never by id', async () => {
+	it('names the admin by digest and never by id', async () => {
 		seed(FOUR)
 
-		await funKeygripRetire(OPERATOR, 'k2')
+		await funKeygripRetire(ADMIN, 'k2')
 
 		const reported = JSON.stringify(captureMessage.mock.calls)
 
-		expect(reported).toContain(sha256Hex(OPERATOR.toString()))
-		expect(reported).not.toContain(OPERATOR.toString())
+		expect(reported).toContain(sha256Hex(ADMIN.toString()))
+		expect(reported).not.toContain(ADMIN.toString())
 	})
 
 	/*
-	 * ⚠️ The epic's own line, on the operation that has the strongest reason to break it: an operator
+	 * ⚠️ The epic's own line, on the operation that has the strongest reason to break it: an admin
 	 * retiring a leaked key is the one most likely to want to see it, and the id is the only part of a key
 	 * that may ever be shown.
 	 */
 	it('puts no key material in the audit event, not even the retired key’s', async () => {
 		seed(FOUR)
 
-		await funKeygripRetire(OPERATOR, 'k2')
+		await funKeygripRetire(ADMIN, 'k2')
 
 		const reported = JSON.stringify(captureMessage.mock.calls)
 
@@ -420,14 +420,14 @@ describe('funKeygripRetire', () => {
 	})
 
 	/*
-	 * ⚠️ 404, and the wording matters as much as the status: an operator who read this as "already gone"
+	 * ⚠️ 404, and the wording matters as much as the status: an admin who read this as "already gone"
 	 * would stop responding to a compromise that is still live. Nothing is written, so the answer is
 	 * literally "the key set does not contain that, and it is unchanged".
 	 */
 	it('refuses an id no key carries with a 404, and writes nothing', async () => {
 		seed(FOUR)
 
-		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k9'))
+		const outcome = await rejection(funKeygripRetire(ADMIN, 'k9'))
 
 		// 'Oops' is what every 404 on this platform titles itself — the status and the description are what
 		// carry the meaning, which is why `rejection` unpacks all three.
@@ -442,13 +442,13 @@ describe('funKeygripRetire', () => {
 
 	/*
 	 * ⚠️ The key at index 0 is what `Keygrip` signs with, so dropping it alone would leave the platform
-	 * signing with a key the operator has just declared untrustworthy. 409 rather than 404: the id is real,
+	 * signing with a key the admin has just declared untrustworthy. 409 rather than 404: the id is real,
 	 * the state is what refuses, and the message says rotation is the way out.
 	 */
 	it('refuses the key the platform signs with, and points at rotation', async () => {
 		seed(FOUR)
 
-		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k4'))
+		const outcome = await rejection(funKeygripRetire(ADMIN, 'k4'))
 
 		expect(outcome.message).toBe('Conflict')
 		expect(outcome.http).toEqual({ status: 409 })
@@ -459,15 +459,15 @@ describe('funKeygripRetire', () => {
 	})
 
 	/*
-	 * ⚠️ Losing the compare must not be reported as a retire. An operator told "done" about a key that is
+	 * ⚠️ Losing the compare must not be reported as a retire. An admin told "done" about a key that is
 	 * still in the record would walk away from a live compromise, so the message says what did not happen
 	 * and names the key it did not happen to.
 	 */
-	it('tells the operator the key is still in use when another write landed first', async () => {
+	it('tells the admin the key is still in use when another write landed first', async () => {
 		seed(FOUR)
 		evalRedis.mockResolvedValue(0)
 
-		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k2'))
+		const outcome = await rejection(funKeygripRetire(ADMIN, 'k2'))
 
 		expect(outcome.message).toBe('Conflict')
 		expect(outcome.http).toEqual({ status: 409 })
@@ -480,7 +480,7 @@ describe('funKeygripRetire', () => {
 	it('reports a missing record as a 500 carrying what to do about it', async () => {
 		hGetAll.mockResolvedValueOnce({})
 
-		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k2'))
+		const outcome = await rejection(funKeygripRetire(ADMIN, 'k2'))
 
 		expect(outcome.message).toBe('Internal Server Error')
 		expect(outcome.http).toEqual({ status: 500 })
@@ -495,7 +495,7 @@ describe('funKeygripRetire', () => {
 	it('writes nothing when its own KEK cannot open the record', async () => {
 		seed(FOUR, 3, Buffer.alloc(32, 8))
 
-		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k2'))
+		const outcome = await rejection(funKeygripRetire(ADMIN, 'k2'))
 
 		expect(outcome.message).toBe('Internal Server Error')
 		expect(outcome.description).toMatch(
@@ -506,14 +506,14 @@ describe('funKeygripRetire', () => {
 	})
 
 	/*
-	 * ⚠️ Its own counter, not one shared with rotation. Retiring is what an operator does *during* a
+	 * ⚠️ Its own counter, not one shared with rotation. Retiring is what an admin does *during* a
 	 * suspected compromise, and an afternoon of rotations must not have spent the allowance for the one
 	 * write that has to go through.
 	 */
 	it('meters retirement in a bucket of its own', async () => {
 		seed(FOUR)
 
-		await funKeygripRetire(OPERATOR, 'k2')
+		await funKeygripRetire(ADMIN, 'k2')
 
 		expect(incr).toHaveBeenCalledExactlyOnceWith(meterKey('retire', '507f1f77bcf86cd799439011'))
 	})
@@ -521,7 +521,7 @@ describe('funKeygripRetire', () => {
 	it('refuses the eleventh retirement of the hour without reading the record', async () => {
 		incr.mockResolvedValue(KEYGRIP_WRITES_PER_HOUR + 1)
 
-		const outcome = await rejection(funKeygripRetire(OPERATOR, 'k2'))
+		const outcome = await rejection(funKeygripRetire(ADMIN, 'k2'))
 
 		expect(outcome.message).toBe('Too Many Requests')
 		expect(outcome.http).toEqual({ status: 429 })
@@ -530,13 +530,13 @@ describe('funKeygripRetire', () => {
 	})
 
 	// The window is armed by hand because `INCR` on a missing key creates it with no TTL — and repaired on
-	// a later call if that `EXPIRE` was ever lost, which would otherwise lock an operator out for good.
+	// a later call if that `EXPIRE` was ever lost, which would otherwise lock an admin out for good.
 	it('arms the hour on a counter that lost its TTL', async () => {
 		seed(FOUR)
 		incr.mockResolvedValue(2)
 		ttl.mockResolvedValue(-1)
 
-		await funKeygripRetire(OPERATOR, 'k2')
+		await funKeygripRetire(ADMIN, 'k2')
 
 		expect(expire).toHaveBeenCalledExactlyOnceWith(meterKey('retire', '507f1f77bcf86cd799439011'), KEYGRIP_WRITE_WINDOW_SECONDS)
 	})
@@ -560,7 +560,7 @@ describe('funKeygripStatus', () => {
 	 * ⚠️ Floored, and computed here rather than in the browser. The rotation retires a key at
 	 * `SESSION_CAP_DAYS_REMEMBERED` days measured on the server's clock, so a screen that rounded — or that
 	 * did this arithmetic against the viewer's clock — would show a key as retirable while the rotation
-	 * refuses it, and the operator would be told to retry a button that cannot succeed.
+	 * refuses it, and the admin would be told to retry a button that cannot succeed.
 	 */
 	it('ages every key against the server clock, floored, so a key on its thirtieth day still reads 29', async () => {
 		const keys = [aged('k2', 0), aged('k1', 29)]
@@ -577,7 +577,7 @@ describe('funKeygripStatus', () => {
 	 * ⚠️ The story's own line, and the reason this function reads through `readKeygrip` and then drops what
 	 * it unwrapped: no field of the answer carries key material. Asserted against the serialised result, so
 	 * a field added to `IKeygripKeyInfo` — or a spread of the raw key — fails here as well as in the schema
-	 * test. An operator who could read one key back could mint a session cookie for any account.
+	 * test. An admin who could read one key back could mint a session cookie for any account.
 	 */
 	it('returns no key material anywhere in the answer', async () => {
 		const fp = seedStatus(YOUNG, {
@@ -644,7 +644,7 @@ describe('funKeygripStatus', () => {
 		])
 	})
 
-	// One malformed row must not be the reason an operator cannot see the other five, so a row with no
+	// One malformed row must not be the reason an admin cannot see the other five, so a row with no
 	// separator at all yields an empty timestamp instead of throwing.
 	it('renders a row carrying no timestamp instead of losing the whole table', async () => {
 		seedStatus(YOUNG, { 'marketplace-dev-user-authenticated-authorization': 'deadbeefcafe' })
@@ -660,7 +660,7 @@ describe('funKeygripStatus', () => {
 	})
 
 	// The same refusal every signing service gives at boot, reached from the screen that exists to show it.
-	// The operator's fix is the seed script, and the message carries it.
+	// The admin's fix is the seed script, and the message carries it.
 	it('reports a missing record as a 500 carrying what to do about it', async () => {
 		hGetAll.mockResolvedValue({})
 
@@ -676,7 +676,7 @@ describe('funKeygripStatus', () => {
 	/*
 	 * ⚠️ This service holding the wrong KEK must surface as an error, never as an empty screen: the record
 	 * it cannot open is the one the fleet is signing with, and a status page that answered "no keys, no
-	 * holders" would invite the operator to press the button that rewraps it under this service's key —
+	 * holders" would invite the admin to press the button that rewraps it under this service's key —
 	 * the platform-wide outage the rotation refuses for the same reason.
 	 */
 	it('reports a record it cannot open, rather than an empty screen', async () => {

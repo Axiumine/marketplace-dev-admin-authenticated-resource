@@ -32,7 +32,7 @@ afterEach(() => {
 describe('endEveryUserSession', () => {
 	/*
 	 * ⚠️ **`idx:user:`, and on this call the tier is the whole safety of it.** The customer, the shop owner
-	 * and the operator share one `REDIS_KEY` prefix and the tier is the only thing separating one account's
+	 * and the admin share one `REDIS_KEY` prefix and the tier is the only thing separating one account's
 	 * index from another's — so `TIER.shopOwner` here, copied from the function this one mirrors, would read
 	 * the index of a shop owner carrying the same `_id`. None exists, `hKeys` answers empty, nothing is
 	 * deleted, no error is raised, and `userUpdateStatus` reports a customer signed out whose sessions are
@@ -78,8 +78,8 @@ describe('endEveryUserSession', () => {
 	})
 
 	/*
-	 * ⚠️ **The access tokens go too, and the operator never sees one** (R54). Suspending a customer is the
-	 * call where that matters most: the operator holds none of that account's tokens, so without the
+	 * ⚠️ **The access tokens go too, and the admin never sees one** (R54). Suspending a customer is the
+	 * call where that matters most: the admin holds none of that account's tokens, so without the
 	 * `accessKey` read out of each session hash the suspended customer would keep a working bearer token
 	 * for up to its whole lifetime after being disabled. Nothing beyond those two keys per session and the
 	 * index is touched.
@@ -92,7 +92,7 @@ describe('endEveryUserSession', () => {
 	})
 
 	/*
-	 * ⚠️ **The customer logging in while the operator disables them does not keep that session** (E17-S04).
+	 * ⚠️ **The customer logging in while the admin disables them does not keep that session** (E17-S04).
 	 * The likelier race of the three call sites: a customer is at their keyboard, shopping, with no idea a
 	 * write is landing. The re-read catches the newcomer, and the index key survives until it has been
 	 * revoked — deleting it on the first round would leave that session live with nothing able to name it.

@@ -104,11 +104,11 @@ export async function sweepTier(model: IScrubbableAccountModel, tier: Scrubbable
 /**
  * One pass over both scrubbable collections, answering what it wrote.
  *
- * `admin` is not swept and has no lifecycle paths to sweep: operators are seeded rather than registered,
+ * `admin` is not swept and has no lifecycle paths to sweep: admins are seeded rather than registered,
  * and nobody has decided what closing one means (`ScrubbableTier` records the same).
  *
  * The two tiers run in sequence rather than in parallel, on purpose: this is a background job on the
- * operator service's own connection pool, and there is nothing to win by making it burst.
+ * admin service's own connection pool, and there is nothing to win by making it burst.
  */
 export async function retentionSweep(now: Date): Promise<{ shopOwner: number; user: number }> {
 	const cutoff = retentionCutoff(now)

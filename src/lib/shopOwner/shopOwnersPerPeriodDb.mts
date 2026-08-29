@@ -2,7 +2,7 @@ import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner
 import registeredAtSeriesDb, { IPerPeriod, StatsPeriod } from '@lib/stats/registeredAtSeriesDb.mjs'
 
 /**
- * The shopOwners-over-time series behind the operator's stats chart.
+ * The shopOwners-over-time series behind the admin's stats chart.
  *
  * ⚠️ **Everything that decides anything lives in `@lib/stats/registeredAtSeriesDb.mjs`** — the three
  * ranges, the bucket widths, the UTC boundary arithmetic and the gap filling — and this file names the

@@ -62,7 +62,7 @@ describe('shopOwnersActiveTblDb', () => {
 	})
 
 	// ⚠️ The two fields that make this table the approval queue. A self-registered shop owner has no
-	// `personalData` at all, so `login.email` is the only thing identifying the row an operator is
+	// `personalData` at all, so `login.email` is the only thing identifying the row an admin is
 	// about to approve, and `waitApprov` is the only thing saying it needs approving. Dropping either
 	// leaves a page that renders and is useless — which is why they are named here and not merely
 	// inside the constant.
@@ -77,7 +77,7 @@ describe('shopOwnersActiveTblDb', () => {
 
 	// ⚠️ The filter excludes the disabled and the deleted and **nothing else** — asserted from the
 	// other side here, because a `waitApprov: { $exists: false }` clause added to "show only real shop
-	// owners" would hide every account waiting for an operator from the only table that lists them.
+	// owners" would hide every account waiting for an admin from the only table that lists them.
 	it('lists accounts awaiting approval rather than filtering them out', async () => {
 		mockFind([])
 

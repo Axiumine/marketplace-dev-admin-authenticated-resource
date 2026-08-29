@@ -18,7 +18,7 @@ interface IArgs {
  * The three preference fields under `login`.
  *
  * `onboardingStep` is the only nullable argument, and here `null` genuinely means "clear it": the field
- * is optional on the collection, so an operator emptying the box is asking for it to be gone. The two
+ * is optional on the collection, so an admin emptying the box is asking for it to be gone. The two
  * booleans are required for the reason spelled out in `shopOwnerUpdateStatus`.
  */
 export const shopOwnerUpdatePreferences = {

@@ -30,7 +30,7 @@ const { itemUpdatePublished } = await import('../src/graphQLApi/schema/mutations
 const _id = new Types.ObjectId('507f1f77bcf86cd799439020')
 const idParent = new Types.ObjectId('507f1f77bcf86cd799439030')
 
-/** As the operator's form sends it — untrimmed, because the validator is real here. */
+/** As the admin's form sends it — untrimmed, because the validator is real here. */
 const itemCategory = { name: ' Footwear ', slug: ' footwear ', idParent, position: 3 }
 
 /** The same category once `validateItemCategory` is done with it. */
@@ -54,7 +54,7 @@ beforeEach(() => {
 
 describe('itemCategoryAdd', () => {
 	// The validator runs here rather than in the lib, so the lib is handed a normalised document and never a
-	// padded one — a slug written with the operator's stray spaces is a public URL nobody can reach.
+	// padded one — a slug written with the admin's stray spaces is a public URL nobody can reach.
 	it('validates, then creates, and answers true', async () => {
 		await expect(run(itemCategoryAdd, { itemCategory })).resolves.toBe(true)
 

@@ -4,7 +4,7 @@ import { IShopOwnerModel } from '@axiumine/marketplace-common/models/MongoDBInte
 import { QueryFilter, trusted } from 'mongoose'
 
 /**
- * Server-side paging for the operator's shopOwners table.
+ * Server-side paging for the admin's shopOwners table.
  *
  * The query this replaces had no `skip`, no `limit` and no `sort`: it returned every active
  * shopOwner on every page load and let the browser slice the result. That is fine at 20 shopOwners
@@ -28,11 +28,11 @@ export const SHOP_OWNERS_TBL_MAX_SEARCH_LENGTH = 100
  *
  * ⚠️ **`personalData` is not guaranteed to come back, and the table type is nullable there for that
  * reason.** A self-registered shop owner has an address, a password and nothing else until onboarding
- * runs, so the three `personalData.*` paths below resolve to nothing on exactly the rows an operator
+ * runs, so the three `personalData.*` paths below resolve to nothing on exactly the rows an admin
  * opened this table to act on. `login.email` is what identifies those rows instead.
  *
  * `waitApprov` turns the table into the approval queue: it is the only field distinguishing an account
- * that is waiting for an operator from one that is trading, and without it the queue would be a page
+ * that is waiting for an admin from one that is trading, and without it the queue would be a page
  * of rows that look identical and behave differently.
  */
 export const SHOP_OWNERS_TBL_SELECTION =

@@ -1,6 +1,6 @@
 # marketplace-dev-admin-authenticated-resource
 
-Domain GraphQL for the **Admin** tier — the platform operator's view of every shop owner, every shop and
+Domain GraphQL for the **Admin** tier — the platform admin's view of every shop owner, every shop and
 the shared category tree. Port **4024**, endpoint `/admin-authenticated-resource`.
 
 Token lifecycle is not here: `marketplace-dev-admin-authenticated-authorization` (4025) refreshes the
@@ -17,12 +17,12 @@ session and `marketplace-dev-authenticated-logout` (4030) ends it.
 | `itemCategoryAdd`, `itemCategoryUpdate`, `itemCategoryDel` | **the only place category writes exist** |
 | `itemDel`, `itemUpdatePublished` | moderation — take an entry down or unpublish it |
 | `companyUpdatePublished` | the shop's own publish switch — see below |
-| `adminUpdatePwd` | the operator's own password |
+| `adminUpdatePwd` | the admin's own password |
 
 | Queries | |
 |---|---|
 | `infoAdminAfterLogin` | what the admin SPA loads on entry |
-| `shopOwnerById`, `shopOwnersActiveTbl`, `shopOwnerCompanies`, `companyItems` | the operator's drill-down path |
+| `shopOwnerById`, `shopOwnersActiveTbl`, `shopOwnerCompanies`, `companyItems` | the admin's drill-down path |
 | `itemCategories` | the tree, readable everywhere, writable only here |
 | `usersActiveTbl` | the customers table — the shopOwners one **minus `search`**, see below |
 | `shopOwnersStats`, `shopOwnersPerPeriod` | shopOwners dashboard aggregates |
@@ -47,7 +47,7 @@ the other it hands every shop owner the platform.
 
 ⚠️ **Publishing is a separate operation, not a field of the card.** `published` is deliberately absent
 from `GraphQLInputCompany`: `companyUpdate` `$set`s the whole object, so a flag inside the input would
-make every save a write of the flag — and an operator who reopened a form loaded before somebody
+make every save a write of the flag — and an admin who reopened a form loaded before somebody
 unpublished a shop would put it straight back without asking to. `companyAdd` stamps `false`;
 `companyUpdatePublished` is the only writer of the flag, matching `itemUpdatePublished` beside it and the
 same pair on 4026.
@@ -70,7 +70,7 @@ it leaves the collection holding two spellings of one state and a later `{ waitA
 starts matching accounts that are not waiting. A new flag added here follows the same rule.
 
 ⚠️ **Setting `waitApprov` does not lock the account out.** Nothing on the login path reads it — see
-`marketplace-dev-public-authorization`'s README. An operator who expects "awaiting approval" to mean
+`marketplace-dev-public-authorization`'s README. An admin who expects "awaiting approval" to mean
 "cannot log in" is expecting something this platform does not do.
 
 ⚠️ **This service runs a background job, and it is the only one of the nine that does.** `start()` arms

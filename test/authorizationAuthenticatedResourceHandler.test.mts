@@ -23,7 +23,7 @@ function redisSession(_id = OID, tier = 'admin') {
 	// `tier` has to be here: the handler asserts it before building ctx.state.user, so a session
 	// without one is refused outright — which is the point of the discriminator, and why every
 	// fixture that expects to get past the guard has to carry the tier this service accepts.
-	return Object.assign(Object.create(null), { _id, email: 'operator@marketplace.test', tier })
+	return Object.assign(Object.create(null), { _id, email: 'admin@marketplace.test', tier })
 }
 
 describe('authorizationAuthenticatedResourceHandler', () => {
@@ -49,7 +49,7 @@ describe('authorizationAuthenticatedResourceHandler', () => {
 		expect(hGetAll).toHaveBeenCalledExactlyOnceWith(HASHED_KEY)
 		expect(HASHED_KEY).not.toContain(ACCESS)
 		expect(String(ctx.state.user._id)).toBe(OID)
-		expect(ctx.state.user.email).toBe('operator@marketplace.test')
+		expect(ctx.state.user.email).toBe('admin@marketplace.test')
 		expect(next).toHaveBeenCalledTimes(1)
 	})
 
@@ -77,7 +77,7 @@ describe('authorizationAuthenticatedResourceHandler', () => {
 	// ⚠️ The whole cross-tier boundary is this one assertion. All nine services read Redis under the
 	// same `REDIS_KEY` prefix — deliberately, because the single logout service finds a session by
 	// token content alone — so a ShopOwner access token is *findable* here and, before the tier
-	// existed, was simply accepted: its `_id` reached the operator resolvers, which then read and
+	// existed, was simply accepted: its `_id` reached the admin resolvers, which then read and
 	// wrote whatever `admin` document happened to share that id.
 	// AB-02: a session minted for another tier is refused with 403, not 401
 	it.each([['shopOwner'], ['user']])('refuses a session minted for the %s tier with a 403', async (tier) => {
@@ -122,7 +122,7 @@ describe('authorizationAuthenticatedResourceHandler', () => {
 
 	// E12-S20. The refusal used to print `auth undefined` and this test used to assert the string. The
 	// print carried nothing — it was a constant — but it fired once per unauthenticated request on the
-	// operator surface, so it went; the absence is asserted so it does not come back with a debugging
+	// admin surface, so it went; the absence is asserted so it does not come back with a debugging
 	// session.
 	// AB-04: a request carrying no credential is refused
 	// AB-10: no x-introspectioncode at all leaves the ordinary refusal exactly as it is

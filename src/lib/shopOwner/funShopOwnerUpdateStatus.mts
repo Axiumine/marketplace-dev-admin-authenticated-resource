@@ -13,14 +13,14 @@ export interface IShopOwnerStatus {
 	_id: Types.ObjectId
 	disabled: boolean
 	waitApprov: boolean
-	/** The operator making the change — `ctx.state.user._id`, never anything from the request body. */
+	/** The admin making the change — `ctx.state.user._id`, never anything from the request body. */
 	adminId: Types.ObjectId
 	/** Present exactly when `disabled` is true; `validateDisabledReason` is what guarantees that. */
 	disabledReason?: string
 }
 
 /**
- * The two account flags an operator can flip: the disable switch and the manual-approval gate.
+ * The two account flags an admin can flip: the disable switch and the manual-approval gate.
  *
  * **False removes the field, it does not store `false`.** Both flags are documented in the collection
  * validator as "present and true: blocked; absent: login allowed", and `funShopOwnerDelete` already
@@ -51,8 +51,8 @@ export interface IShopOwnerStatus {
  * `matchedCount`, not `modifiedCount`: the sibling `funShopOwnerUpdate` uses `modifiedCount !== 1`,
  * which reports "you saved without changing anything" as a 500 (its test pins that as current
  * behaviour). New code does not copy it. Here 0 matched means no such shopOwner, which is a 404, and
- * a no-op save is not an error — the operator app already refuses to submit a form that is not dirty,
- * and a flag re-set to the value it already held is still the state the operator asked for. Raising the
+ * a no-op save is not an error — the admin app already refuses to submit a form that is not dirty,
+ * and a flag re-set to the value it already held is still the state the admin asked for. Raising the
  * 404 *inside* the transaction is what stops a cascade running over an id that matched nothing.
  */
 export async function funShopOwnerUpdateStatus({ _id, disabled, waitApprov, adminId, disabledReason }: IShopOwnerStatus) {
@@ -77,7 +77,7 @@ export async function funShopOwnerUpdateStatus({ _id, disabled, waitApprov, admi
 	try {
 		await session.withTransaction(async () => {
 			// `$set` and `$unset` are always both present but never both non-empty for the same path, so no
-			// "Updating the path 'x' would create a conflict" is possible. An empty operator object is accepted
+			// "Updating the path 'x' would create a conflict" is possible. An empty admin object is accepted
 			// by the driver and does nothing.
 			const ret = await ShopOwner.updateOne({ _id: _id }, { $set: set, $unset: unset }).session(session).exec()
 

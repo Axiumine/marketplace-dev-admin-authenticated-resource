@@ -8,9 +8,9 @@ interface IArgs {
 }
 
 /**
- * Every item of one company, for the operator's moderation view.
+ * Every item of one company, for the admin's moderation view.
  *
- * The same query the owner runs on 4026, minus the ownership guard — an operator owns nothing, and
+ * The same query the owner runs on 4026, minus the ownership guard — an admin owns nothing, and
  * moderating means looking at somebody else's catalogue. Drafts are included for the same reason they
  * are there: an unpublished item is still reportable, and a moderator who only sees published items
  * cannot act before the owner publishes.

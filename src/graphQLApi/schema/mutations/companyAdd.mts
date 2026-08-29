@@ -13,8 +13,8 @@ interface IArgs {
 /**
  * Creates one company under an shopOwner.
  *
- * The owner is an argument: the session belongs to an operator, so `ctx.state.user._id` names the
- * operator and not the shopOwner whose page is open. The lib checks the id before writing.
+ * The owner is an argument: the session belongs to an admin, so `ctx.state.user._id` names the
+ * admin and not the shopOwner whose page is open. The lib checks the id before writing.
  *
  * It answers `Boolean!` like every other write on this tier: the detail page re-reads
  * `shopOwnerCompanies` after a save and has no use for the new id.

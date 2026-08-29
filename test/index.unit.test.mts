@@ -68,7 +68,7 @@ describe('checkRequiredEnv', () => {
 	 * fails later, at a request, somewhere that does not name the cause; a name added here and read
 	 * nowhere makes every environment carry a value that does nothing. A length check passes a swap and
 	 * a `toContain` passes an addition, so neither notices the change. The order is asserted too — the
-	 * boot names the *first* missing variable, and that is the one an operator goes looking for. E18-S03.
+	 * boot names the *first* missing variable, and that is the one an admin goes looking for. E18-S03.
 	 */
 	it('requires exactly these 16 variables, in this order', () => {
 		expect(REQUIRED_ENV_VARS).toStrictEqual([
@@ -345,7 +345,7 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
 		// `admin`, so without it this whole assembly answers 403 instead of reaching the resolver.
 		hGetAll
 			.mockReset()
-			.mockResolvedValueOnce(Object.assign(Object.create(null), { _id: OID, email: 'operator@marketplace.test', tier: 'admin' }))
+			.mockResolvedValueOnce(Object.assign(Object.create(null), { _id: OID, email: 'admin@marketplace.test', tier: 'admin' }))
 
 		const res = await fetch(`${base}${ENDPOINT}`, {
 			method: 'POST',
@@ -355,7 +355,7 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
 		const json = (await res.json()) as { data?: { infoAdminAfterLogin: { _id: string; email: string } } }
 
 		expect(res.status).toBe(200)
-		expect(json.data?.infoAdminAfterLogin).toEqual({ _id: OID, email: 'operator@marketplace.test' })
+		expect(json.data?.infoAdminAfterLogin).toEqual({ _id: OID, email: 'admin@marketplace.test' })
 	})
 
 	// Apollo's CSRF prevention treats `application/x-www-form-urlencoded` / `text/plain` /

@@ -18,7 +18,7 @@ import { Types } from 'mongoose'
  *
  * ⚠️ **This is the one operation on the platform that logs customers out on purpose.** Every cookie the
  * retired key signed stops verifying as soon as each process picks the new record up — which is what an
- * operator responding to a leaked key is asking for, and why it is a separate button from rotation rather
+ * admin responding to a leaked key is asking for, and why it is a separate button from rotation rather
  * than something rotation does quietly.
  *
  * ⚠️ **Retiring the key the platform signs with is refused, by the shared rule and not by a read here.**
@@ -27,12 +27,12 @@ import { Types } from 'mongoose'
  * what moves a suspect key out of index 0 — after which this operation can take it.
  *
  * ⚠️ **No key material leaves this function**, for the reason spelled out in `funKeygripRotate`: the audit
- * event carries the retired key's *id*, the new version, the fingerprint of the ids and the operator, and
- * an operator who could read material back could mint a session cookie for any account on the platform.
+ * event carries the retired key's *id*, the new version, the fingerprint of the ids and the admin, and
+ * an admin who could read material back could mint a session cookie for any account on the platform.
  *
  * The five refusals: too many writes this hour (429), a record that cannot be read or opened (500), a key
- * id nothing matches (**404** — and the operator must read this as "nothing was retired", never as "it was
- * already gone"), the current key (409), and losing the compare to another operator (409).
+ * id nothing matches (**404** — and the admin must read this as "nothing was retired", never as "it was
+ * already gone"), the current key (409), and losing the compare to another admin (409).
  */
 export async function funKeygripRetire(_id: Types.ObjectId, keyId: string): Promise<void> {
 	await guardKeygripWrite('retire', _id.toString())
@@ -57,7 +57,7 @@ export async function funKeygripRetire(_id: Types.ObjectId, keyId: string): Prom
 
 		/*
 		 * ⚠️ Two refusals, two statuses, and the difference matters more here than anywhere else on this
-		 * service. A 404 means the id is not in the key set *and nothing was removed*; an operator who read
+		 * service. A 404 means the id is not in the key set *and nothing was removed*; an admin who read
 		 * that as "already retired" would stop responding to a compromise that is still live. The code the
 		 * message leads with is exported by the shared rule, so this branch cannot drift from it.
 		 */
@@ -77,7 +77,7 @@ export async function funKeygripRetire(_id: Types.ObjectId, keyId: string): Prom
 	 * The audit trail. The *key* id is safe to name — it is what the fingerprint is computed over, and what
 	 * the status screen shows — and it is the only way to answer "when did we drop that key?" afterwards.
 	 *
-	 * ⚠️ **The *operator* is not, and is named by digest** (E17 §6 question 5). Two identifiers meet on this
+	 * ⚠️ **The *admin* is not, and is named by digest** (E17 §6 question 5). Two identifiers meet on this
 	 * line and only one of them is the platform's own: `keyId` describes a key, `_id` describes a person.
 	 * The message becomes `event.message`, which `sentryBeforeSend` does not walk, so an id written here
 	 * reaches the vendor verbatim. See `funKeygripRotate` for the full reasoning; the two lines must keep

@@ -2,11 +2,11 @@ import { GraphQLAddressFrag } from '@axiumine/marketplace-common/schema/types/fr
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql'
 
 /**
- * The company's legal seat, as the operator's form sends it.
+ * The company's legal seat, as the admin's form sends it.
  *
  * Coordinates only, no `type`: the GeoJSON type has one legal value, the collection caps the field at 5
  * characters and the model declares it as an enum of `['Point']`, so an input field for it could only
- * ever carry the right answer or a document that fails validation naming a field the operator never
+ * ever carry the right answer or a document that fails validation naming a field the admin never
  * saw. `validateAddress` writes the literal.
  */
 const GraphQLInputCompanyPosition = new GraphQLInputObjectType({
@@ -25,7 +25,7 @@ const GraphQLInputCompanyAddress = new GraphQLInputObjectType({
 })
 
 /**
- * Everything an operator types about a company, in one object.
+ * Everything an admin types about a company, in one object.
  *
  * One argument rather than nine, because it is one form and one Save — `companyAdd` and `companyUpdate`
  * both take it whole, which is also what lets the update path `$set` the document in a single atomic
@@ -39,7 +39,7 @@ const GraphQLInputCompanyAddress = new GraphQLInputObjectType({
  *
  * ⚠️ **`published` is deliberately absent.** Publishing is its own operation on both tiers —
  * `companyUpdatePublished` here and on 4026 — and not a side effect of saving the card. It used to be a
- * `Boolean!` in this input, which meant every save wrote the flag: an operator who reopened a stale form
+ * `Boolean!` in this input, which meant every save wrote the flag: an admin who reopened a stale form
  * republished a shop somebody had just taken down, without ever asking to. `companyAdd` stamps `false`,
  * and the shop stays unpublished until someone publishes it on purpose.
  */

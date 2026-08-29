@@ -70,13 +70,13 @@ const { userUpdateStatus } = await import('../src/graphQLApi/schema/mutations/us
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
 const login = { email: 'shop@marketplace.test', password: 'clear' } as never
 /**
- * The operator the request is authenticated as — deliberately NOT `_id`, which is the account being acted
+ * The admin the request is authenticated as — deliberately NOT `_id`, which is the account being acted
  * on. Sharing one id between the two would make every "the actor comes off the session" assertion below
  * pass against a resolver that read the actor off the wire instead.
  */
 const adminId = new Types.ObjectId('507f1f77bcf86cd799439099')
 
-const ctx = { state: { user: { _id: adminId, email: 'operator@marketplace.test' } } } as never
+const ctx = { state: { user: { _id: adminId, email: 'admin@marketplace.test' } } } as never
 
 /**
  * A complete, already-valid personalData.
@@ -131,9 +131,9 @@ describe('adminUpdatePwd', () => {
 	})
 
 	// The account changed is the one the request is authenticated as. There is no `_id` argument to
-	// pass, and there must not be: every operator authenticates against the same collection and the
+	// pass, and there must not be: every admin authenticates against the same collection and the
 	// platform has no role field, so a client-supplied id would turn this into "change any
-	// operator's password". The assertion is that the id comes off ctx.state.user, which is written
+	// admin's password". The assertion is that the id comes off ctx.state.user, which is written
 	// by the Redis session lookup in the auth middleware and is not reachable from the request body.
 	it('changes the password of the session account and answers true', async () => {
 		await expect(adminUpdatePwd.resolve(null, { passwordOld: 'oldpwd12345', passwordNew: 'newpwd12345' }, ctx)).resolves.toBe(
@@ -169,7 +169,7 @@ describe('adminUpdatePwd', () => {
 	 * ⚠️ **Every session ends, and only after the write landed** (E15-S05). A password change made because
 	 * someone else is believed to be inside the account is the remedy it appears to be only if the
 	 * intruder's session dies with it — and on this tier that session reaches every shop owner and every
-	 * company. The order is the other half: revoking first would log an operator out of every device for a
+	 * company. The order is the other half: revoking first would log an admin out of every device for a
 	 * change that then failed.
 	 */
 	it('ends every session the account holds, after the password write', async () => {
@@ -182,7 +182,7 @@ describe('adminUpdatePwd', () => {
 	})
 
 	// The revoke is not attempted when the write did not happen. A wrong current password answers 401 and
-	// must not, on its way out, log the operator out of the devices they are legitimately using.
+	// must not, on its way out, log the admin out of the devices they are legitimately using.
 	it('revokes nothing when the password write failed', async () => {
 		const { throwUnauthorizedError } = await import('@axiumine/koa-utils/graphQL/throw/throwUnauthorizedError')
 		funAdminUpdatePwd.mockImplementationOnce(() => throwUnauthorizedError())
@@ -194,7 +194,7 @@ describe('adminUpdatePwd', () => {
 
 	/*
 	 * ⚠️ **A revoke that fails fails the mutation.** The alternative — answering `true` and reporting the
-	 * Redis error somewhere else — tells the operator their password change ended every other session when
+	 * Redis error somewhere else — tells the admin their password change ended every other session when
 	 * it did not, which is worse than an error they can retry.
 	 */
 	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
@@ -249,7 +249,7 @@ describe('shopOwnerAdd', () => {
 		expect('landline' in doc.personalData.contacts).toBe(false)
 	})
 
-	// The validator raising is a 400 the operator can act on, and it must not reach `create` at all —
+	// The validator raising is a 400 the admin can act on, and it must not reach `create` at all —
 	// nor Sentry, which is for bugs and not for a mistyped form.
 	it('refuses an invalid personalData without touching the database', async () => {
 		expect(
@@ -280,10 +280,10 @@ describe('shopOwnerDel', () => {
 		captureException.mockReset()
 	})
 
-	// ⚠️ **The operator's id comes off `ctx.state.user`, never off the wire** (ADR-044). `deletedBy` beside
-	// a `deleted` stamp is what tells an operator closure apart from a self-service one, so an argument a
-	// client could set would let any operator sign somebody else's name to their decision.
-	it('soft-deletes the shopOwner in the operator name and answers true', async () => {
+	// ⚠️ **The admin's id comes off `ctx.state.user`, never off the wire** (ADR-044). `deletedBy` beside
+	// a `deleted` stamp is what tells an admin closure apart from a self-service one, so an argument a
+	// client could set would let any admin sign somebody else's name to their decision.
+	it('soft-deletes the shopOwner in the admin name and answers true', async () => {
 		await expect(shopOwnerDel.resolve(null, { _id }, ctx)).resolves.toBe(true)
 		expect(funShopOwnerDelete).toHaveBeenCalledExactlyOnceWith(_id, adminId)
 	})
@@ -319,7 +319,7 @@ describe('shopOwnerDel', () => {
 		expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
 	})
 
-	// A revoke that fails fails the mutation: answering `true` would tell the operator a closed shop owner
+	// A revoke that fails fails the mutation: answering `true` would tell the admin a closed shop owner
 	// is off the platform while their sessions are still live.
 	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
 		endEveryShopOwnerSession.mockRejectedValueOnce(new Error('redis down'))
@@ -423,7 +423,7 @@ describe('shopOwnerUpdateEmail', () => {
 		expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
 	})
 
-	// The collision is a 409 the operator can act on, not a 500 — and it must not page anyone.
+	// The collision is a 409 the admin can act on, not a 500 — and it must not page anyone.
 	it('passes a duplicate-address conflict through with its own status', async () => {
 		const { throwAlreadyTakenError } = await import('@axiumine/koa-utils/graphQL/throw/throwAlreadyTakenError')
 		funShopOwnerUpdateEmail.mockImplementationOnce(() => throwAlreadyTakenError('email: already registered'))
@@ -461,8 +461,8 @@ describe('shopOwnerUpdateEmail', () => {
 		)
 	})
 
-	// The account is the shop owner named by the argument, never the operator sending the mutation: an
-	// operator who has just edited somebody else's address has changed nothing about their own credentials,
+	// The account is the shop owner named by the argument, never the admin sending the mutation: an
+	// admin who has just edited somebody else's address has changed nothing about their own credentials,
 	// and logging them out mid-page would make the console unusable. E15-S05's caller rule is about *whose*
 	// credentials changed, and here the answer is not the caller's.
 	it('revokes nothing when the address was rejected before the write', async () => {
@@ -474,7 +474,7 @@ describe('shopOwnerUpdateEmail', () => {
 		expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
 	})
 
-	// A revoke that fails fails the mutation: answering `true` would tell the operator the shop owner is
+	// A revoke that fails fails the mutation: answering `true` would tell the admin the shop owner is
 	// locked out of the old address when they are not.
 	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
 		endEveryShopOwnerSession.mockRejectedValueOnce(new Error('redis down'))
@@ -515,9 +515,9 @@ describe('shopOwnerUpdateStatus', () => {
 	})
 
 	// ⚠️ **The actor comes off the session, never off the wire** (ADR-044): a `disabledBy` argument would
-	// let one operator sign another's name to a suspension. `adminId` above is the session's id and `_id`
+	// let one admin sign another's name to a suspension. `adminId` above is the session's id and `_id`
 	// is the account being suspended, so this assertion fails if the two are ever crossed.
-	it('names the operator from the session rather than from the arguments', async () => {
+	it('names the admin from the session rather than from the arguments', async () => {
 		await expect(
 			shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false, disabledReason: 'Fraud report' }, ctx)
 		).resolves.toBe(true)
@@ -594,7 +594,7 @@ describe('shopOwnerUpdateStatus', () => {
 		)
 	})
 
-	// A revoke that fails fails the mutation: answering `true` would tell the operator a disabled shop
+	// A revoke that fails fails the mutation: answering `true` would tell the admin a disabled shop
 	// owner is off the platform while their sessions are still live, which is the lie E15 exists to stop.
 	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
 		endEveryShopOwnerSession.mockRejectedValueOnce(new Error('redis down'))
@@ -630,9 +630,9 @@ describe('userUpdateStatus', () => {
 		})
 	})
 
-	// ⚠️ **The actor comes off the session, never off the wire** (ADR-044). `adminId` is the operator and
+	// ⚠️ **The actor comes off the session, never off the wire** (ADR-044). `adminId` is the admin and
 	// `_id` is the customer, so this fails if a refactor ever crosses the two.
-	it('names the operator from the session rather than from the arguments', async () => {
+	it('names the admin from the session rather than from the arguments', async () => {
 		await expect(userUpdateStatus.resolve(null, { _id, disabled: true, disabledReason: 'Chargeback ring' }, ctx)).resolves.toBe(
 			true
 		)
@@ -698,7 +698,7 @@ describe('userUpdateStatus', () => {
 		expect(endEveryUserSession.mock.invocationCallOrder[0]).toBeGreaterThan(funUserUpdateStatus.mock.invocationCallOrder[0])
 	})
 
-	// A revoke that fails fails the mutation: answering `true` would tell the operator a suspended customer
+	// A revoke that fails fails the mutation: answering `true` would tell the admin a suspended customer
 	// is off the platform while their sessions are still live, which is the lie E15 exists to stop.
 	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
 		endEveryUserSession.mockRejectedValueOnce(new Error('redis down'))
@@ -712,9 +712,9 @@ describe('userUpdateStatus', () => {
 	})
 
 	// ⚠️ The cross-account revoke ends the customer's sessions and nobody else's. `endEverySession` is the
-	// caller's own teardown (E15-S05) and firing it here would sign the operator out of the console for
+	// caller's own teardown (E15-S05) and firing it here would sign the admin out of the console for
 	// having suspended somebody — asserted as an absence because that is how it would arrive: a copied line.
-	it('leaves the operator signed in', async () => {
+	it('leaves the admin signed in', async () => {
 		endEverySession.mockReset()
 
 		await expect(userUpdateStatus.resolve(null, { _id, disabled: true, disabledReason: 'Chargeback ring' }, ctx)).resolves.toBe(
@@ -736,7 +736,7 @@ describe('shopOwnerUpdateNote', () => {
 		expect(funShopOwnerUpdateNote).toHaveBeenCalledExactlyOnceWith(_id, 'Richiamare a settembre')
 	})
 
-	// The empty string is a value here, not an omission: it is how the operator clears the note, and
+	// The empty string is a value here, not an omission: it is how the admin clears the note, and
 	// the lib turns it into an `$unset`. A box holding only spaces means the same thing and has to
 	// arrive the same way — the argument is `String!` precisely so this state has one spelling.
 	it.each([[''], ['   '], ['\n\t']])('passes %p through as the clear instruction', async (note) => {
@@ -745,7 +745,7 @@ describe('shopOwnerUpdateNote', () => {
 	})
 
 	// The collection caps `notes` at 2000. Over that the write would be rejected by MongoDB as a 500
-	// with nothing the operator could act on, so the 400 has to be raised here, before the database.
+	// with nothing the admin could act on, so the 400 has to be raised here, before the database.
 	it('refuses a note past the collection bound without touching the database', async () => {
 		expect(await rejection(shopOwnerUpdateNote.resolve(null, { _id, notes: 'N'.repeat(2001) }))).toEqual({
 			message: 'Bad Request',
@@ -822,7 +822,7 @@ describe('companyAdd', () => {
 		captureException.mockReset()
 	})
 
-	// Two peculiarities: the owner is an argument, because the session is the operator's, and the seat's
+	// Two peculiarities: the owner is an argument, because the session is the admin's, and the seat's
 	// `position.type` is stamped by the validator rather than sent.
 	it('creates the company under the shopOwner it was given, normalised', async () => {
 		await expect(companyAdd.resolve(null, { idShopOwner: _id, company })).resolves.toBe(true)
@@ -846,7 +846,7 @@ describe('companyAdd', () => {
 		expect(funCompanyAdd).not.toHaveBeenCalled()
 	})
 
-	// The 409 the lib raises on a duplicate VAT number is the one an operator can act on, and it must not
+	// The 409 the lib raises on a duplicate VAT number is the one an admin can act on, and it must not
 	// reach Sentry: a company already registered is a normal outcome, not a platform failure.
 	it('preserves the status of a GraphQLError raised downstream', async () => {
 		const { throwAlreadyTakenError } = await import('@axiumine/koa-utils/graphQL/throw/throwAlreadyTakenError')
@@ -886,7 +886,7 @@ describe('companyUpdate', () => {
 		expect(data.address.position).toEqual({ type: 'Point', coordinates: [9.19, 45.46] })
 	})
 
-	// The seat is validated with the company's own prefix, so the operator is told which of the two
+	// The seat is validated with the company's own prefix, so the admin is told which of the two
 	// addresses on the page is wrong.
 	it('rejects the whole save when the seat is invalid', async () => {
 		const outcome = await rejection(
@@ -930,7 +930,7 @@ describe('companyUpdatePublished', () => {
 	})
 
 	// ⚠️ The collection's `$expr` refuses `published: true` on a shop with no `slug` and no `publicName`,
-	// and that refusal is an operator error rather than a platform failure: it has to keep its status and
+	// and that refusal is an admin error rather than a platform failure: it has to keep its status and
 	// stay out of Sentry, exactly like the 409 on a duplicate VAT number.
 	it('preserves the status of a GraphQLError raised downstream', async () => {
 		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
@@ -963,7 +963,7 @@ describe('companyDel', () => {
 		expect(funCompanyDelete).toHaveBeenCalledExactlyOnceWith(_id)
 	})
 
-	// The refusal an operator meets when the company still has shops: a 409 with a message that says what
+	// The refusal an admin meets when the company still has shops: a 409 with a message that says what
 	// to do about it, and nothing reported to Sentry.
 	it('preserves the status of a GraphQLError raised downstream', async () => {
 		const { throwConflictError } = await import('@axiumine/koa-utils/graphQL/throw/throwConflictError')
@@ -991,7 +991,7 @@ describe('keygripRotate', () => {
 	})
 
 	/*
-	 * ⚠️ The operator's id comes off the Redis session and travels only into the audit event; there is no
+	 * ⚠️ The admin's id comes off the Redis session and travels only into the audit event; there is no
 	 * argument of any kind, so nothing about the key set is reachable from the request body. The answer is
 	 * `true` and never the keys — see `funKeygripRotate` for why that is the whole point.
 	 */
@@ -1001,7 +1001,7 @@ describe('keygripRotate', () => {
 		expect(funKeygripRotate).toHaveBeenCalledExactlyOnceWith(adminId)
 	})
 
-	// "Somebody rotated a second ago" and "every key is still verifying cookies" are both 409s the operator
+	// "Somebody rotated a second ago" and "every key is still verifying cookies" are both 409s the admin
 	// can act on. Flattened into a 500 they would read as a broken platform, which is the opposite of true.
 	it('preserves the status of a GraphQLError raised downstream', async () => {
 		const { throwConflictError } = await import('@axiumine/koa-utils/graphQL/throw/throwConflictError')
@@ -1031,7 +1031,7 @@ describe('keygripRetire', () => {
 	})
 
 	/*
-	 * ⚠️ The id from the request, the operator from the session, and in that order — an operator argument
+	 * ⚠️ The id from the request, the admin from the session, and in that order — an admin argument
 	 * would be a way to spend somebody else's rate-limit budget and sign somebody else's name to the audit
 	 * event. The answer is `true`; the key set afterwards is `keygripStatus`.
 	 */
@@ -1042,7 +1042,7 @@ describe('keygripRetire', () => {
 	})
 
 	/*
-	 * ⚠️ A 404 here means "nothing was retired", and flattening it into a 500 would leave an operator
+	 * ⚠️ A 404 here means "nothing was retired", and flattening it into a 500 would leave an admin
 	 * responding to a compromise unable to tell a broken platform from a key that is still live.
 	 */
 	it('preserves the status of a GraphQLError raised downstream', async () => {

@@ -7,7 +7,7 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
  * fails a test rather than quietly reaching a screen.
  *
  * ⚠️ **Nothing network- or device-derived either** — no address, not truncated, not hashed, not salted.
- * That is the standing decision on session rows, and it is why an operator cannot answer "where was this
+ * That is the standing decision on session rows, and it is why an admin cannot answer "where was this
  * session used from" on this platform. The answer to a compromise report is to end the sessions, which is
  * what the two mutations beside this type do.
  */
@@ -21,9 +21,9 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
  * carries and a bare index field does not.
  *
  * `mintedAt` is the *login* this session descends from, not the last rotation — a session that refreshes
- * every fifteen minutes must not look freshly created to the operator reading the row. `familyId` is the
+ * every fifteen minutes must not look freshly created to the admin reading the row. `familyId` is the
  * lineage handle: two rows sharing one are the same login seen before and after a rotation race, which is
- * the one thing that explains a duplicate an operator would otherwise read as a second device.
+ * the one thing that explains a duplicate an admin would otherwise read as a second device.
  */
 export const GraphQLSession = new GraphQLObjectType({
 	name: 'GraphQLSession',

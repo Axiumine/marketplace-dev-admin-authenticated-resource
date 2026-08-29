@@ -2,7 +2,7 @@ import { User } from '@axiumine/marketplace-common/models/MongoDB/User'
 import registeredAtSeriesDb, { IPerPeriod, StatsPeriod } from '@lib/stats/registeredAtSeriesDb.mjs'
 
 /**
- * The customers-over-time series behind the operator's customers chart — `shopOwnersPerPeriodDb` with
+ * The customers-over-time series behind the admin's customers chart — `shopOwnersPerPeriodDb` with
  * `User` in place of `ShopOwner`, and nothing else.
  *
  * E19 §6 question 2, answered by the platform owner on 2026-08-29. The question had been open since the

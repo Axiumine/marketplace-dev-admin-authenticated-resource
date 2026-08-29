@@ -28,11 +28,11 @@ interface IArgs {
  * field when a suspension arrives without a reason, a 1000-character cap, and a silent drop when the
  * reason came alongside a release.
  *
- * ⚠️ **The operator's own id comes off `ctx.state.user`**, written by the Redis session lookup and not
+ * ⚠️ **The admin's own id comes off `ctx.state.user`**, written by the Redis session lookup and not
  * reachable from the request body — ADR-044 exists so that a suspension names a real actor, and an
- * argument on the wire would let one operator sign another's name to it.
+ * argument on the wire would let one admin sign another's name to it.
  *
- * ⚠️ **The argument is the target state, not a transition.** The operator app sends the state of the
+ * ⚠️ **The argument is the target state, not a transition.** The admin app sends the state of the
  * toggle on every save, so re-disabling an already-disabled customer revokes again — one `hKeys` over an
  * index that is already empty. Reading the previous state to skip that would cost a round trip on every
  * save and open a window between the read and the write in which a login could slip through.

@@ -55,7 +55,7 @@ const { default: shopOwnersStatsDb } = await import('../src/lib/shopOwner/shopOw
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
 
-/** The operator taking the decision — `ctx.state.user._id` at the resolver, never a wire argument. */
+/** The admin taking the decision — `ctx.state.user._id` at the resolver, never a wire argument. */
 const adminId = new Types.ObjectId('507f1f77bcf86cd799439099')
 
 /** Two shops under the owner, so the item hop has a real `$in` rather than a degenerate one. */
@@ -166,9 +166,9 @@ describe('funShopOwnerDelete', () => {
 		expect(update.$set.deleted).toBeInstanceOf(Date)
 	})
 
-	// ADR-044: `deletedBy` is what tells an operator closure apart from a self-service one, and the
+	// ADR-044: `deletedBy` is what tells an admin closure apart from a self-service one, and the
 	// distinction is carried by the field's presence rather than by any value naming a collection.
-	it('records the operator who closed the account', async () => {
+	it('records the admin who closed the account', async () => {
 		mockUpdateInSession(1)
 		mockCascade()
 
@@ -377,7 +377,7 @@ describe('funShopOwnerUpdateNote', () => {
 	beforeEach(() => updateOne.mockReset())
 
 	// Top level, not inside `personalData`: the path carries no prefix, unlike the three login
-	// preferences below. The note is what an operator wrote *about* the account.
+	// preferences below. The note is what an admin wrote *about* the account.
 	it('stores a note at the root of the document', async () => {
 		mockUpdateMatched(1)
 
@@ -399,7 +399,7 @@ describe('funShopOwnerUpdateNote', () => {
 	})
 
 	// `matchedCount`, like the two helpers above and unlike funShopOwnerUpdate: re-saving the note
-	// an account already carries is the state the operator asked for, not a failure.
+	// an account already carries is the state the admin asked for, not a failure.
 	it('accepts a write that changed nothing, as long as the document exists', async () => {
 		updateOne.mockReturnValueOnce({ exec: vi.fn().mockResolvedValue({ matchedCount: 1, modifiedCount: 0 }) })
 

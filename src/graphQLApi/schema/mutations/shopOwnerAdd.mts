@@ -31,7 +31,7 @@ export const shopOwnerAdd = {
 			// than sent as null, and with the address point given the `type: 'Point'` the client never
 			// sends. Both mutations take the same shared input type, so a coordinates-only point can
 			// arrive here too; without this call it would be stored verbatim and rejected by the
-			// collection validator as a 500 with nothing to tell the operator.
+			// collection validator as a 500 with nothing to tell the admin.
 			const doc: IShopOwnerSchema = {
 				// Minted here, not by Mongoose. Every model in marketplace-common declares `_id` explicitly
 				// and without a default, which switches off auto-generation — so `create()` on a

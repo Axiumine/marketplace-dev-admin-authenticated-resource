@@ -131,7 +131,7 @@ describe('sweepTier', () => {
 		{ name: 'a suspended account', doc: { _id: _idA, disabled: true }, set: true },
 		{ name: 'an account that was never parked', doc: { _id: _idA }, set: false },
 		{ name: 'an account whose flag was removed rather than set false', doc: { _id: _idA, disabled: false }, set: false }
-	])('overwrites the operator reason for $name: $set', async ({ doc, set }) => {
+	])('overwrites the admin reason for $name: $set', async ({ doc, set }) => {
 		const model = fakeModel([doc])
 
 		await sweepTier(model, 'user', NOW, CUTOFF)
@@ -167,7 +167,7 @@ describe('retentionSweep', () => {
 
 	/*
 	 * ⚠️ Each collection has to be swept as *itself*. The two scrubs differ — a customer's address book goes,
-	 * a shop owner's operator notes and their all-or-nothing `personalData` block go — so a sweep that handed
+	 * a shop owner's admin notes and their all-or-nothing `personalData` block go — so a sweep that handed
 	 * one tier's shape to the other collection would be refused by the validator, or would leave data behind.
 	 * Asserted through the update each model actually received, which is the only place the tier is visible.
 	 */

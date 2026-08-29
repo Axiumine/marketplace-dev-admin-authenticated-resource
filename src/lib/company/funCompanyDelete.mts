@@ -7,7 +7,7 @@ import { Types } from 'mongoose'
  *
  * **A soft delete, like every other delete on this tier.** The document stays and gains a `deleted` instant;
  * every read path filters it out with `deleted: { $exists: false }`, so the company disappears from the
- * operator's page without the document going anywhere.
+ * admin's page without the document going anywhere.
  *
  * The consequence to know about: `vatNumber_unique` and `certifiedEmail_unique` are plain global unique indexes with no
  * `partialFilterExpression`, so a deleted company keeps its VAT number occupied and the same one
@@ -20,10 +20,10 @@ import { Types } from 'mongoose'
  * is nothing left to check before the company is stamped.
  *
  * `Date.now()`, a number, cast to the schema's `Date` path by mongoose on the way out. The write carries
- * no `deleted` filter of its own: a re-delete stamps a fresh instant and is the state the operator asked
+ * no `deleted` filter of its own: a re-delete stamps a fresh instant and is the state the admin asked
  * for, while the company is unreachable from any page anyway.
  *
- * `matchedCount`, not `modifiedCount`, and a 404: 0 matched means no such company, which the operator
+ * `matchedCount`, not `modifiedCount`, and a 404: 0 matched means no such company, which the admin
  * can act on. Same convention as every other write on this tier.
  */
 export async function funCompanyDelete(_id: Types.ObjectId) {

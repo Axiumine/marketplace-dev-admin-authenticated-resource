@@ -9,7 +9,7 @@ import { optionalText } from '@lib/validate/fields.mjs'
 const MAX_NOTE = 2000
 
 /**
- * The operator's note about an account: trimmed, at most 2000 characters, and `''` when blank.
+ * The admin's note about an account: trimmed, at most 2000 characters, and `''` when blank.
  *
  * `?? ''` rather than letting the `undefined` through, because `''` is not a discarded value here — it
  * is the instruction `funShopOwnerUpdateNote` reads as "remove the note". Everywhere else on this

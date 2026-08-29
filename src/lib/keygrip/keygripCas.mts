@@ -7,7 +7,7 @@ import { keygripChannel, keygripKey } from '@axiumine/marketplace-common/others/
 /**
  * The whole write, as one script: compare the version, replace all three fields, announce it.
  *
- * ⚠️ **The compare is what stops two operators from writing two different key sets under one version
+ * ⚠️ **The compare is what stops two admins from writing two different key sets under one version
  * number.** Both would read version 3, both would compute 4, and the second `HSET` would overwrite the
  * first — leaving services that already adopted the first version 4 signing with keys the record no
  * longer holds, while every later check compares version numbers and finds them equal. The split would

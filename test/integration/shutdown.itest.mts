@@ -62,7 +62,7 @@ describe('production hardening actually applies to a real server', () => {
 	 * 412 before the schema is even consulted. That credential used to be the `x-introspectioncode`
 	 * header; since E13-S11 the header does nothing outside `development` and `test`, and the whole
 	 * point of booting this server is that it is neither. So the request carries a real session
-	 * instead — one access hash in the live Redis, exactly as a logged-in operator would — which also
+	 * instead — one access hash in the live Redis, exactly as a logged-in admin would — which also
 	 * makes the assertion stronger: introspection is refused for an authenticated caller, not merely
 	 * for an unauthenticated one.
 	 */

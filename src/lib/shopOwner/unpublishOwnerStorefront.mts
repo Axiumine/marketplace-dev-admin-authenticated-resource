@@ -8,7 +8,7 @@ import { ClientSession, trusted, Types } from 'mongoose'
  *
  * ⚠️ **This hangs off the owner becoming inactive, not off the tier that made them inactive.** Suspension
  * and closure both call it, and so must the ShopOwner-tier self-service closure when that is built — a
- * self-closure that skips the cascade is the same defect as an operator closure that skips it. The
+ * self-closure that skips the cascade is the same defect as an admin closure that skips it. The
  * platform owner's ruling names both hands: *"so disable a shop owner, by shop owner or by admin,
  * unpublish companies and items"*.
  *

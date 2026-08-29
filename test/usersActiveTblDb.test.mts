@@ -63,7 +63,7 @@ describe('usersActiveTblDb', () => {
 	})
 
 	// ⚠️ The projection is the boundary this whole epic is built around (ADR-029, E19-S05). Every
-	// personal field on `user` is encrypted, `login.email` is the one the operator is allowed to read,
+	// personal field on `user` is encrypted, `login.email` is the one the admin is allowed to read,
 	// and a name or an address tidied into the projection would be decrypted on the way out and land on
 	// a screen with no task for it. Asserted from both sides: the address must be there, the two PII
 	// roots must not.

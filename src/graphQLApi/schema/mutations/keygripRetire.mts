@@ -9,7 +9,7 @@ export const keygripRetire = {
 	/*
 	 * ⚠️ One argument, and it is an id — never key material, never a version. The id is public by
 	 * construction: `keygripStatus` renders it and the fingerprint is computed over the ids. What the
-	 * operator is naming is which key to drop, and the key set the drop applies to is whichever one the
+	 * admin is naming is which key to drop, and the key set the drop applies to is whichever one the
 	 * record holds at that moment, so a stale screen loses the compare rather than retiring the wrong key.
 	 *
 	 * ⚠️ `Boolean!` for the same reason `keygripRotate` answers one: the reply is "it happened", and the
@@ -18,7 +18,7 @@ export const keygripRetire = {
 	args: { id: { type: new GraphQLNonNull(GraphQLString) } },
 	async resolve(_: unknown, args: { id: string }, ctx: IContextAdminAuthenticatedResource) {
 		try {
-			// The operator's id meters the rate limit and signs the audit event, and travels nowhere else.
+			// The admin's id meters the rate limit and signs the audit event, and travels nowhere else.
 			await funKeygripRetire(ctx.state.user._id, args.id)
 		} catch (e) {
 			tryCatchRethrow(e as GraphQLError | Error)

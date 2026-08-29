@@ -91,7 +91,7 @@ describe('shopOwnerById', () => {
 
 	// ⚠️ The verbatim assertion above cannot tell a real path from a misspelt one — it only says the
 	// string did not change, and the string was wrong: `note` for `notes`, which Mongoose drops from a
-	// projection without a word, leaving the operator note reading as blank in the admin UI. This test
+	// projection without a word, leaving the admin note reading as blank in the admin UI. This test
 	// asks the schema instead. `personalData` and `resetPwd` are sub-documents named as a whole, so
 	// `path()` answers for them too; the `login.*` half is checked by the same call on the nested path.
 	it('names only real paths on ShopOwner, so no field can be projected into silence', async () => {
@@ -141,7 +141,7 @@ describe('companyItems', () => {
 	beforeEach(() => itemFind.mockReset())
 
 	// ⚠️ The same query the owner runs on 4026 **minus the ownership guard**, and the missing guard is the
-	// tier rather than an omission: an operator owns nothing, and moderating means reading somebody
+	// tier rather than an omission: an admin owns nothing, and moderating means reading somebody
 	// else's catalogue. Drafts are in for the same reason — an unpublished item is still reportable, and
 	// a moderator who only sees published items cannot act before the owner publishes.
 	//
@@ -160,10 +160,10 @@ describe('companyItems', () => {
 describe('itemCategories', () => {
 	beforeEach(() => itemCategoryFind.mockReset())
 
-	// No args and no paging: an operator writes this list and nobody else can, so it is bounded by hand,
+	// No args and no paging: an admin writes this list and nobody else can, so it is bounded by hand,
 	// and the screen needs every category at once to render parents with their children under them.
 	//
-	// The sort is part of the contract, not a nicety — `position` is the operator's chosen order and is
+	// The sort is part of the contract, not a nicety — `position` is the admin's chosen order and is
 	// not unique, so without the `_id` tiebreak two categories sharing a position swap places between
 	// calls and the screen reorders itself for no reason.
 	it('lists the whole live taxonomy, flat, ordered by position then _id', async () => {
@@ -203,7 +203,7 @@ describe('usersActiveTbl', () => {
 
 	// A pass-through, asserted as one — same contract as `shopOwnersActiveTbl` above. Forwarding the
 	// args OBJECT unchanged matters more here than there: seven arguments, three of them filters whose
-	// defaults decide what an operator sees on arrival, and rebuilding the object field by field is
+	// defaults decide what an admin sees on arrival, and rebuilding the object field by field is
 	// where a second, drifting set of defaults would take root.
 	it('hands its arguments to the lib and returns the page untouched', async () => {
 		const page = { items: [{ _id }], total: 1 }
@@ -298,7 +298,7 @@ describe('keygripStatus', () => {
 	})
 
 	// A record this service cannot open is a 500 that already carries what to fix — flattening it into a
-	// second, generic one would lose the only sentence telling the operator whose `KEYGRIP_KEK` is wrong.
+	// second, generic one would lose the only sentence telling the admin whose `KEYGRIP_KEK` is wrong.
 	it('preserves the status of a GraphQLError raised downstream', async () => {
 		const { throwConflictError } = await import('@axiumine/koa-utils/graphQL/throw/throwConflictError')
 		funKeygripStatus.mockImplementationOnce(() => throwConflictError('the record moved under this read'))
@@ -323,11 +323,11 @@ describe('keygripStatus', () => {
 describe('infoAdminAfterLogin', () => {
 	// Reads only what the middleware already put on the context — no MongoDB round-trip.
 	it('echoes back the authenticated admin from ctx.state.user', async () => {
-		const ctx = { state: { user: { _id, email: 'operator@marketplace.test' } } } as IContextAdminAuthenticatedResource
+		const ctx = { state: { user: { _id, email: 'admin@marketplace.test' } } } as IContextAdminAuthenticatedResource
 
 		await expect(infoAdminAfterLogin.resolve(null, {}, ctx)).resolves.toEqual({
 			_id,
-			email: 'operator@marketplace.test'
+			email: 'admin@marketplace.test'
 		})
 	})
 })

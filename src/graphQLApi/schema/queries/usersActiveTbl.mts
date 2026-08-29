@@ -5,7 +5,7 @@ import { GraphQLUsersTblSortField } from '@ptypes/GraphQLUsersTblSort.mjs'
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull } from 'graphql'
 
 /**
- * The operator's customers list — the first `user*` operation on this tier (E19-S02).
+ * The admin's customers list — the first `user*` operation on this tier (E19-S02).
  *
  * Every argument carries a server-side default, so a client that sends none still gets a bounded page,
  * ordered by the only clear field worth ordering by. Paging, filtering and sorting all live in the lib;
@@ -21,9 +21,9 @@ import { GraphQLBoolean, GraphQLInt, GraphQLNonNull } from 'graphql'
  * page names one state of each and the query stays on `tbl_active_registeredAt`. A third "either" state
  * would leave the index's leading field unbound, which turns the sort into a blocking one on a collection
  * that only grows. `emailVerified` is nullable *because* it is outside that index: it filters what the
- * index already bounded, and it is the flag the operator reads off the row rather than narrows by.
+ * index already bounded, and it is the flag the admin reads off the row rather than narrows by.
  *
- * The defaults answer "what does an operator see on arrival" with the live accounts, which is what
+ * The defaults answer "what does an admin see on arrival" with the live accounts, which is what
  * `usersActiveTbl` names. Whether that stays the answer is `phase5/epics/E19.md` §6, question 5 — and it
  * is a `defaultValue` on one line either way.
  */

@@ -5,7 +5,7 @@ import { TIER } from '@axiumine/marketplace-common/others/Tier'
 import { IContextAdminAuthenticatedResource } from '@lib/auth/IContextAdminAuthenticatedResource.mjs'
 
 /**
- * Logs the calling operator out of everything, everywhere (E15-S05). Called after a credential write
+ * Logs the calling admin out of everything, everywhere (E15-S05). Called after a credential write
  * has landed, never before one and never instead of one.
  *
  * ⚠️ **The calling session goes with the rest — decided 2026-08-10, and it is not a rough edge to

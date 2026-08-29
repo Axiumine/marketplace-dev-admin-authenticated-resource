@@ -17,7 +17,7 @@ export const revokeSession = {
 	 *
 	 * ⚠️ `Boolean!` answers *whether a live session was ended*, not whether the call succeeded — a row for a
 	 * session that had already expired answers `false` and still prunes the index. The console must say
-	 * "already ended" on `false`, because reporting it as an error would train an operator to retry a call
+	 * "already ended" on `false`, because reporting it as an error would train an admin to retry a call
 	 * that has already done everything it can.
 	 */
 	args: {
@@ -27,7 +27,7 @@ export const revokeSession = {
 	},
 	async resolve(_: unknown, args: { tier: Tier; accountId: string; id: string }, ctx: IContextAdminAuthenticatedResource) {
 		try {
-			// The operator's id meters the rate limit and travels nowhere else — never into the event trail,
+			// The admin's id meters the rate limit and travels nowhere else — never into the event trail,
 			// which E17's open question 4 answered "not attributable".
 			return await funRevokeSession(ctx.state.user._id, args.tier, args.accountId, args.id)
 		} catch (e) {

@@ -32,7 +32,7 @@ import mongoose, { Types } from 'mongoose'
  * exactly that write, so it has to work.
  *
  * `$set` and `$unset` never name the same path — `idParent` is in one or the other, never both — so no
- * "Updating the path 'idParent' would create a conflict" is possible. An empty operator object is
+ * "Updating the path 'idParent' would create a conflict" is possible. An empty admin object is
  * accepted by the driver and does nothing.
  *
  * `matchedCount`, not `modifiedCount`: saving a category unchanged still matched, and that is a

@@ -18,7 +18,7 @@ import { ClientSession, trusted, Types } from 'mongoose'
  *
  *   - the parent does not exist, or is soft-deleted → 404. Nothing else would catch it, and a
  *     subcategory under an invisible parent is unreachable from `/category/:slug/:subSlug`.
- *   - the parent is itself a subcategory → 400. The operator asked for a third level.
+ *   - the parent is itself a subcategory → 400. The admin asked for a third level.
  *   - the parent is the category being edited → 400. A category cannot be its own parent; the cheap way to
  *     make a cycle, and the only one two levels leave room for.
  *
@@ -35,7 +35,7 @@ import { ClientSession, trusted, Types } from 'mongoose'
  * way, and the validator already declares it `bsonType: 'int'`.
  *
  * The cost is contention: two subcategories being added under one parent at the same instant now
- * serialise on it. On a taxonomy one operator tier writes, that is a retry nobody will observe.
+ * serialise on it. On a taxonomy one admin tier writes, that is a retry nobody will observe.
  *
  * `_id` is the document being written, absent on the create path. It only exists to catch the self-parent
  * case, which on create is impossible: the id is minted after this runs — and needs no branch of its

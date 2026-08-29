@@ -9,7 +9,7 @@ import { trusted, Types } from 'mongoose'
 /**
  * Creates one company under an existing shopOwner.
  *
- * The owner is checked first: `idShopOwner` reaches this from the URL of the operator's detail page,
+ * The owner is checked first: `idShopOwner` reaches this from the URL of the admin's detail page,
  * `company` carries no foreign-key constraint — MongoDB has none — and the only read path is
  * `shopOwnerCompanies`, which lists by owner. An id that names nothing therefore inserts happily and
  * produces a company reachable only through the same wrong id that created it. A soft-deleted shopOwner
@@ -20,13 +20,13 @@ import { trusted, Types } from 'mongoose'
  * before it reaches MongoDB.
  *
  * `published: false` is stamped here rather than taken from the input: publishing is
- * `companyUpdatePublished`, a second call the operator makes on purpose. It is also the only value the
+ * `companyUpdatePublished`, a second call the admin makes on purpose. It is also the only value the
  * validator would accept from a shop this new — `published: true` needs a `slug` and a `publicName`,
  * both optional on the input.
  *
  * The duplicate-key message names both unique indexes — `vatNumber_unique` and `certifiedEmail_unique`, both globally
  * unique — because the driver's error does not say which one it tripped on and guessing would send the
- * operator to the wrong box. These are the two indexes that used to sit on the now-gone shop
+ * admin to the wrong box. These are the two indexes that used to sit on the now-gone shop
  * collection's embedded `company.*` sub-document and made a company's second shop impossible; they are
  * the same rule, applied where it is true.
  *

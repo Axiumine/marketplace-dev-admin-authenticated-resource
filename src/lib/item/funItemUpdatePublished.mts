@@ -5,10 +5,10 @@ import { Types } from 'mongoose'
 /**
  * The moderation switch: takes an item off the public site, or puts it back.
  *
- * The whole of the operator's write access to a shop's catalogue, beside `itemDel`. An operator does
+ * The whole of the admin's write access to a shop's catalogue, beside `itemDel`. An admin does
  * not author items — the shop owner does, on 4026 — so this is one flag and not a save of the item.
  *
- * ⚠️ **Nothing records that it was an operator who flipped it.** The owner sees an unpublished item and
+ * ⚠️ **Nothing records that it was an admin who flipped it.** The owner sees an unpublished item and
  * can publish it again from their own tier, which makes this a takedown that does not stick. That is
  * the honest state of the platform today: a moderation log, or a flag the owner cannot clear, is a
  * second field and a policy decision nobody has taken. Written down rather than half-built.
@@ -18,7 +18,7 @@ import { Types } from 'mongoose'
  * so unsetting it fails the write.
  *
  * `matchedCount`, not `modifiedCount`: re-publishing something already published is the state the
- * operator asked for, and a no-op is not an error.
+ * admin asked for, and a no-op is not an error.
  */
 export async function funItemUpdatePublished(_id: Types.ObjectId, published: boolean) {
 	const ret = await Item.updateOne({ _id: _id }, { $set: { published } }).exec()

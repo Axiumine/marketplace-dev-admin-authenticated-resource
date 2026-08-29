@@ -3,7 +3,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 /*
  * ⚠️ **Nothing in this file has a `material` field, and nothing in it ever may** (ADR-034, E01-S14).
  *
- * The record these types describe holds the platform's cookie-signing keys. An operator who could read
+ * The record these types describe holds the platform's cookie-signing keys. An admin who could read
  * one back could sign a session cookie for any account on the platform — a strictly larger power than
  * "may rotate the keys", which is the one this screen exists to grant. `schema.test.mts` asserts the
  * absence by name on all three types, so a field added here fails a test rather than changing a snapshot.
@@ -14,7 +14,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
  */
 
 /*
- * One key in the array, as an operator needs to see it.
+ * One key in the array, as an admin needs to see it.
  *
  * `ageDays` is the key's own age, computed here rather than left to the client because it is the
  * server's clock that every keygrip decision is taken against, and a browser one rotation behind would
@@ -55,7 +55,7 @@ export const GraphQLKeygripHolder = new GraphQLObjectType({
 })
 
 // The whole answer. `fingerprint` is the record's own, which is what every holder row is compared
-// against, and `version` is what a rotation bumps — together they are how an operator tells two records
+// against, and `version` is what a rotation bumps — together they are how an admin tells two records
 // apart without seeing either.
 export const GraphQLKeygripStatus = new GraphQLObjectType({
 	name: 'GraphQLKeygripStatus',

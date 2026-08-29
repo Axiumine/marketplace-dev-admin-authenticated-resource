@@ -105,7 +105,7 @@ describe('funCompanyAdd', () => {
 	})
 
 	// ⚠️ Stamped here, never taken from the input: publishing is `companyUpdatePublished`, a second call
-	// the operator makes on purpose. `false` is also the only value the collection would accept from a
+	// the admin makes on purpose. `false` is also the only value the collection would accept from a
 	// shop this new — its `$expr` refuses `published: true` without a stored `slug` and `publicName`,
 	// both optional on the card.
 	it('stamps the new company as unpublished', async () => {
@@ -147,7 +147,7 @@ describe('funCompanyAdd', () => {
 	})
 
 	// Both `vatNumber_unique` and `certifiedEmail_unique` can fire, the driver's error does not say which, and guessing
-	// would send the operator to the wrong box.
+	// would send the admin to the wrong box.
 	it('turns a unique-index violation into a 409 naming both candidates', async () => {
 		create.mockRejectedValueOnce(duplicate())
 
@@ -218,7 +218,7 @@ describe('funCompanyUpdate', () => {
 describe('funCompanyUpdatePublished', () => {
 	beforeEach(() => updateOne.mockReset())
 
-	// One flag, one filter, and the filter is the id alone: the operator moderates every shop on the
+	// One flag, one filter, and the filter is the id alone: the admin moderates every shop on the
 	// platform, so there is no owner to scope this by. ⚠️ `false`, never `$unset` — `published` is in the
 	// collection's `required` array, so unsetting it fails the write.
 	it.each([
@@ -236,7 +236,7 @@ describe('funCompanyUpdatePublished', () => {
 	})
 
 	// `matchedCount`, not `modifiedCount`: publishing something already published matches one document and
-	// changes none, and that is the state the operator asked for.
+	// changes none, and that is the state the admin asked for.
 	it('accepts a write that changed nothing, as long as the company exists', async () => {
 		mockUpdateMatched(1)
 
@@ -274,7 +274,7 @@ describe('funCompanyDelete', () => {
 	})
 
 	// `matchedCount`, not `modifiedCount`: 0 matched is a stale Delete button naming a company already gone,
-	// while re-deleting one that is already stamped still matched and is the state the operator asked for.
+	// while re-deleting one that is already stamped still matched and is the state the admin asked for.
 	it('raises a 404 when no company carries that id', async () => {
 		mockUpdateMatched(0)
 
