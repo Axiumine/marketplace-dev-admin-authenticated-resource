@@ -80,7 +80,7 @@ describe('schema', () => {
 		expect(result.errors).toBeUndefined()
 	})
 
-	it('exposes the twelve admin queries', () => {
+	it('exposes the fourteen admin queries', () => {
 		expect(fieldsOf('QueriesApi')).toEqual([
 			'infoAdminAfterLogin',
 			'shopOwnersActiveTbl',
@@ -89,6 +89,8 @@ describe('schema', () => {
 			'shopOwnerById',
 			'shopOwnerCompanies',
 			'usersActiveTbl',
+			'usersStats',
+			'usersPerPeriod',
 			'companyItems',
 			'itemCategories',
 			'keygripStatus',
@@ -222,6 +224,12 @@ describe('schema', () => {
 		],
 		['shopOwnersPerPeriod', ['period'], 'Time series of registered shopOwners'],
 		['shopOwnersStats', [], 'ShopOwners stats'],
+		// The customer counterparts of the two above (E19 §6 question 2, answered 2026-08-29). Same
+		// argument list, because they are the same chart over the other collection — and unlike the two
+		// TABLE queries, which diverge over what `user` keeps encrypted, there is nothing here to
+		// diverge over: `registeredAt` is clear on both.
+		['usersPerPeriod', ['period'], 'Time series of registered users'],
+		['usersStats', [], 'Users stats'],
 		['infoAdminAfterLogin', [], 'Info after login'],
 		// ⚠️ No arguments, for the same reason `keygripRotate` has none (ADR-034): this reads the record
 		// that is live right now. A `version` argument would be a request to unwrap an older blob, and the
@@ -376,6 +384,37 @@ describe('shopOwnersPerPeriod contract', () => {
 
 	it('carries a bucket key and a count per point', () => {
 		expect(fieldsOf('GraphQLShopOwnersPerPeriodPoint')).toEqual(['date', 'total'])
+	})
+})
+
+describe('usersPerPeriod contract', () => {
+	// Every assertion in the block above, restated against the customers chart. ⚠️ Restated rather than
+	// looped over both charts: the point of these is that the two schemas agree, and a loop asserting
+	// each against itself would pass just as happily if one of them lost a range.
+	it('defaults to the whole history', () => {
+		const defaults = Object.fromEntries(argsOf('QueriesApi', 'usersPerPeriod').map((a) => [a.name, a.defaultValue]))
+
+		expect(defaults).toEqual({ period: 'ALL' })
+	})
+
+	// Two enums, one member list, checked against each other as well as against the literal. The libs
+	// behind them are two lines each over one shared RANGES table, so a range that reached one enum and
+	// not the other would be a schema saying the two charts offer different histories of the same
+	// platform.
+	it('offers exactly the three ranges, the same three the shopOwners chart offers', () => {
+		expect(enumValuesOf('GraphQLUsersPeriod')).toEqual(['ALL', 'THREE_MONTHS', 'ONE_MONTH'])
+		expect(enumValuesOf('GraphQLUsersPeriod')).toEqual(enumValuesOf('GraphQLShopOwnersPeriod'))
+	})
+
+	// The granularity enum is ONE type shared by both charts — see GraphQLPeriodGranularity.mts — so
+	// what is asserted here is that the customers series reports it and takes no say in it.
+	it('reports the granularity it chose, and takes no say in it', () => {
+		expect(fieldsOf('GraphQLUsersPerPeriod')).toEqual(['granularity', 'points'])
+		expect(argsOf('QueriesApi', 'usersPerPeriod').map((a) => a.name)).not.toContain('granularity')
+	})
+
+	it('carries a bucket key and a count per point', () => {
+		expect(fieldsOf('GraphQLUsersPerPeriodPoint')).toEqual(['date', 'total'])
 	})
 })
 

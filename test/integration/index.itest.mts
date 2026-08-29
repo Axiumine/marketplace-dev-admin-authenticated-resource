@@ -621,6 +621,59 @@ describe('GraphQL over HTTP', () => {
 		}
 	})
 
+	/*
+	 * The customer counterparts of the two tests above (E19 §6 question 2, answered 2026-08-29), driven
+	 * against the real collection for the same two reasons — and for one more that is specific to `user`.
+	 *
+	 * ⚠️ `user` is the collection encrypted whole (ADR-029). `registeredAt` is NOT one of the encrypted
+	 * paths, and this is the test that proves it: `$dateToString` over a `binData` field does not throw,
+	 * it groups every document under one meaningless key, so a field that silently joined
+	 * `ENCRYPTED_FIELDS_USER` would collapse the whole series into a single bucket here while every unit
+	 * test — which mocks `aggregate` — went on passing. The `$match` bound is the same proof: a range
+	 * predicate against random ciphertext matches nothing at all.
+	 */
+	it('counts and buckets the real customer collection, and keeps the range bound', async () => {
+		const session = await withSession()
+		const today = new Date().toISOString().slice(0, 10)
+		const query = '{ usersStats usersPerPeriod(period: ONE_MONTH) { granularity points { date total } } }'
+
+		try {
+			const before = await gql(query, session.headers)
+
+			expect(before.status).toBe(200)
+			expect(before.json.errors).toBeUndefined()
+
+			const statsBefore = before.json.data?.usersStats as number
+			const seriesBefore = before.json.data?.usersPerPeriod as {
+				granularity: string
+				points: Array<{ date: string; total: number }>
+			}
+			expect(typeof statsBefore).toBe('number')
+			expect(seriesBefore.granularity).toBe('DAY')
+			// Gap-filled, so today is present whether or not anyone registered today.
+			expect(seriesBefore.points.at(-1)?.date).toBe(today)
+
+			await seedUser()
+			await seedUser({ registeredAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) })
+
+			const after = await gql(query, session.headers)
+			const statsAfter = after.json.data?.usersStats as number
+			const seriesAfter = after.json.data?.usersPerPeriod as { points: Array<{ date: string; total: number }> }
+
+			// The tile counts both seeds; the one-month series sees only the one stamped today. The two
+			// numbers disagreeing by exactly the out-of-range document is what makes the bound real.
+			expect(statsAfter).toBe(statsBefore + 2)
+			expect(seriesAfter.points).toHaveLength(seriesBefore.points.length)
+			expect(seriesAfter.points.at(-1)?.total).toBe((seriesBefore.points.at(-1)?.total as number) + 1)
+
+			const sumBefore = seriesBefore.points.reduce((tot, p) => tot + p.total, 0)
+			const sumAfter = seriesAfter.points.reduce((tot, p) => tot + p.total, 0)
+			expect(sumAfter).toBe(sumBefore + 1)
+		} finally {
+			await session.cleanup()
+		}
+	})
+
 	// The projection in shopOwnerById is long and hand-written; running it against a document
 	// this run inserted is the only way to see that it really returns the nested login/personalData
 	// shape the operator frontend renders.

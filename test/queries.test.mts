@@ -12,6 +12,8 @@ const shopOwnersStatsDb = vi.fn()
 const shopOwnersPerPeriodDb = vi.fn()
 const shopOwnersActiveTblDb = vi.fn()
 const usersActiveTblDb = vi.fn()
+const usersStatsDb = vi.fn()
+const usersPerPeriodDb = vi.fn()
 const funKeygripStatus = vi.fn()
 const captureException = vi.fn()
 
@@ -40,6 +42,8 @@ vi.mock('@lib/user/usersActiveTblDb.mjs', () => ({
 	default: usersActiveTblDb,
 	USERS_TBL_DEFAULT_LIMIT: 25
 }))
+vi.mock('@lib/user/usersStatsDb.mjs', () => ({ default: usersStatsDb }))
+vi.mock('@lib/user/usersPerPeriodDb.mjs', () => ({ default: usersPerPeriodDb }))
 vi.mock('@lib/keygrip/funKeygripStatus.mjs', () => ({ funKeygripStatus }))
 // tryCatchRethrow is NOT mocked, as in mutations.test.mts — only its Sentry sink is, so a failure
 // really travels through the wrapper this resolver puts around the lib.
@@ -51,6 +55,8 @@ const { shopOwnersActiveTbl } = await import('../src/graphQLApi/schema/queries/s
 const { usersActiveTbl } = await import('../src/graphQLApi/schema/queries/usersActiveTbl.mts')
 const { shopOwnersPerPeriod } = await import('../src/graphQLApi/schema/queries/shopOwnersPerPeriod.mts')
 const { shopOwnersStats } = await import('../src/graphQLApi/schema/queries/shopOwnersStats.mts')
+const { usersPerPeriod } = await import('../src/graphQLApi/schema/queries/usersPerPeriod.mts')
+const { usersStats } = await import('../src/graphQLApi/schema/queries/usersStats.mts')
 const { infoAdminAfterLogin } = await import('../src/graphQLApi/schema/queries/infoAdminAfterLogin.mts')
 const { companyItems } = await import('../src/graphQLApi/schema/queries/companyItems.mts')
 const { itemCategories } = await import('../src/graphQLApi/schema/queries/itemCategories.mts')
@@ -238,6 +244,35 @@ describe('shopOwnersPerPeriod', () => {
 		await expect(shopOwnersPerPeriod.resolve(null, { period: 'ONE_MONTH' })).resolves.toBe(series)
 
 		expect(shopOwnersPerPeriodDb).toHaveBeenCalledExactlyOnceWith('ONE_MONTH')
+	})
+})
+
+describe('usersStats', () => {
+	it('hands the count straight through', async () => {
+		usersStatsDb.mockResolvedValueOnce(7)
+
+		await expect(usersStats.resolve()).resolves.toBe(7)
+	})
+})
+
+describe('usersPerPeriod', () => {
+	// Same assertion as its shopOwner twin, and for the same reason: the argument is unwrapped and
+	// passed positionally, so handing the lib the whole args object would still resolve the mocked
+	// series and still type-check, while `RANGES[period]` answered undefined for every range at run
+	// time. ⚠️ It also pins WHICH lib the resolver reaches — the two libs are two lines each over one
+	// shared file, so a copy-paste that left `shopOwnersPerPeriodDb` here would draw shop owners on
+	// the customers chart and pass every other test in this repo.
+	it('unwraps the period argument and hands the series straight through', async () => {
+		const series = { granularity: 'MONTH', points: [{ date: '2026-08-01', total: 3 }] }
+		// Cleared here rather than in a `beforeEach`: this file resets nothing globally, and the twin
+		// resolver's own test above has already called it.
+		shopOwnersPerPeriodDb.mockClear()
+		usersPerPeriodDb.mockResolvedValueOnce(series)
+
+		await expect(usersPerPeriod.resolve(null, { period: 'ALL' })).resolves.toBe(series)
+
+		expect(usersPerPeriodDb).toHaveBeenCalledExactlyOnceWith('ALL')
+		expect(shopOwnersPerPeriodDb).not.toHaveBeenCalled()
 	})
 })
 

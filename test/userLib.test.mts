@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { rejection } from './errors.mts'
 
 const updateOne = vi.fn()
+const countDocuments = vi.fn()
 
-vi.mock('@axiumine/marketplace-common/models/MongoDB/User', () => ({ User: { updateOne } }))
+vi.mock('@axiumine/marketplace-common/models/MongoDB/User', () => ({ User: { updateOne, countDocuments } }))
 
 const { funUserUpdateStatus } = await import('../src/lib/user/funUserUpdateStatus.mts')
+const { default: usersStatsDb } = await import('../src/lib/user/usersStatsDb.mts')
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
 
@@ -99,5 +101,17 @@ describe('funUserUpdateStatus', () => {
 			http: { status: 404 },
 			description: 'user not found'
 		})
+	})
+})
+
+describe('usersStatsDb', () => {
+	// No filter and no argument, exactly like `shopOwnersStatsDb`. ⚠️ The count is the number the chart's
+	// points add up to, so a `{ deleted: { $exists: false } }` added here — which reads like an
+	// improvement — would put two numbers on one screen that look like the same number and disagree.
+	it('counts every customer, closed and suspended ones included', async () => {
+		countDocuments.mockResolvedValueOnce(7)
+
+		await expect(usersStatsDb()).resolves.toBe(7)
+		expect(countDocuments).toHaveBeenCalledExactlyOnceWith()
 	})
 })
