@@ -41,10 +41,26 @@ export const GraphQLUserActiveTbl = new GraphQLObjectType({
 		 */
 		disabled: { type: GraphQLBoolean },
 		/**
-		 * A timestamp, not a flag (ADR-011) — and today always absent, because **nothing anywhere writes
-		 * it**: there is no `userDel` on any tier and a customer cannot close their own account either
-		 * (E19.md §6, question 3). It is on the row because the filter can ask for it and because the day
-		 * an erasure path lands, the operator table must not be the last screen to know.
+		 * Who suspended this account and why (ADR-044). Absent together on an account that is not
+		 * suspended — `funUserUpdateStatus` `$unset`s the trio as one — so both are read on presence.
+		 *
+		 * ⚠️ **This row is the only place the reason is legible.** `disabledReason` is randomly encrypted
+		 * (ADR-029) and the driver decrypts it here because this service holds the data key; a shell
+		 * reading the collection sees `binData`. The customers table is the operator's only customer
+		 * surface — there is no detail page — so a reason left off this row is a reason nobody can read.
+		 *
+		 * `disabledBy` is an attribution rather than a foreign key (ADR-044): nothing joins on it, and an
+		 * `admin` that no longer exists leaves it dangling by design.
+		 */
+		disabledBy: { type: GraphQLID },
+		disabledReason: { type: GraphQLString },
+		/**
+		 * A timestamp, not a flag (ADR-011). Written by `userDel` on the customer tier since 2026-08-26 —
+		 * a customer closing their own account — and by nothing else: there is still no Admin counterpart
+		 * to `shopOwnerDel` (E19.md §6, question 3). The stamp is permanent, because nothing on this
+		 * platform removes a document any more (ADR-041); what ends is the personal data, overwritten in
+		 * place by the retention sweeper thirty days later, unless the same address registers again inside
+		 * that window and takes the account back (ADR-046).
 		 */
 		deleted: { type: GraphQLDateTime },
 		/**

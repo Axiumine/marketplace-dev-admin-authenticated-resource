@@ -19,6 +19,22 @@ export const GraphQLShopOwnerById = new GraphQLObjectType({
 		registeredAt: { type: new GraphQLNonNull(GraphQLDateTime) },
 		deleted: { type: GraphQLDateTime },
 		disabled: { type: GraphQLBoolean },
+		/**
+		 * Who suspended this account and why (ADR-044). Both are absent on an account that is not
+		 * suspended: `funShopOwnerUpdateStatus` `$unset`s the trio together, so the three are read on
+		 * presence and never on `false`.
+		 *
+		 * ⚠️ **This is the only surface where the reason is legible at all.** `disabledReason` is randomly
+		 * encrypted (ADR-029), so an operator reading the collection with a shell sees `binData`; the
+		 * driver decrypts it here because this service holds the data key. Dropping it from the type would
+		 * not hide the field, it would make a suspension unanswerable.
+		 *
+		 * `disabledBy` is an attribution and not a foreign key — ADR-044 says so — so it is a bare `ID` a
+		 * screen prints. Nothing joins on it, and an `admin` that no longer exists leaves it dangling by
+		 * design.
+		 */
+		disabledBy: { type: GraphQLID },
+		disabledReason: { type: GraphQLString },
 		waitApprov: { type: GraphQLBoolean },
 		// Operator-only, and safe to expose here precisely because this is the operator tier: the
 		// ShopOwner-tier services never load this model at all, so the note has no way of reaching

@@ -40,8 +40,13 @@ export const USERS_TBL_MAX_LIMIT = 100
  *
  * `login.password` is absent for the reason it is absent on the shop-owner table: the projection is a
  * positive list and the credential is not on it.
+ *
+ * ⚠️ **`disabledReason` is the one exception to the paragraph above, and it is deliberate** (ADR-044). It
+ * is ciphertext the driver decrypts on the way out, like a name would be — but it is the platform's own
+ * record of why it acted, not the customer's data, and this table is the only customer surface an operator
+ * has. Left off, a suspension is unanswerable: nothing else on any tier can read the field.
  */
-export const USERS_TBL_SELECTION = '_id registeredAt login.email disabled deleted emailVerify.valid'
+export const USERS_TBL_SELECTION = '_id registeredAt login.email disabled disabledBy disabledReason deleted emailVerify.valid'
 
 /**
  * GraphQL enum name → the Mongo paths to sort by, in order. `_id` is appended by `buildSort`, so the

@@ -10,6 +10,7 @@ import { setupFieldEncryption } from '@axiumine/marketplace-common/encryption/se
 import { IContextAdminAuthenticatedResource } from '@lib/auth/IContextAdminAuthenticatedResource.mjs'
 import { authorizationAuthenticatedResourceHandler } from '@lib/db/authorizationAuthenticatedResourceHandler.mjs'
 import { disconnectAllDatabases } from '@lib/db/disconnectAllDatabases.mjs'
+import { startRetentionSweeper } from '@lib/retention/startRetentionSweeper.mjs'
 import * as Sentry from '@sentry/node'
 import { GraphQLSchema, NoSchemaIntrospectionCustomRule, ValidationRule } from 'graphql'
 import depthLimit from 'graphql-depth-limit'
@@ -252,6 +253,20 @@ export async function start() {
 		 * Antivirus
 		 */
 		await initClamScan()
+
+		/****************
+		 * Retention scrub (ADR-041)
+		 *
+		 * After setupFieldEncryption() and before the port opens: the sweep writes `personalData` on both
+		 * account collections, so it needs the same encryption the resolvers do, and it must not be able to
+		 * run against a connection that has none. Nothing is awaited beyond arming it — the first pass runs
+		 * in the background and reports itself.
+		 *
+		 * This service and no other. It is the operator surface, it already writes both collections, and it
+		 * is not the internet-facing unauthenticated one; a second service arming this would double-sweep,
+		 * which the Redis lock survives but which nobody would be able to read in the logs.
+		 */
+		startRetentionSweeper()
 
 		const { httpServer, apolloServer } = await createServer()
 

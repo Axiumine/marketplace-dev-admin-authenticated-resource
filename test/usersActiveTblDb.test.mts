@@ -15,7 +15,7 @@ const { default: usersActiveTblDb } = await import('../src/lib/user/usersActiveT
 // the test still passes while the query stops projecting and starts pulling whole documents through
 // the decryption layer: every address, every name, `login.password` included, for every row of every
 // page.
-const SELECTION = '_id registeredAt login.email disabled deleted emailVerify.valid'
+const SELECTION = '_id registeredAt login.email disabled disabledBy disabledReason deleted emailVerify.valid'
 
 type Args = Parameters<typeof usersActiveTblDb>[0]
 

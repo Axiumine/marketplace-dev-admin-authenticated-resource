@@ -25,7 +25,7 @@ export const shopOwnerById = {
 				// operator note read as blank in the admin UI for every shop owner who had one.
 				.select(
 					'_id login.email login.firstLogin login.lastLogin login.onboardingStep login.onboardingDone login.rememberMe ' +
-						'registeredAt personalData waitApprov notes resetPwd disabled deleted'
+						'registeredAt personalData waitApprov notes resetPwd disabled disabledBy disabledReason deleted'
 				)
 				.lean()
 		)

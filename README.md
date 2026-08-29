@@ -62,6 +62,16 @@ starts matching accounts that are not waiting. A new flag added here follows the
 `marketplace-dev-public-authorization`'s README. An operator who expects "awaiting approval" to mean
 "cannot log in" is expecting something this platform does not do.
 
+⚠️ **This service runs a background job, and it is the only one of the nine that does.** `start()` arms
+`startRetentionSweeper()`, an hourly pass that overwrites the personal data of every `shopOwner` and every
+`user` closed more than thirty days ago (ADR-041) — a write to two collections, triggered by no request,
+named in no resolver and reachable from no part of the GraphQL surface above. One instance per hour wins a
+single-key Redis `SET NX PX` lock and does the work; every other instance returns immediately, which is the
+normal outcome and is not reported anywhere. It logs one line per pass **including the passes that scrub
+nothing** — that line is the only evidence erasure is still running, so a service whose logs have gone quiet
+here has stopped deleting, silently. The window is thirty days because ADR-046 makes it an undo window as
+well: inside it, registering again at the same address hands the old account back.
+
 ## Related files
 
 | Topic | File |

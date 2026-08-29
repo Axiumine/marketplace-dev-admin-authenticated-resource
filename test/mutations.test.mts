@@ -69,7 +69,14 @@ const { userUpdateStatus } = await import('../src/graphQLApi/schema/mutations/us
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
 const login = { email: 'shop@marketplace.test', password: 'clear' } as never
-const ctx = { state: { user: { _id, email: 'operator@marketplace.test' } } } as never
+/**
+ * The operator the request is authenticated as — deliberately NOT `_id`, which is the account being acted
+ * on. Sharing one id between the two would make every "the actor comes off the session" assertion below
+ * pass against a resolver that read the actor off the wire instead.
+ */
+const adminId = new Types.ObjectId('507f1f77bcf86cd799439099')
+
+const ctx = { state: { user: { _id: adminId, email: 'operator@marketplace.test' } } } as never
 
 /**
  * A complete, already-valid personalData.
@@ -133,7 +140,7 @@ describe('adminUpdatePwd', () => {
 			true
 		)
 
-		expect(funAdminUpdatePwd).toHaveBeenCalledExactlyOnceWith(_id, 'oldpwd12345', 'newpwd12345')
+		expect(funAdminUpdatePwd).toHaveBeenCalledExactlyOnceWith(adminId, 'oldpwd12345', 'newpwd12345')
 	})
 
 	// A rejected old password must reach the client as the 401 the lib raised, not be flattened into
@@ -269,18 +276,58 @@ describe('shopOwnerAdd', () => {
 describe('shopOwnerDel', () => {
 	beforeEach(() => {
 		funShopOwnerDelete.mockReset().mockResolvedValue(undefined)
+		endEveryShopOwnerSession.mockReset().mockResolvedValue(undefined)
 		captureException.mockReset()
 	})
 
-	it('soft-deletes the shopOwner and answers true', async () => {
-		await expect(shopOwnerDel.resolve(null, { _id })).resolves.toBe(true)
-		expect(funShopOwnerDelete).toHaveBeenCalledExactlyOnceWith(_id)
+	// ⚠️ **The operator's id comes off `ctx.state.user`, never off the wire** (ADR-044). `deletedBy` beside
+	// a `deleted` stamp is what tells an operator closure apart from a self-service one, so an argument a
+	// client could set would let any operator sign somebody else's name to their decision.
+	it('soft-deletes the shopOwner in the operator name and answers true', async () => {
+		await expect(shopOwnerDel.resolve(null, { _id }, ctx)).resolves.toBe(true)
+		expect(funShopOwnerDelete).toHaveBeenCalledExactlyOnceWith(_id, adminId)
 	})
 
 	it('propagates the failure', async () => {
 		funShopOwnerDelete.mockRejectedValueOnce(new Error('mongo down'))
 
-		await expect(shopOwnerDel.resolve(null, { _id })).rejects.toThrow('Internal Server Error')
+		await expect(shopOwnerDel.resolve(null, { _id }, ctx)).rejects.toThrow('Internal Server Error')
+	})
+
+	/*
+	 * ⚠️ **Closing ends every session the owner holds, unconditionally.** Until this the stamp was a label:
+	 * `checkUserAuthorizationDisDel` refuses a closed account at the login gate and `findAccountForSession`
+	 * re-runs that on every refresh, but neither bites until the next rotation — so a closed owner kept
+	 * working for a whole access-token lifetime. Unlike the status mutation there is no "off" to compare
+	 * against; a closure has one direction.
+	 */
+	it('ends every session the owner holds', async () => {
+		await expect(shopOwnerDel.resolve(null, { _id }, ctx)).resolves.toBe(true)
+
+		expect(endEveryShopOwnerSession).toHaveBeenCalledExactlyOnceWith(_id)
+		expect(endEveryShopOwnerSession.mock.invocationCallOrder[0]).toBeGreaterThan(funShopOwnerDelete.mock.invocationCallOrder[0])
+	})
+
+	// Gated on the write: `funShopOwnerDelete` answers 404 when nothing matched — an id naming no open
+	// account — and there are then no sessions to end.
+	it('revokes nothing when no open account carried that id', async () => {
+		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
+		funShopOwnerDelete.mockImplementationOnce(() => throwNotFoundError('shopOwner not found'))
+
+		await rejection(shopOwnerDel.resolve(null, { _id }, ctx))
+
+		expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
+	})
+
+	// A revoke that fails fails the mutation: answering `true` would tell the operator a closed shop owner
+	// is off the platform while their sessions are still live.
+	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
+		endEveryShopOwnerSession.mockRejectedValueOnce(new Error('redis down'))
+
+		expect(await rejection(shopOwnerDel.resolve(null, { _id }, ctx))).toMatchObject({
+			message: 'Internal Server Error',
+			http: { status: 500 }
+		})
 	})
 })
 
@@ -447,23 +494,59 @@ describe('shopOwnerUpdateStatus', () => {
 	})
 
 	// Both flags travel exactly as sent — `false` is a value here, not an omission, which is why the
-	// arguments are non-null in the schema.
+	// arguments are non-null in the schema. The reason rides along only when it is meaningful.
 	it.each([
 		[true, true],
 		[true, false],
 		[false, true],
 		[false, false]
 	])('forwards disabled=%s waitApprov=%s unchanged', async (disabled, waitApprov) => {
-		await expect(shopOwnerUpdateStatus.resolve(null, { _id, disabled, waitApprov })).resolves.toBe(true)
-		expect(funShopOwnerUpdateStatus).toHaveBeenCalledExactlyOnceWith(_id, disabled, waitApprov)
+		await expect(
+			shopOwnerUpdateStatus.resolve(null, { _id, disabled, waitApprov, disabledReason: 'Fraud report' }, ctx)
+		).resolves.toBe(true)
+
+		expect(funShopOwnerUpdateStatus).toHaveBeenCalledExactlyOnceWith({
+			_id,
+			disabled,
+			waitApprov,
+			adminId,
+			disabledReason: disabled ? 'Fraud report' : undefined
+		})
+	})
+
+	// ⚠️ **The actor comes off the session, never off the wire** (ADR-044): a `disabledBy` argument would
+	// let one operator sign another's name to a suspension. `adminId` above is the session's id and `_id`
+	// is the account being suspended, so this assertion fails if the two are ever crossed.
+	it('names the operator from the session rather than from the arguments', async () => {
+		await expect(
+			shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false, disabledReason: 'Fraud report' }, ctx)
+		).resolves.toBe(true)
+
+		expect(funShopOwnerUpdateStatus.mock.calls[0][0]).toMatchObject({ _id, adminId })
+	})
+
+	/*
+	 * ⚠️ **A suspension with no reason never reaches the database.** The collection's `dependencies` rule
+	 * would refuse it too, but as an opaque driver error; `validateDisabledReason` raises the 400 that
+	 * names the field, and the write is not attempted.
+	 */
+	it('refuses a suspension carrying no reason, without writing', async () => {
+		expect(await rejection(shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false }, ctx))).toEqual({
+			message: 'Bad Request',
+			http: { status: 400 },
+			description: 'disabledReason: field required'
+		})
+
+		expect(funShopOwnerUpdateStatus).not.toHaveBeenCalled()
+		expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
 	})
 
 	it('propagates the failure', async () => {
 		funShopOwnerUpdateStatus.mockRejectedValueOnce(new Error('mongo down'))
 
-		await expect(shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false })).rejects.toThrow(
-			'Internal Server Error'
-		)
+		await expect(
+			shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false, disabledReason: 'Fraud report' }, ctx)
+		).rejects.toThrow('Internal Server Error')
 	})
 
 	/*
@@ -480,7 +563,9 @@ describe('shopOwnerUpdateStatus', () => {
 		[false, true, true],
 		[false, false, false]
 	])('disabled=%s waitApprov=%s revokes: %s', async (disabled, waitApprov, revokes) => {
-		await expect(shopOwnerUpdateStatus.resolve(null, { _id, disabled, waitApprov })).resolves.toBe(true)
+		await expect(
+			shopOwnerUpdateStatus.resolve(null, { _id, disabled, waitApprov, disabledReason: 'Fraud report' }, ctx)
+		).resolves.toBe(true)
 
 		if (revokes) expect(endEveryShopOwnerSession).toHaveBeenCalledExactlyOnceWith(_id)
 		else expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
@@ -492,13 +577,17 @@ describe('shopOwnerUpdateStatus', () => {
 		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
 		funShopOwnerUpdateStatus.mockImplementationOnce(() => throwNotFoundError('shopOwner not found'))
 
-		await rejection(shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false }))
+		await rejection(
+			shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false, disabledReason: 'Fraud report' }, ctx)
+		)
 
 		expect(endEveryShopOwnerSession).not.toHaveBeenCalled()
 	})
 
 	it('revokes only after the status is written', async () => {
-		await expect(shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false })).resolves.toBe(true)
+		await expect(
+			shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: false, disabledReason: 'Fraud report' }, ctx)
+		).resolves.toBe(true)
 
 		expect(endEveryShopOwnerSession.mock.invocationCallOrder[0]).toBeGreaterThan(
 			funShopOwnerUpdateStatus.mock.invocationCallOrder[0]
@@ -510,7 +599,11 @@ describe('shopOwnerUpdateStatus', () => {
 	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
 		endEveryShopOwnerSession.mockRejectedValueOnce(new Error('redis down'))
 
-		expect(await rejection(shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: true }))).toMatchObject({
+		expect(
+			await rejection(
+				shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: true, disabledReason: 'Fraud report' }, ctx)
+			)
+		).toMatchObject({
 			message: 'Internal Server Error',
 			http: { status: 500 }
 		})
@@ -527,15 +620,45 @@ describe('userUpdateStatus', () => {
 	// The flag travels exactly as sent — `false` is a value here, not an omission, which is why the
 	// argument is non-null in the schema. Two rows and no third: there is no `waitApprov` on a customer.
 	it.each([[true], [false]])('forwards disabled=%s unchanged', async (disabled) => {
-		await expect(userUpdateStatus.resolve(null, { _id, disabled })).resolves.toBe(true)
+		await expect(userUpdateStatus.resolve(null, { _id, disabled, disabledReason: 'Chargeback ring' }, ctx)).resolves.toBe(true)
 
-		expect(funUserUpdateStatus).toHaveBeenCalledExactlyOnceWith(_id, disabled)
+		expect(funUserUpdateStatus).toHaveBeenCalledExactlyOnceWith({
+			_id,
+			disabled,
+			adminId,
+			disabledReason: disabled ? 'Chargeback ring' : undefined
+		})
+	})
+
+	// ⚠️ **The actor comes off the session, never off the wire** (ADR-044). `adminId` is the operator and
+	// `_id` is the customer, so this fails if a refactor ever crosses the two.
+	it('names the operator from the session rather than from the arguments', async () => {
+		await expect(userUpdateStatus.resolve(null, { _id, disabled: true, disabledReason: 'Chargeback ring' }, ctx)).resolves.toBe(
+			true
+		)
+
+		expect(funUserUpdateStatus.mock.calls[0][0]).toMatchObject({ _id, adminId })
+	})
+
+	// A suspension with no reason never reaches the collection: `validateDisabledReason` raises the 400
+	// that names the field, where the `dependencies` rule would only answer an opaque driver error.
+	it('refuses a suspension carrying no reason, without writing', async () => {
+		expect(await rejection(userUpdateStatus.resolve(null, { _id, disabled: true }, ctx))).toEqual({
+			message: 'Bad Request',
+			http: { status: 400 },
+			description: 'disabledReason: field required'
+		})
+
+		expect(funUserUpdateStatus).not.toHaveBeenCalled()
+		expect(endEveryUserSession).not.toHaveBeenCalled()
 	})
 
 	it('propagates the failure', async () => {
 		funUserUpdateStatus.mockRejectedValueOnce(new Error('mongo down'))
 
-		await expect(userUpdateStatus.resolve(null, { _id, disabled: true })).rejects.toThrow('Internal Server Error')
+		await expect(
+			userUpdateStatus.resolve(null, { _id, disabled: true, disabledReason: 'Chargeback ring' }, ctx)
+		).rejects.toThrow('Internal Server Error')
 	})
 
 	/*
@@ -550,7 +673,7 @@ describe('userUpdateStatus', () => {
 		[true, true],
 		[false, false]
 	])('disabled=%s revokes: %s', async (disabled, revokes) => {
-		await expect(userUpdateStatus.resolve(null, { _id, disabled })).resolves.toBe(true)
+		await expect(userUpdateStatus.resolve(null, { _id, disabled, disabledReason: 'Chargeback ring' }, ctx)).resolves.toBe(true)
 
 		if (revokes) expect(endEveryUserSession).toHaveBeenCalledExactlyOnceWith(_id)
 		else expect(endEveryUserSession).not.toHaveBeenCalled()
@@ -562,13 +685,15 @@ describe('userUpdateStatus', () => {
 		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
 		funUserUpdateStatus.mockImplementationOnce(() => throwNotFoundError('user not found'))
 
-		await rejection(userUpdateStatus.resolve(null, { _id, disabled: true }))
+		await rejection(userUpdateStatus.resolve(null, { _id, disabled: true, disabledReason: 'Chargeback ring' }, ctx))
 
 		expect(endEveryUserSession).not.toHaveBeenCalled()
 	})
 
 	it('revokes only after the status is written', async () => {
-		await expect(userUpdateStatus.resolve(null, { _id, disabled: true })).resolves.toBe(true)
+		await expect(userUpdateStatus.resolve(null, { _id, disabled: true, disabledReason: 'Chargeback ring' }, ctx)).resolves.toBe(
+			true
+		)
 
 		expect(endEveryUserSession.mock.invocationCallOrder[0]).toBeGreaterThan(funUserUpdateStatus.mock.invocationCallOrder[0])
 	})
@@ -578,7 +703,9 @@ describe('userUpdateStatus', () => {
 	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
 		endEveryUserSession.mockRejectedValueOnce(new Error('redis down'))
 
-		expect(await rejection(userUpdateStatus.resolve(null, { _id, disabled: true }))).toMatchObject({
+		expect(
+			await rejection(userUpdateStatus.resolve(null, { _id, disabled: true, disabledReason: 'Chargeback ring' }, ctx))
+		).toMatchObject({
 			message: 'Internal Server Error',
 			http: { status: 500 }
 		})
@@ -590,7 +717,9 @@ describe('userUpdateStatus', () => {
 	it('leaves the operator signed in', async () => {
 		endEverySession.mockReset()
 
-		await expect(userUpdateStatus.resolve(null, { _id, disabled: true })).resolves.toBe(true)
+		await expect(userUpdateStatus.resolve(null, { _id, disabled: true, disabledReason: 'Chargeback ring' }, ctx)).resolves.toBe(
+			true
+		)
 
 		expect(endEverySession).not.toHaveBeenCalled()
 	})
@@ -869,7 +998,7 @@ describe('keygripRotate', () => {
 	it('rotates on behalf of the session account and answers true', async () => {
 		await expect(keygripRotate.resolve(null, {}, ctx)).resolves.toBe(true)
 
-		expect(funKeygripRotate).toHaveBeenCalledExactlyOnceWith(_id)
+		expect(funKeygripRotate).toHaveBeenCalledExactlyOnceWith(adminId)
 	})
 
 	// "Somebody rotated a second ago" and "every key is still verifying cookies" are both 409s the operator
@@ -909,7 +1038,7 @@ describe('keygripRetire', () => {
 	it('retires the named key on behalf of the session account and answers true', async () => {
 		await expect(keygripRetire.resolve(null, { id: 'k2' }, ctx)).resolves.toBe(true)
 
-		expect(funKeygripRetire).toHaveBeenCalledExactlyOnceWith(_id, 'k2')
+		expect(funKeygripRetire).toHaveBeenCalledExactlyOnceWith(adminId, 'k2')
 	})
 
 	/*
