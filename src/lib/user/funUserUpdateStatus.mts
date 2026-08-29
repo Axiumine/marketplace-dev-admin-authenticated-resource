@@ -2,6 +2,16 @@ import { throwNotFoundError } from '@axiumine/koa-utils/graphQL/throw/throwNotFo
 import { User } from '@axiumine/marketplace-common/models/MongoDB/User'
 import { Types } from 'mongoose'
 
+/** One object rather than three positional arguments, for the reason `IShopOwnerStatus` gives. */
+export interface IUserStatus {
+	_id: Types.ObjectId
+	disabled: boolean
+	/** The operator making the change — `ctx.state.user._id`, never anything from the request body. */
+	adminId: Types.ObjectId
+	/** Present exactly when `disabled` is true; `validateDisabledReason` is what guarantees that. */
+	disabledReason?: string
+}
+
 /**
  * The one account flag an operator can flip on a customer: the disable switch.
  *
@@ -17,19 +27,30 @@ import { Types } from 'mongoose'
  * spellings of one state, which a later `{ disabled: { $exists: true } }` would read as "suspended".
  * `usersActiveTbl` already filters exactly that way.
  *
- * ⚠️ **`$set` is not usable on this collection for a field that is not `disabled`.** `user` is encrypted
- * whole (ADR-029), and a plaintext `$set` of an encrypted path would be refused by the validator's
- * `binData` declaration. `disabled` was never encrypted — it is a login gate the driver has to read
- * without a key — which is what makes this write a plain `updateOne` rather than a CSFLE round trip.
+ * ⚠️ **A suspension names its actor and its reason, and the three `disabled*` fields move together**
+ * (ADR-044) — the customer tier carries the identical trio, written and cleared as one. `disabledReason`
+ * is `ALGORITHM_RANDOM`-encrypted, and the plaintext in the `$set` below is ciphertext by the time it
+ * leaves the process: the model's plugin rewrites `$set` operands on the way past, which is what makes a
+ * plaintext write of an encrypted path on this collection correct rather than a validator rejection. What
+ * the plugin cannot rewrite is an aggregation-pipeline update, so this must stay an ordinary one.
+ *
+ * ⚠️ **No cascade here, and none is missing.** A customer owns no company and no item — the FK chain runs
+ * `shopOwner → company → item` and `user` sits outside it (ADR-045 touches nothing on this tier).
+ *
+ * ⚠️ **There is no closure counterpart on this tier for an operator to call.** A customer closes their own
+ * account through `funUserDel`, which stamps `deleted` and never touches any `disabled*` field: `deleted`
+ * is the subject giving the account up, `disabled` is the platform taking it away, and a path that could
+ * write the second could lift a sanction against itself.
  *
  * `matchedCount`, not `modifiedCount`: 0 matched means no such customer, which is a 404; a flag re-set to
  * the value it already held is still the state the operator asked for and not an error.
  */
-export async function funUserUpdateStatus(_id: Types.ObjectId, disabled: boolean) {
-	// `$set` and `$unset` are never both non-empty here — one flag, one branch — so no
-	// "Updating the path 'disabled' would create a conflict" is possible. An empty operator object is
-	// accepted by the driver and does nothing.
-	const update = disabled ? { $set: { disabled: true } } : { $unset: { disabled: 1 } }
+export async function funUserUpdateStatus({ _id, disabled, adminId, disabledReason }: IUserStatus) {
+	// `$set` and `$unset` are never both present here — one flag, one branch — so no
+	// "Updating the path 'disabled' would create a conflict" is possible.
+	const update = disabled
+		? { $set: { disabled: true, disabledBy: adminId, disabledReason: disabledReason } }
+		: { $unset: { disabled: 1, disabledBy: 1, disabledReason: 1 } }
 
 	const ret = await User.updateOne({ _id: _id }, update).exec()
 

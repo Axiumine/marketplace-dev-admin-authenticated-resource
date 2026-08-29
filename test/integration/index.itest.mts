@@ -87,7 +87,10 @@ async function withSession(email = 'operator@marketplace.test', _id = new mongoo
 	// 403 and every test built on this helper fails at the guard instead of reaching its resolver.
 	await redisClient.hSet(key, { _id: _id.toHexString(), email, tier: TIER.admin })
 
+	// `_id` is handed back because ADR-044 makes it an assertable output: `disabledBy` and `deletedBy` are
+	// written from `ctx.state.user._id`, which is this field of this hash and nothing the request can name.
 	return {
+		_id,
 		headers: { authorization: `Bearer ${token}` },
 		cleanup: () => redisClient.del(key)
 	}
@@ -162,6 +165,7 @@ const PASSWORD_HASH = `$2y$14$${'x'.repeat(53)}`
 
 const seededIds: mongoose.Types.ObjectId[] = []
 const seededCompanies: mongoose.Types.ObjectId[] = []
+const seededItems: mongoose.Types.ObjectId[] = []
 const seededAdmins: mongoose.Types.ObjectId[] = []
 const seededUsers: mongoose.Types.ObjectId[] = []
 const seededKeys: string[] = []
@@ -196,6 +200,20 @@ async function decrypted<T>(doc: T): Promise<T> {
 async function shopOwnerEmailFilter(email: string) {
 	return { 'login.email': await encryptValue(email, ALGORITHM_DETERMINISTIC, KEY_ALT_NAME_SHOP_OWNER) }
 }
+
+/**
+ * The suspension a seed carries, on either account collection.
+ *
+ * ⚠️ **`disabledReason` is not optional beside `disabled: true`.** The validator rule
+ * `dependencies: { disabled: ['disabledReason'] }` (ADR-044) makes a reasonless suspension a
+ * `Document failed validation` at insert time, so a seed that parks an account has to carry one — and
+ * both seeds run `encryptDocument`, which covers the field on both tiers.
+ *
+ * `disabledBy` is deliberately absent: it is an operator id, and a seed has no operator. The rule asserts
+ * the reason only, so a suspension without an actor still inserts — which is also the shape a
+ * pre-ADR-044 document has on a real cluster.
+ */
+const SUSPENDED = { disabled: true, disabledReason: 'itest suspension' }
 
 /**
  * Inserted with the raw driver rather than the Mongoose model, the platform seeding convention:
@@ -264,7 +282,7 @@ const ADDRESS_SEED = {
  * The VAT number comes from the shared counter rather than from the id, so the seeded value is one the
  * validator would also accept back: `SHAPE_VAT_NUMBER` is `/^\d{11}$/` and a hex slice is not eleven digits.
  */
-async function seedCompany(idShopOwner: mongoose.Types.ObjectId) {
+async function seedCompany(idShopOwner: mongoose.Types.ObjectId, extra: Record<string, unknown> = {}) {
 	const _id = new mongoose.Types.ObjectId()
 	const legalName = `Itest Boutique ${randomUUID()}`
 
@@ -288,7 +306,8 @@ async function seedCompany(idShopOwner: mongoose.Types.ObjectId) {
 					// collection's `$expr` demands them only of a published document, and `slug` carries a unique index
 					// a fixed literal would collide on.
 					published: false,
-					registryExtract: 'itest-registryExtract'
+					registryExtract: 'itest-registryExtract',
+					...extra
 				},
 				ENCRYPTED_FIELDS_COMPANY,
 				KEY_ALT_NAME_COMPANY
@@ -297,6 +316,49 @@ async function seedCompany(idShopOwner: mongoose.Types.ObjectId) {
 	seededCompanies.push(_id)
 
 	return { _id, legalName }
+}
+
+/**
+ * A live storefront under one shop owner: a published company with a published item in it. What ADR-045's
+ * cascade has to take down when the owner is suspended or closed.
+ *
+ * ⚠️ **Published is the whole point of the fixture, and it is not the default `seedCompany` writes.** A
+ * company that was already `published: false` would satisfy every assertion below without the cascade
+ * running at all, so the seed states the live state explicitly — and with it `publicName` and `slug`,
+ * which the collection's `$expr` demands of a published document and of no other.
+ *
+ * `item` is seeded raw and unencrypted: nothing on it is personal data, so it carries no `binData` and no
+ * `KEY_ALT_NAME`. `idCategory` names no real `itemCategory` on purpose — the FK is unenforced by the
+ * database on this collection, and the cascade filters on `idCompany` alone.
+ */
+async function seedStorefront(idShopOwner: mongoose.Types.ObjectId) {
+	const slug = `itest-shop-${randomUUID()}`
+	const company = await seedCompany(idShopOwner, { published: true, publicName: `Itest Storefront ${slug}`, slug })
+
+	const _id = new mongoose.Types.ObjectId()
+
+	await db()
+		.collection('item')
+		.insertOne({
+			_id,
+			idCompany: company._id,
+			idCategory: new mongoose.Types.ObjectId(),
+			name: 'Itest Item',
+			description: 'Seeded by the cascade tests.',
+			slug: `itest-item-${randomUUID()}`,
+			published: true
+		})
+	seededItems.push(_id)
+
+	return { company: company._id, item: _id }
+}
+
+/** `published` as the two collections hold it right now, which is the only thing the cascade changes. */
+async function storefrontPublished({ company, item }: { company: mongoose.Types.ObjectId; item: mongoose.Types.ObjectId }) {
+	return {
+		company: (await db().collection('company').findOne({ _id: company }))?.published,
+		item: (await db().collection('item').findOne({ _id: item }))?.published
+	}
 }
 
 /**
@@ -413,6 +475,9 @@ afterAll(async () => {
 	// session key. One del per key — this is a cluster, so a multi-key del would CROSSSLOT.
 	for (const _id of seededIds) {
 		await drainSafely(`shopOwner ${_id.toString()}`, () => db().collection('shopOwner').deleteOne({ _id }))
+	}
+	for (const _id of seededItems) {
+		await drainSafely(`item ${_id.toString()}`, () => db().collection('item').deleteOne({ _id }))
 	}
 	for (const _id of seededCompanies) {
 		await drainSafely(`company ${_id.toString()}`, () => db().collection('company').deleteOne({ _id }))
@@ -594,7 +659,7 @@ describe('GraphQL over HTTP', () => {
 	it('lists the active shopOwners and leaves a disabled one out', async () => {
 		const session = await withSession()
 		const activeOwner = await seedShopOwner()
-		const disabledOwner = await seedShopOwner({ disabled: true })
+		const disabledOwner = await seedShopOwner(SUSPENDED)
 
 		try {
 			const { json } = await gql('{ shopOwnersActiveTbl { items { _id } total } }', session.headers)
@@ -723,7 +788,7 @@ describe('GraphQL over HTTP', () => {
 	it('lists the live customers, leaves a disabled one out, and hands the address back decrypted', async () => {
 		const session = await withSession()
 		const active = await seedUser()
-		const disabled = await seedUser({ disabled: true })
+		const disabled = await seedUser(SUSPENDED)
 
 		try {
 			const { json } = await gql('{ usersActiveTbl { items { _id email } total } }', session.headers)
@@ -922,12 +987,17 @@ describe('GraphQL over HTTP', () => {
 })
 
 describe('shopOwnerDel mutation (real write, re-read by the raw driver)', () => {
-	// funShopOwnerDelete only ever touches `deleted`/`waitApprov` — it never assigns
+	// funShopOwnerDelete only ever touches `deleted`/`deletedBy`/`waitApprov` — it never assigns
 	// `personalData`, so it does not hit the model/validator mismatch below (see shopOwnerAdd and
 	// shopOwnerUpdate). It is the one mutation this suite can drive to a genuinely successful
 	// write, and re-reading through the raw driver is what proves the $set/$unset really landed on
 	// the server rather than only on a mocked query builder.
-	it('soft-deletes a real shopOwner: deleted becomes a real Date, waitApprov is dropped', async () => {
+	//
+	// ⚠️ **`deletedBy` is the field that makes the kept document readable a year later** (ADR-044): a
+	// closure the platform performed and one the holder performed leave the same `deleted` stamp, and the
+	// presence of an actor is the only thing that separates them. It is asserted against the session's own
+	// `_id` rather than against "some ObjectId", because the whole point is that it is *that* operator.
+	it('soft-deletes a real shopOwner: deleted becomes a real Date, the operator is named, waitApprov is dropped', async () => {
 		const session = await withSession()
 		const { _id } = await seedShopOwner({ waitApprov: true })
 
@@ -940,29 +1010,111 @@ describe('shopOwnerDel mutation (real write, re-read by the raw driver)', () => 
 
 			const updated = await db().collection('shopOwner').findOne({ _id })
 			expect(updated?.deleted).toBeInstanceOf(Date)
+			expect(updated?.deletedBy).toEqual(session._id)
 			expect(updated).not.toHaveProperty('waitApprov')
 		} finally {
 			await session.cleanup()
 		}
 	})
 
-	// The other half of funShopOwnerDelete: the server really reports modifiedCount 0, and that
-	// is what turns into the 500 — not a mocked updateOne returning a hand-written result object.
-	// This is also the only case that drives shopOwnerDel's own catch arm.
-	it('answers 500 when the _id matches no shopOwner, and writes nothing', async () => {
+	/*
+	 * ⚠️ **A second closure must not move the stamp.** The retention window is measured from `deleted`, and
+	 * ADR-046 makes those thirty days an undo window the holder can still use — so a re-close of an already
+	 * closed account would silently hand it another month of life and push the scrub back. The guard is the
+	 * `deleted: { $exists: false }` clause in the filter, which turns the second call into 0 matched.
+	 *
+	 * The answer is the same 404 an unknown id gets, and deliberately so: from the operator's side both are
+	 * "there is no open account with this id", and the API has no reason to tell an operator which of the
+	 * two it was.
+	 */
+	it('refuses to re-close an account already closed, leaving the first stamp where it was', async () => {
+		const session = await withSession()
+		const { _id } = await seedShopOwner()
+
+		try {
+			expect((await gql(`mutation { shopOwnerDel(_id: "${_id.toHexString()}") }`, session.headers)).json.errors).toBeUndefined()
+
+			const first = (await db().collection('shopOwner').findOne({ _id }))?.deleted
+
+			const { status, json } = await gql(`mutation { shopOwnerDel(_id: "${_id.toHexString()}") }`, session.headers)
+
+			expect(status).toBe(404)
+			expect(json.errors?.[0]?.message).toBe('Oops')
+			expect((await db().collection('shopOwner').findOne({ _id }))?.deleted).toEqual(first)
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	// The other half of funShopOwnerDelete: the server really reports 0 matched, and that is what turns
+	// into the 404 — not a mocked updateOne returning a hand-written result object. This is also the only
+	// case that drives shopOwnerDel's own catch arm.
+	//
+	// ⚠️ **It used to be a 500, and the change is deliberate.** An id naming no open account is something
+	// the operator sent — a stale row in a table left open in another tab — and nothing on the server went
+	// wrong when it arrived. A 500 tells the operator app to report an outage over a request it could have
+	// answered honestly.
+	it('answers 404 when the _id matches no shopOwner, and writes nothing', async () => {
 		const session = await withSession()
 		const missing = new mongoose.Types.ObjectId()
 
 		try {
 			const { status, json } = await gql(`mutation { shopOwnerDel(_id: "${missing.toHexString()}") }`, session.headers)
 
-			// throwInternalError carries an http extension, so this one leaves as a real 500 —
+			// throwNotFoundError carries an http extension, so this one leaves as a real 404 —
 			// unlike the validator-driven failures above, which Apollo answers 200-with-errors.
-			expect(status).toBe(500)
-			expect(json.errors?.[0]?.message).toBe('Internal Server Error')
+			expect(status).toBe(404)
+			expect(json.errors?.[0]?.message).toBe('Oops')
 			expect(json.data?.shopOwnerDel).toBeUndefined()
 
 			expect(await db().collection('shopOwner').findOne({ _id: missing })).toBeNull()
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	/*
+	 * ADR-045 on the real cluster, and the half no unit test can prove: the company and the item come down
+	 * in the *same transaction* as the stamp, against a real replica set. The mocked session in
+	 * `shopOwnerLib.test.mts` asserts that the calls were threaded through one — it cannot assert that the
+	 * server accepted the transaction, which is a different claim and the one that has broken before.
+	 *
+	 * Both documents are asserted live first. A cascade that ran over an already-unpublished storefront and
+	 * a cascade that did not run at all leave exactly the same two documents behind.
+	 */
+	it('takes the whole storefront down with the account: company and item both unpublish', async () => {
+		const session = await withSession()
+		const { _id } = await seedShopOwner()
+		const storefront = await seedStorefront(_id)
+
+		try {
+			expect(await storefrontPublished(storefront)).toEqual({ company: true, item: true })
+
+			const { json } = await gql(`mutation { shopOwnerDel(_id: "${_id.toHexString()}") }`, session.headers)
+			expect(json.errors).toBeUndefined()
+
+			expect(await storefrontPublished(storefront)).toEqual({ company: false, item: false })
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	// The cascade is scoped by the FK and by nothing else. Two owners seeded side by side is the cheapest
+	// way to catch a filter that lost its `idShopOwner`/`idCompany` clause — an `updateMany({})` would pass
+	// every assertion in the test above and take the entire platform offline on the first real closure.
+	it('unpublishes only the storefront of the account it closed', async () => {
+		const session = await withSession()
+		const { _id } = await seedShopOwner()
+		const stranger = await seedShopOwner()
+		const mine = await seedStorefront(_id)
+		const theirs = await seedStorefront(stranger._id)
+
+		try {
+			const { json } = await gql(`mutation { shopOwnerDel(_id: "${_id.toHexString()}") }`, session.headers)
+			expect(json.errors).toBeUndefined()
+
+			expect(await storefrontPublished(mine)).toEqual({ company: false, item: false })
+			expect(await storefrontPublished(theirs)).toEqual({ company: true, item: true })
 		} finally {
 			await session.cleanup()
 		}
@@ -1231,17 +1383,28 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 		}
 	})
 
-	// Both flags are absent-or-true in the collection, never `false`, so switching one off has to remove
-	// the key. A `$set: { disabled: false }` would validate and read back as "not disabled" too — and
-	// then `waitApprov: { $exists: true }`, which is how the approval queue is built, would list an
-	// account nobody is waiting on.
-	it('shopOwnerUpdateStatus: stores both flags, then removes them rather than storing false', async () => {
+	/*
+	 * Both flags are absent-or-true in the collection, never `false`, so switching one off has to remove
+	 * the key. A `$set: { disabled: false }` would validate and read back as "not disabled" too — and
+	 * then `waitApprov: { $exists: true }`, which is how the approval queue is built, would list an
+	 * account nobody is waiting on.
+	 *
+	 * ⚠️ **`disabledBy` and `disabledReason` move with `disabled` and are asserted on both edges** — the
+	 * three are one fact spelled across three fields (ADR-044), and the release is where they come apart:
+	 * a `$unset` that forgot the other two would leave a live account carrying a suspension reason and the
+	 * name of whoever imposed it, which then reads as evidence of a suspension that is not in force. The
+	 * validator cannot catch that — `dependencies` constrains a document that *has* `disabled`, and this
+	 * one no longer does.
+	 */
+	it('shopOwnerUpdateStatus: stores the trio and both flags, then removes them rather than storing false', async () => {
 		const session = await withSession()
 		const { _id } = await seedShopOwner()
 
 		function status(disabled: boolean, waitApprov: boolean) {
+			const reason = disabled ? ', disabledReason: "Fake registry extract"' : ''
+
 			return gql(
-				`mutation { shopOwnerUpdateStatus(_id: "${_id.toHexString()}", disabled: ${disabled}, waitApprov: ${waitApprov}) }`,
+				`mutation { shopOwnerUpdateStatus(_id: "${_id.toHexString()}", disabled: ${disabled}, waitApprov: ${waitApprov}${reason}) }`,
 				session.headers
 			)
 		}
@@ -1249,15 +1412,79 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 		try {
 			expect((await status(true, true)).json.data?.shopOwnerUpdateStatus).toBe(true)
 
-			const flagsOn = await db().collection('shopOwner').findOne({ _id })
+			const flagsOn = await decrypted(await db().collection('shopOwner').findOne({ _id }))
 			expect(flagsOn?.disabled).toBe(true)
 			expect(flagsOn?.waitApprov).toBe(true)
+			expect(flagsOn?.disabledBy).toEqual(session._id)
+			expect(flagsOn?.disabledReason).toBe('Fake registry extract')
 
 			expect((await status(false, false)).json.errors).toBeUndefined()
 
 			const flagsOff = await db().collection('shopOwner').findOne({ _id })
 			expect(flagsOff).not.toHaveProperty('disabled')
 			expect(flagsOff).not.toHaveProperty('waitApprov')
+			expect(flagsOff).not.toHaveProperty('disabledBy')
+			expect(flagsOff).not.toHaveProperty('disabledReason')
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	/*
+	 * The conditional argument, refused on the real endpoint. `disabledReason` is nullable on the wire
+	 * because graphql-js cannot say "required when this other argument is true", so the whole contract is
+	 * `validateDisabledReason` and the 400 it raises — and the assertion that matters is the second one:
+	 * **nothing was written.** A suspension that reached the collection and then failed validation would be
+	 * refused by `dependencies` anyway, as a 500; a suspension that reached it *with* a reason the service
+	 * never checked would be a 1000-character cap that does not exist.
+	 */
+	it('shopOwnerUpdateStatus: refuses a suspension carrying no reason, and parks nobody', async () => {
+		const session = await withSession()
+		const { _id } = await seedShopOwner()
+
+		try {
+			const { status, json } = await gql(
+				`mutation { shopOwnerUpdateStatus(_id: "${_id.toHexString()}", disabled: true, waitApprov: false) }`,
+				session.headers
+			)
+
+			expect(status).toBe(400)
+			expect(json.errors?.[0]?.message).toBe('Bad Request')
+			expect(json.errors?.[0]?.extensions?.description).toBe('disabledReason: field required')
+
+			expect(await db().collection('shopOwner').findOne({ _id })).not.toHaveProperty('disabled')
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	/*
+	 * ADR-045 through the suspension path, on the real cluster: a parked owner is a shop the public cannot
+	 * reach, which takes the company and every item under it down in the same transaction as the flag.
+	 *
+	 * ⚠️ **Releasing the account restores nothing, and the third assertion is the whole rule.** ADR-045's
+	 * amendment is explicit that there is no automatic republish: the platform cannot know which of the
+	 * items were drafts before the suspension and which were live, and guessing wrong puts a page back on
+	 * the public internet that its owner had taken down. The owner republishes what they want back.
+	 */
+	it('shopOwnerUpdateStatus: parking unpublishes the storefront, and releasing leaves it down', async () => {
+		const session = await withSession()
+		const { _id } = await seedShopOwner()
+		const storefront = await seedStorefront(_id)
+
+		const status = (extra: string) =>
+			gql(`mutation { shopOwnerUpdateStatus(_id: "${_id.toHexString()}", ${extra}) }`, session.headers)
+
+		try {
+			expect(await storefrontPublished(storefront)).toEqual({ company: true, item: true })
+
+			expect(
+				(await status('disabled: true, waitApprov: false, disabledReason: "Fake registry extract"')).json.errors
+			).toBeUndefined()
+			expect(await storefrontPublished(storefront)).toEqual({ company: false, item: false })
+
+			expect((await status('disabled: false, waitApprov: false')).json.errors).toBeUndefined()
+			expect(await storefrontPublished(storefront)).toEqual({ company: false, item: false })
 		} finally {
 			await session.cleanup()
 		}
@@ -1288,7 +1515,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 			expect(Object.keys(await redisClient.hGetAll(index))).toHaveLength(1)
 
 			const { json } = await gql(
-				`mutation { shopOwnerUpdateStatus(_id: "${_id.toHexString()}", disabled: true, waitApprov: false) }`,
+				`mutation { shopOwnerUpdateStatus(_id: "${_id.toHexString()}", disabled: true, waitApprov: false, disabledReason: "Fake registry extract") }`,
 				session.headers
 			)
 			expect(json.data?.shopOwnerUpdateStatus).toBe(true)
@@ -1304,7 +1531,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 	// leave whoever is signed in signed in. Nothing revokes on the way out of a parked state.
 	it('shopOwnerUpdateStatus: releasing an account leaves its live sessions alone', async () => {
 		const session = await withSession()
-		const { _id } = await seedShopOwner({ disabled: true, waitApprov: true })
+		const { _id } = await seedShopOwner({ ...SUSPENDED, waitApprov: true })
 		const { key, index } = await seedShopOwnerSession(_id)
 
 		try {
@@ -1396,32 +1623,78 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
  * by construction.
  */
 describe('userUpdateStatus mutation (real user collection, real session index)', () => {
+	/** A suspension carries a reason and a release carries none — `validateDisabledReason` refuses the rest. */
 	function updateStatus(_id: mongoose.Types.ObjectId, disabled: boolean, headers: Record<string, string>) {
-		return gql(`mutation { userUpdateStatus(_id: "${_id.toHexString()}", disabled: ${disabled}) }`, headers)
+		const reason = disabled ? ', disabledReason: "Chargeback ring"' : ''
+
+		return gql(`mutation { userUpdateStatus(_id: "${_id.toHexString()}", disabled: ${disabled}${reason}) }`, headers)
 	}
 
-	// The flag is absent-or-true, never `false`, exactly as it is on `shopOwner` — and here the second
-	// spelling would be visible in the operator's own table within a page load: `usersActiveTbl` selects
-	// the live customers with `{disabled: {$exists: false}}`, so a stored `false` would drop every
-	// re-enabled customer off the default page and list them among the suspended.
-	it('stores the flag, then removes it rather than storing false', async () => {
+	/*
+	 * The flag is absent-or-true, never `false`, exactly as it is on `shopOwner` — and here the second
+	 * spelling would be visible in the operator's own table within a page load: `usersActiveTbl` selects
+	 * the live customers with `{disabled: {$exists: false}}`, so a stored `false` would drop every
+	 * re-enabled customer off the default page and list them among the suspended.
+	 *
+	 * ⚠️ **All three of `disabled`, `disabledBy` and `disabledReason` move together** (ADR-044), and the
+	 * release edge is where they can come apart: a `$unset` naming only the flag would leave a live
+	 * customer carrying a suspension reason and the name of whoever imposed it. `dependencies` cannot
+	 * catch that — it constrains a document that *has* `disabled`, and this one no longer does.
+	 */
+	it('stores the trio, then removes it rather than storing false', async () => {
 		const session = await withSession()
 		const { _id } = await seedUser()
 
 		try {
 			expect((await updateStatus(_id, true, session.headers)).json.data?.userUpdateStatus).toBe(true)
-			expect((await db().collection('user').findOne({ _id }))?.disabled).toBe(true)
+
+			const suspended = await decrypted(await db().collection('user').findOne({ _id }))
+			expect(suspended?.disabled).toBe(true)
+			expect(suspended?.disabledBy).toEqual(session._id)
+			expect(suspended?.disabledReason).toBe('Chargeback ring')
 
 			expect((await updateStatus(_id, false, session.headers)).json.errors).toBeUndefined()
+
+			const released = await db().collection('user').findOne({ _id })
+			expect(released).not.toHaveProperty('disabled')
+			expect(released).not.toHaveProperty('disabledBy')
+			expect(released).not.toHaveProperty('disabledReason')
+		} finally {
+			await session.cleanup()
+		}
+	})
+
+	/*
+	 * The conditional argument on the customer tier, refused on the real endpoint. `disabledReason` is
+	 * nullable on the wire because graphql-js cannot say "required when this other argument is true", so
+	 * the contract is `validateDisabledReason` and the 400 it raises — and the second assertion is the one
+	 * that matters: nothing was written, so a customer is never parked by a request the service refused.
+	 */
+	it('refuses a suspension carrying no reason, and suspends nobody', async () => {
+		const session = await withSession()
+		const { _id } = await seedUser()
+
+		try {
+			const { status, json } = await gql(
+				`mutation { userUpdateStatus(_id: "${_id.toHexString()}", disabled: true) }`,
+				session.headers
+			)
+
+			expect(status).toBe(400)
+			expect(json.errors?.[0]?.message).toBe('Bad Request')
+			expect(json.errors?.[0]?.extensions?.description).toBe('disabledReason: field required')
+
 			expect(await db().collection('user').findOne({ _id })).not.toHaveProperty('disabled')
 		} finally {
 			await session.cleanup()
 		}
 	})
 
-	// ⚠️ The write names `disabled` and nothing else. `user` is encrypted whole, so a write that reached
-	// any other path would either be refused by the validator's `binData` declaration or — worse — store
-	// readable plaintext in a collection whose whole premise is that it holds none.
+	// ⚠️ The write names the `disabled` trio and nothing else. `user` is encrypted whole, so a write that
+	// reached any other path would either be refused by the validator's `binData` declaration or — worse —
+	// store readable plaintext in a collection whose whole premise is that it holds none. `disabledReason`
+	// is the one encrypted field it may name, and the model's plugin turns that `$set` operand into
+	// ciphertext on the way past — which is why the assertion above has to go through `decrypted`.
 	it('leaves the encrypted document exactly as it found it', async () => {
 		const session = await withSession()
 		const { _id, email } = await seedUser()
@@ -1478,7 +1751,7 @@ describe('userUpdateStatus mutation (real user collection, real session index)',
 	// signed in. Nothing revokes on the way out of a suspension.
 	it('re-enabling a customer leaves their live sessions alone', async () => {
 		const session = await withSession()
-		const { _id } = await seedUser({ disabled: true })
+		const { _id } = await seedUser(SUSPENDED)
 		const { key, index } = await seedUserSession(_id)
 
 		try {

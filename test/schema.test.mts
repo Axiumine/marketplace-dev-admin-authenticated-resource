@@ -144,11 +144,20 @@ describe('schema', () => {
 			['_id', 'rememberMe', 'onboardingDone', 'onboardingStep'],
 			'updates the login preferences of the shopOwner'
 		],
-		['shopOwnerUpdateStatus', ['_id', 'disabled', 'waitApprov'], 'updates the status of the shopOwner account'],
-		// ⚠️ Two arguments where the shop owner's takes three, and the missing one is not an omission:
+		// ⚠️ `disabledReason` is the one nullable argument on either status mutation, and it is nullable
+		// because its requirement is conditional — mandatory beside `disabled: true`, meaningless beside
+		// `disabled: false` — which graphql-js cannot express. `validateDisabledReason` is the whole
+		// contract for it; making it `String!` here would make releasing an account impossible without
+		// inventing a reason for it.
+		[
+			'shopOwnerUpdateStatus',
+			['_id', 'disabled', 'waitApprov', 'disabledReason'],
+			'updates the status of the shopOwner account'
+		],
+		// ⚠️ Three arguments where the shop owner's takes four, and the missing one is not an omission:
 		// `user` gets no approval gate, ever (`phase5/CUSTOMER_ACCOUNT_ADDRESSES.md` §6). A `waitApprov` here would be a lever
 		// nothing on the customer's own tier reads.
-		['userUpdateStatus', ['_id', 'disabled'], 'updates the status of the user account'],
+		['userUpdateStatus', ['_id', 'disabled', 'disabledReason'], 'updates the status of the user account'],
 		// `idShopOwner` sits beside the input object on the create, and is absent from the update: a
 		// company cannot be handed to another owner by saving its card. The schema is where that is
 		// enforced — the resolver never sees an argument the type system does not declare.

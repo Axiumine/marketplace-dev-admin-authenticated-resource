@@ -25,6 +25,8 @@ const { validateShopOwnerPersonalData } = await import('../src/lib/validate/vali
 
 const { validateShopOwnerNote } = await import('../src/lib/validate/validateShopOwnerNote.mts')
 
+const { validateDisabledReason, MAX_DISABLED_REASON } = await import('../src/lib/validate/validateDisabledReason.mts')
+
 const { validateCompany } = await import('../src/lib/validate/validateCompany.mts')
 
 const { validateAddress } = await import('../src/lib/validate/validateAddress.mts')
@@ -456,6 +458,56 @@ describe('validateShopOwnerPersonalData', () => {
 		} as never
 
 		expect(reason(() => validateShopOwnerPersonalData(personalData, today))).toBe(expected)
+	})
+})
+
+describe('validateDisabledReason', () => {
+	it('returns the reason trimmed when the account is being suspended', () => {
+		expect(validateDisabledReason(true, '  Repeated chargebacks  ')).toBe('Repeated chargebacks')
+	})
+
+	/*
+	 * ⚠️ **A suspension owes a sentence, and the empty spellings are one case.** ADR-044's whole point is
+	 * that the account can say why, and the collection cannot help: `dependencies` asserts the field is
+	 * present and reads nothing, so `''` would satisfy it. `requiredText` is what refuses all four.
+	 */
+	it.each([[''], ['   '], [null], [undefined]])('refuses %p beside disabled: true', (reasonText) => {
+		expect(reason(() => validateDisabledReason(true, reasonText))).toBe('disabledReason: field required')
+	})
+
+	/*
+	 * ⚠️ **A reason sent with a release is dropped, not refused.** The mutation's contract is a target
+	 * state rather than a transition, so a form that kept its textarea populated while the operator
+	 * unticked the box is describing "not suspended" — and answering that with a 400 would be the service
+	 * arguing with a request it understood. `undefined` is what `funShopOwnerUpdateStatus` turns into the
+	 * `$unset` that clears the stored reason.
+	 */
+	it.each([['Repeated chargebacks'], [''], [null], [undefined]])('discards %p beside disabled: false', (reasonText) => {
+		expect(validateDisabledReason(false, reasonText)).toBeUndefined()
+	})
+
+	it('accepts a reason of exactly 1000 characters', () => {
+		expect(validateDisabledReason(true, 'a'.repeat(MAX_DISABLED_REASON))).toHaveLength(MAX_DISABLED_REASON)
+	})
+
+	/*
+	 * ⚠️ **This service is the only thing enforcing the cap on the platform.** `disabledReason` is
+	 * `ALGORITHM_RANDOM`-encrypted, so it reaches MongoDB as `binData` and `$jsonSchema` admits no
+	 * `maxLength` on a blob — a write that bypasses this function can exceed 1000 and nothing downstream
+	 * will notice.
+	 */
+	it('refuses a reason over the cap', () => {
+		expect(reason(() => validateDisabledReason(true, 'a'.repeat(MAX_DISABLED_REASON + 1)))).toBe(
+			'disabledReason: max 1000 characters'
+		)
+	})
+
+	it('raises a 400 rather than a generic failure', () => {
+		expect(failure(() => validateDisabledReason(true, ''))).toEqual({
+			message: 'Bad Request',
+			http: { status: 400 },
+			description: 'disabledReason: field required'
+		})
 	})
 })
 
