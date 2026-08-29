@@ -13,6 +13,7 @@ const initClamScan = vi.fn()
 const setupFieldEncryption = vi.fn()
 const disconnectAllDatabases = vi.fn()
 const hGetAll = vi.fn()
+const startRetentionSweeper = vi.fn()
 
 vi.mock('@sentry/node', () => ({ captureException, captureMessage }))
 // redisClient.hGetAll backs the real (non-introspection) auth path exercised below by
@@ -26,6 +27,11 @@ vi.mock('@axiumine/koa-utils/files/scanVirus', () => ({ initClamScan }))
 // that start() calls it, and calls it after the connection it borrows exists.
 vi.mock('@axiumine/marketplace-common/encryption/setupFieldEncryption', () => ({ setupFieldEncryption }))
 vi.mock('@lib/db/disconnectAllDatabases.mjs', () => ({ disconnectAllDatabases }))
+// Mocked because the real one arms an hourly interval and fires a sweep immediately, against a
+// MongoDB nothing has connected here — every start() in this file would leave a background job
+// buffering writes behind it. Its own behaviour is covered by test/startRetentionSweeper.test.mts;
+// what start() owes is only the call, in the right place, on a boot that actually completed.
+vi.mock('@lib/retention/startRetentionSweeper.mjs', () => ({ startRetentionSweeper }))
 // Spies on the real ApolloServerPluginDrainHttpServer (delegates to the actual implementation via
 // importOriginal, so every other test here still gets genuine drain behaviour) purely so the
 // "wires ApolloServerPluginDrainHttpServer" test below can assert it was actually called with the
@@ -228,6 +234,7 @@ describe('start (failure path)', () => {
 		MongoDBConnect.mockReset().mockResolvedValue(undefined)
 		initClamScan.mockReset().mockResolvedValue(undefined)
 		setupFieldEncryption.mockReset().mockResolvedValue(undefined)
+		startRetentionSweeper.mockReset()
 		for (const k of REQUIRED_ENV_VARS) vi.stubEnv(k, 'x')
 		errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 	})
@@ -273,6 +280,10 @@ describe('start (failure path)', () => {
 		expect(setupFieldEncryption).toHaveBeenCalledTimes(1)
 		expect(captureException).toHaveBeenCalledWith(error)
 		expect(disconnectAllDatabases).toHaveBeenCalledWith(1)
+		// ⚠️ And the retention scrub is NOT armed. It is the one background job in this process that
+		// overwrites personal data, and it must never run on a connection whose encryption failed to
+		// start: an unencrypted sweep would write readable placeholders into `binData` paths.
+		expect(startRetentionSweeper).not.toHaveBeenCalled()
 	})
 
 	// Unique to the resource tier: uploads are scanned, so a missing clamd is a boot failure and
@@ -455,6 +466,7 @@ describe('start (success path)', () => {
 		MongoDBConnect.mockReset().mockResolvedValue(undefined)
 		initClamScan.mockReset().mockResolvedValue(undefined)
 		setupFieldEncryption.mockReset().mockResolvedValue(undefined)
+		startRetentionSweeper.mockReset()
 		for (const k of REQUIRED_ENV_VARS) vi.stubEnv(k, 'x')
 		// Real listen() options, unlike the failure-path block above: this test actually binds a
 		// socket, so PORT needs a value Node can listen on rather than the placeholder 'x'.
@@ -475,6 +487,10 @@ describe('start (success path)', () => {
 		// opened, and both its variables from the environment. An argument here would mean a second
 		// client and a second connection pool for the same cluster.
 		expect(setupFieldEncryption).toHaveBeenCalledExactlyOnceWith()
+		// ⚠️ ADR-041's erasure has no scheduler outside this process: if start() stops arming it, nothing
+		// anywhere reports that day-30 scrubbing has stopped, and closed accounts keep their data for ever
+		// while every deploy looks healthy. Called with nothing — it reads its own clock per sweep.
+		expect(startRetentionSweeper).toHaveBeenCalledExactlyOnceWith()
 		expect(server?.httpServer.listening).toBe(true)
 		// Asserting the exact options object listen() receives — not just that the server ends up
 		// listening — is what proves `{ port }` alone travelled through unmodified: a mutant that

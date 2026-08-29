@@ -15,6 +15,13 @@ import {
 } from '@axiumine/marketplace-common/encryption/encryptedFields'
 import { ALGORITHM_DETERMINISTIC } from '@axiumine/marketplace-common/encryption/EncryptionAlgorithm'
 import { encryptValue } from '@axiumine/marketplace-common/encryption/fieldEncryption'
+import {
+	SCRUBBED_DISABLED_REASON,
+	SCRUBBED_FIRST_NAME,
+	SCRUBBED_LAST_NAME,
+	SCRUBBED_PASSWORD_HASH,
+	scrubbedEmail
+} from '@axiumine/marketplace-common/others/accountScrub'
 import { recordReuseEvent } from '@axiumine/marketplace-common/others/recordReuseEvent'
 import {
 	indexSession,
@@ -36,6 +43,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 dotenv.config()
 
 import { ENDPOINT } from '../../src/index.mts'
+import { retentionCutoff, retentionSweep } from '../../src/lib/retention/retentionSweep.mts'
 import { bootServer } from './bootServer.mts'
 
 const REDIS_KEY = process.env.REDIS_KEY as string
@@ -2774,5 +2782,116 @@ describe('session console (real sessions, real index, real reuse trail)', () => 
 		} finally {
 			await session.cleanup()
 		}
+	})
+})
+
+/****************************************************************************************
+ * The retention scrub, against real collections (ADR-041).
+ *
+ * ⚠️ **This block is required by the ADR, and a unit test cannot replace it.** `sanitizeFilter` is
+ * on process-wide: an unwrapped `$`-keyed filter value is rewritten to `{ $eq: { $lte: … } }`, which
+ * matches nothing for ever while the sweep reports success on every run. A test that asserted the
+ * filter object would agree with that mutant; only a real `find` against a real collection can tell
+ * a working sweep from a permanent no-op.
+ *
+ * It also proves the half nothing else can: that the update `buildAccountScrub` produces is one the
+ * collection validators accept, through the encryption plugin, on both collections and on a suspended
+ * document — the case `dependencies: { disabled: ['disabledReason'] }` would refuse.
+ *
+ * ⚠️ **Deliberately last in this file.** It is the one thing here that writes documents it did not
+ * seed: every closed account in the throwaway database older than the window is a candidate, including
+ * ones earlier blocks left behind. That is why the expected counts are read off the collections with
+ * the raw driver — which does not pass through `sanitizeFilter` — rather than written as literals.
+ ****************************************************************************************/
+describe('retention sweep (real scrub, real collections, real validators)', () => {
+	const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+
+	/** The same two clauses the sweeper uses, spelled for the raw driver so nothing sanitises them. */
+	const candidateFilter = (cutoff: Date) => ({ deleted: { $lte: cutoff }, scrubbedAt: { $exists: false } })
+
+	it('overwrites a closed account past its window, spares one still inside it, and never scrubs the same document twice', async () => {
+		// The boot in `beforeAll` armed the real sweeper, which took the fleet lock with a one-hour TTL and
+		// releases it by design never. Registered for the afterAll drain like every other key this file
+		// writes, or it sits in the shared itest namespace for the hour and no later run can read it back.
+		seededKeys.push(`${REDIS_KEY}retention:lock`)
+
+		const operator = new mongoose.Types.ObjectId()
+		const closedAt = daysAgo(31)
+		// Suspended as well as closed: the one combination the validator can refuse, because the reason
+		// may not be removed while `disabled` stays true. `notes` is the operator's own file on this
+		// person and has to go with it.
+		const stale = await seedShopOwner({
+			deleted: closedAt,
+			deletedBy: operator,
+			disabled: true,
+			disabledBy: operator,
+			disabledReason: 'Repeated breaches of the marketplace terms, reported by three customers',
+			notes: 'Rang them about the same complaint in August'
+		})
+		const fresh = await seedShopOwner({ deleted: daysAgo(1) })
+		const staleUser = await seedUser({
+			deleted: closedAt,
+			personalData: { firstName: 'Itest', lastName: 'Customer' }
+		})
+
+		const now = new Date()
+		const cutoff = retentionCutoff(now)
+		const expected = {
+			shopOwner: await db().collection('shopOwner').countDocuments(candidateFilter(cutoff)),
+			user: await db().collection('user').countDocuments(candidateFilter(cutoff))
+		}
+
+		// The counts agreeing is the no-op detector: with either `trusted()` gone, the sweep answers
+		// `{ shopOwner: 0, user: 0 }` here while the raw driver still sees the candidates.
+		expect(await retentionSweep(now)).toStrictEqual(expected)
+		expect(expected.shopOwner).toBeGreaterThanOrEqual(1)
+		expect(expected.user).toBeGreaterThanOrEqual(1)
+
+		const scrubbed = await decrypted(await db().collection('shopOwner').findOne({ _id: stale._id }))
+
+		// What the person was, overwritten — read back decrypted, because these paths are `binData` on
+		// disk and the plugin had to encrypt the placeholders on the way in for the validator to accept
+		// them at all.
+		expect(scrubbed?.login.email).toBe(scrubbedEmail(stale._id.toHexString()))
+		expect(scrubbed?.login.password).toBe(SCRUBBED_PASSWORD_HASH)
+		expect(scrubbed?.personalData.firstName).toBe(SCRUBBED_FIRST_NAME)
+		expect(scrubbed?.personalData.lastName).toBe(SCRUBBED_LAST_NAME)
+		expect(scrubbed?.personalData.contacts.email).toBe(scrubbedEmail(stale._id.toHexString()))
+		expect(scrubbed?.personalData.birth.date).toStrictEqual(new Date(0))
+		expect(scrubbed).not.toHaveProperty('notes')
+
+		// ⚠️ Overwritten, not removed: `$unset`ting it here is what the validator refuses, and a sweep
+		// that tried would stall on exactly the accounts most likely to reach it.
+		expect(scrubbed?.disabledReason).toBe(SCRUBBED_DISABLED_REASON)
+
+		// ⚠️ The record that a person held an account survives the scrub, for ever. `deletedBy` is
+		// meaningful by its absence — that is how a self-closure reads — so the sweep may not touch it.
+		expect(scrubbed?.disabled).toBe(true)
+		expect(scrubbed?.disabledBy).toEqual(operator)
+		expect(scrubbed?.deleted).toEqual(closedAt)
+		expect(scrubbed?.deletedBy).toEqual(operator)
+		expect(scrubbed?.registeredAt).toBeInstanceOf(Date)
+		expect(scrubbed?.scrubbedAt).toBeInstanceOf(Date)
+
+		// The other collection, whose scrub is a different shape and a different validator.
+		const scrubbedUser = await decrypted(await db().collection('user').findOne({ _id: staleUser._id }))
+
+		expect(scrubbedUser?.login.email).toBe(scrubbedEmail(staleUser._id.toHexString()))
+		expect(scrubbedUser?.personalData).toEqual({ firstName: SCRUBBED_FIRST_NAME, lastName: SCRUBBED_LAST_NAME })
+		expect(scrubbedUser?.scrubbedAt).toBeInstanceOf(Date)
+
+		// ⚠️ Inside the window and therefore untouched — the account is still undoable by re-registering
+		// at this address (ADR-046), so its address must still be spoken for by the real value. This is
+		// what makes the cutoff a `$lte` on `deleted` rather than "closed at all".
+		const spared = await decrypted(await db().collection('shopOwner').findOne({ _id: fresh._id }))
+
+		expect(spared?.login.email).toBe(fresh.email)
+		expect(spared).not.toHaveProperty('scrubbedAt')
+
+		// ⚠️ Idempotence, which is the `scrubbedAt: { $exists: false }` clause doing its job. Without it
+		// every sweep would re-scrub every closed account for ever — cheap, but it would also move the
+		// stamp, and the stamp is the only record of when erasure actually happened.
+		expect(await retentionSweep(new Date())).toStrictEqual({ shopOwner: 0, user: 0 })
+		expect((await db().collection('shopOwner').findOne({ _id: stale._id }))?.scrubbedAt).toEqual(scrubbed?.scrubbedAt)
 	})
 })
