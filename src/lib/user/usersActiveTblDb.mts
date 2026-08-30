@@ -12,8 +12,8 @@ import { QueryFilter, trusted } from 'mongoose'
  * nothing. No order, no range, no prefix. The sibling lib builds `/^term/i` over exactly those three
  * paths; the same code here would compare a name against base64, match zero rows for every term on every
  * account, and never error — a customer base that renders as empty. So there is no `search` argument and
- * `GraphQLUsersTblSortField` has one member. `phase5/epics/E19.md` E19-S05 is the anti-story that says
- * so, and what each way of closing the gap would break.
+ * `GraphQLUsersTblSortField` has one member; making the fields searchable was proposed and declined for
+ * this reason, and each way of closing the gap breaks in the same place.
  *
  * Everything this query orders, filters or counts on was never encrypted: `registeredAt`, `deleted`,
  * `disabled`, `emailVerify.valid`. `login.email` is returned and never ordered — it is deterministic, so
