@@ -219,10 +219,15 @@ describe('schema', () => {
 		// No arguments at all: the taxonomy is bounded by hand and the screen renders it whole.
 		['itemCategories', [], 'Get all the item categories'],
 		['shopOwnerById', ['idShopOwner'], 'Get a shopOwner by id'],
-		['shopOwnersActiveTbl', ['offset', 'limit', 'search', 'sortBy', 'sortDir'], 'Get shopOwners for the table'],
-		// Seven arguments where the shop-owner table has five: no `search` (E19-S05), and three filters
-		// where that one hard-codes `disabled`/`deleted` into its filter. The absence of `search` is
-		// asserted by this list being exact.
+		[
+			'shopOwnersActiveTbl',
+			['offset', 'limit', 'disabled', 'deleted', 'search', 'sortBy', 'sortDir'],
+			'Get shopOwners for the table'
+		],
+		// Seven arguments each, differing by exactly one: the customer table takes `emailVerified`
+		// where the shop-owner table takes `search`. The absence of `search` here is the epic's
+		// boundary (E19-S05) — every searchable field on `user` is ciphertext — and it is asserted by
+		// this list being exact.
 		[
 			'usersActiveTbl',
 			['offset', 'limit', 'disabled', 'deleted', 'emailVerified', 'sortBy', 'sortDir'],
@@ -253,12 +258,16 @@ describe('shopOwnersActiveTbl paging contract', () => {
 	// bounded page, which is the whole reason the unbounded list query could be removed. Read from
 	// the assembled schema rather than from the resolver's source, so the constant the resolver
 	// imports for `limit` is checked at the value it actually reaches the client with.
-	it('defaults to the newest 25, and to no search', () => {
+	it('defaults to the newest 25 live, enabled accounts, and to no search', () => {
 		const defaults = Object.fromEntries(argsOf('QueriesApi', 'shopOwnersActiveTbl').map((a) => [a.name, a.defaultValue]))
 
 		expect(defaults).toEqual({
 			offset: '0',
 			limit: '25',
+			// The index's two leading fields, so every page names one state of each — a `null` here
+			// would be an unbound page falling back to a blocking in-memory sort (ADR-049).
+			disabled: 'false',
+			deleted: 'false',
 			// null, not a string: `search` is the one nullable argument, because "not searching" is a
 			// real state of the table and a distinct one from searching for the empty string.
 			search: null,
@@ -458,8 +467,29 @@ describe('object types', () => {
 	})
 
 	it('GraphQLShopOwnerActiveTbl stays a narrow table projection', () => {
-		expect(fieldsOf('GraphQLShopOwnerActiveTbl')).toEqual(['_id', 'registeredAt', 'email', 'personalData', 'waitApprov'])
+		expect(fieldsOf('GraphQLShopOwnerActiveTbl')).toEqual([
+			'_id',
+			'registeredAt',
+			'email',
+			'personalData',
+			'waitApprov',
+			'disabled',
+			'disabledBy',
+			'disabledReason',
+			'deleted'
+		])
 		expect(fieldsOf('GraphQLPersonalData')).toEqual(['firstName', 'lastName', 'address'])
+	})
+
+	// `deleted` is a timestamp and not a flag (ADR-011), while the query's `deleted` ARGUMENT is a
+	// Boolean — the same two spellings of one word the customer row carries, pinned here for the same
+	// reason: a `Boolean` on the row would read as correct and hand the frontend `true` for a date it
+	// has to render. `disabledReason` is a plain `String` because this service decrypts it (ADR-029).
+	it('reports deleted as the timestamp it is, and the suspension trio as it is stored', () => {
+		expect(typeOfField('GraphQLShopOwnerActiveTbl', 'deleted')).toEqual({ kind: 'SCALAR', name: 'DateTime', ofType: null })
+		expect(typeOfField('GraphQLShopOwnerActiveTbl', 'disabled')).toEqual({ kind: 'SCALAR', name: 'Boolean', ofType: null })
+		expect(typeOfField('GraphQLShopOwnerActiveTbl', 'disabledBy')).toEqual({ kind: 'SCALAR', name: 'ID', ofType: null })
+		expect(typeOfField('GraphQLShopOwnerActiveTbl', 'disabledReason')).toEqual({ kind: 'SCALAR', name: 'String', ofType: null })
 	})
 
 	// ⚠️ **`personalData` is nullable on both shopOwner types, and introspection is where that is

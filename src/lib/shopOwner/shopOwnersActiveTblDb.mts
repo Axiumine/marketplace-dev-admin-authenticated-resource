@@ -34,9 +34,15 @@ export const SHOP_OWNERS_TBL_MAX_SEARCH_LENGTH = 100
  * `waitApprov` turns the table into the approval queue: it is the only field distinguishing an account
  * that is waiting for an admin from one that is trading, and without it the queue would be a page
  * of rows that look identical and behave differently.
+ *
+ * ⚠️ **The `disabled*` trio and `deleted` are projected for the same reason they are on the customer
+ * row (ADR-044, ADR-049): this table is where an admin reads a status, and a status column that cannot
+ * see the flags would say "Active" on a suspended account. `disabledReason` is randomly encrypted and
+ * legible only here — this service holds the data key, the shop-owner services do not.
  */
 export const SHOP_OWNERS_TBL_SELECTION =
-	'_id registeredAt login.email waitApprov personalData.firstName personalData.lastName personalData.address'
+	'_id registeredAt login.email waitApprov disabled disabledBy disabledReason deleted ' +
+	'personalData.firstName personalData.lastName personalData.address'
 
 /**
  * GraphQL enum name → the Mongo paths to sort by, in order. `_id` is appended to every one of these
@@ -65,6 +71,8 @@ const SEARCHABLE_PATHS = ['personalData.firstName', 'personalData.lastName', 'pe
 export interface IShopOwnersActiveTblArgs {
 	offset: number
 	limit: number
+	disabled: boolean
+	deleted: boolean
 	search?: string | null
 	sortBy: ShopOwnersTblSortField
 	sortDir: ShopOwnersTblSortDirection
@@ -176,16 +184,16 @@ function buildSort(sortBy: ShopOwnersTblSortField, sortDir: ShopOwnersTblSortDir
  * table. The `$or` branch needs no such marking: `sanitizeFilter` recurses into `$or` and the
  * RegExp values it finds there carry no `$` keys of their own.
  */
-function buildFilter(term: string | undefined): QueryFilter<IShopOwnerModel> {
+function buildFilter(args: IShopOwnersActiveTblArgs, term: string | undefined): QueryFilter<IShopOwnerModel> {
 	return {
-		disabled: trusted({ $exists: false }),
-		deleted: trusted({ $exists: false }),
+		deleted: args.deleted ? trusted({ $exists: true }) : trusted({ $exists: false }),
+		disabled: args.disabled ? true : trusted({ $exists: false }),
 		...(term === undefined ? {} : { $or: SEARCHABLE_PATHS.map((path) => ({ [path]: prefixRegExp(term) })) })
 	}
 }
 
 /**
- * One page of active shopOwners plus the size of the filtered set.
+ * One page of shopOwners in the asked-for state, plus the size of the filtered set.
  *
  * The two database calls run concurrently. They are independent — the count does not read the page
  * — so awaiting them in sequence would add the count's latency to every request for nothing.
@@ -193,7 +201,7 @@ function buildFilter(term: string | undefined): QueryFilter<IShopOwnerModel> {
 export default async function shopOwnersActiveTblDb(args: IShopOwnersActiveTblArgs): Promise<IShopOwnersActiveTblPage> {
 	assertPaging(args.offset, args.limit)
 
-	const filter = buildFilter(normaliseSearch(args.search))
+	const filter = buildFilter(args, normaliseSearch(args.search))
 
 	const [items, total] = await Promise.all([
 		ShopOwner.find(filter)

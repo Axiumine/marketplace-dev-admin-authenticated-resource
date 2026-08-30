@@ -44,7 +44,33 @@ export const GraphQLShopOwnerActiveTbl = new GraphQLObjectType({
 		 * `shopOwnerAdd` writes nothing here on purpose: an account an admin created by hand has been
 		 * approved by the act of creating it.
 		 */
-		waitApprov: { type: GraphQLBoolean }
+		waitApprov: { type: GraphQLBoolean },
+		/**
+		 * Nullable, and not merely permissive: the flag is stored `true` or removed outright, so an
+		 * enabled account has no `disabled` key and reads as absent rather than `false` — the same shape
+		 * `waitApprov` above has, and the same shape the customer row carries.
+		 */
+		disabled: { type: GraphQLBoolean },
+		/**
+		 * Who suspended this account and why (ADR-044). Absent together on an account that is not
+		 * suspended — `funShopOwnerUpdateStatus` `$unset`s the trio as one — so both are read on presence.
+		 *
+		 * ⚠️ **Legible here and on `shopOwnerById`, nowhere else.** `disabledReason` is randomly encrypted
+		 * (ADR-029); this service holds the data key, so the driver hands back the text, while a shell or
+		 * a shop-owner service reading the same document sees `binData`.
+		 *
+		 * `disabledBy` is an attribution rather than a foreign key (ADR-044): nothing joins on it, and an
+		 * `admin` that no longer exists leaves it dangling by design.
+		 */
+		disabledBy: { type: GraphQLID },
+		disabledReason: { type: GraphQLString },
+		/**
+		 * A timestamp, not a flag (ADR-011). Written by `shopOwnerDel` on this service, which also
+		 * withdraws the storefront (ADR-045). The stamp is permanent — nothing on this platform removes a
+		 * document (ADR-041) — and the row carries it so the table can say "Closed" rather than say
+		 * nothing and list the account under a filter that claims it is trading.
+		 */
+		deleted: { type: GraphQLDateTime }
 	})
 })
 
