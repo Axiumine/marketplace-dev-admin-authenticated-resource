@@ -16,13 +16,15 @@ const { default: shopOwnersActiveTblDb } = await import('../src/lib/shopOwner/sh
 // SHOP_OWNERS_TBL_SELECTION is a tautology — it compares the constant with itself, so emptying it
 // changes both sides at once and the test still passes while the query stops projecting and starts
 // pulling whole documents, `login.password` included, into memory for every shopOwner of every page.
-const SELECTION = '_id registeredAt login.email waitApprov personalData.firstName personalData.lastName personalData.address'
+const SELECTION =
+	'_id registeredAt login.email waitApprov disabled disabledBy disabledReason deleted ' +
+	'personalData.firstName personalData.lastName personalData.address'
 
 type Args = Parameters<typeof shopOwnersActiveTblDb>[0]
 
 /** Every test overrides only what it is about; these are the resolver's own defaults. */
 function args(overrides: Partial<Args> = {}): Args {
-	return { offset: 0, limit: 25, sortBy: 'REGISTERED_AT', sortDir: 'DESC', ...overrides }
+	return { offset: 0, limit: 25, disabled: false, deleted: false, sortBy: 'REGISTERED_AT', sortDir: 'DESC', ...overrides }
 }
 
 describe('shopOwnersActiveTblDb', () => {
@@ -60,15 +62,35 @@ describe('shopOwnersActiveTblDb', () => {
 		expect(builder.select).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('waitApprov'))
 	})
 
-	// ⚠️ The filter excludes the disabled and the deleted and **nothing else** — asserted from the
-	// other side here, because a `waitApprov: { $exists: false }` clause added to "show only real shop
-	// owners" would hide every account waiting for an admin from the only table that lists them.
+	// ⚠️ The filter binds the two state fields and **nothing else** — asserted from the other side
+	// here, because a `waitApprov: { $exists: false }` clause added to "show only real shop owners"
+	// would hide every account waiting for an admin from the only table that lists them. Waiting for
+	// approval is not a fifth state: an account can be pending under any of the four.
+	//
+	// The key ORDER is the index order — all four `tbl_active_*` lead with `{deleted, disabled}`.
+	// Nothing in MongoDB requires it, the planner reorders predicates itself, but a filter that reads
+	// in the index's order is what makes a wrong one visible when somebody compares the two.
 	it('lists accounts awaiting approval rather than filtering them out', async () => {
 		mockFindChain(find, [])
 
 		await shopOwnersActiveTblDb(args())
 
-		expect(Object.keys(filterOf(find))).toEqual(['disabled', 'deleted'])
+		expect(Object.keys(filterOf(find))).toEqual(['deleted', 'disabled'])
+	})
+
+	// ⚠️ The status columns. `shopOwnerDel` stamps `deleted` and leaves the `disabled` trio exactly as
+	// it found it, so one row can carry both — and a table projecting neither would print "Active"
+	// over an account that is suspended, closed, or both. `disabledReason` is legible here and on
+	// `shopOwnerById` and nowhere else: it is randomly encrypted (ADR-029) and this service holds the
+	// data key.
+	it('projects the state fields the status column reads', async () => {
+		const builder = mockFindChain(find, [])
+
+		await shopOwnersActiveTblDb(args())
+
+		expect(builder.select).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('disabledBy'))
+		expect(builder.select).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('disabledReason'))
+		expect(builder.select).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('deleted'))
 	})
 
 	// The password never leaves the database on this path. The projection is a positive list, so this
@@ -82,21 +104,67 @@ describe('shopOwnersActiveTblDb', () => {
 		expect(builder.select).toHaveBeenCalledExactlyOnceWith(expect.not.stringContaining('password'))
 	})
 
-	// trusted(), not a bare object: sanitizeFilter is on globally, and it rewrites an un-trusted
-	// value holding `$` keys into `{ $eq: <that object> }` — which would ask for documents whose
-	// `deleted` field literally equals `{$exists:false}`, match nothing, and empty the table.
-	it('excludes the disabled and the soft-deleted, and counts exactly what it lists', async () => {
-		mockFindChain(find, [])
+	describe('the account-state matrix', () => {
+		// trusted(), not a bare object: sanitizeFilter is on globally, and it rewrites an un-trusted
+		// value holding `$` keys into `{ $eq: <that object> }` — which would ask for documents whose
+		// `deleted` field literally equals `{$exists:false}`, match nothing, and empty the table.
+		it('defaults to the live, enabled accounts and counts exactly what it lists', async () => {
+			mockFindChain(find, [])
 
-		await shopOwnersActiveTblDb(args())
+			await shopOwnersActiveTblDb(args())
 
-		expect(filterOf(find).disabled).toEqual(trusted({ $exists: false }))
-		expect(filterOf(find).deleted).toEqual(trusted({ $exists: false }))
-		expect(filterOf(find).$or).toBeUndefined()
-		// The same object, not an equal one: two filters that could drift would make `total`
-		// describe a different set than `items`, and the paging would be wrong in a way no
-		// single-page assertion can see.
-		expect(countDocuments).toHaveBeenCalledExactlyOnceWith(filterOf(find))
+			expect(filterOf(find).deleted).toEqual(trusted({ $exists: false }))
+			expect(filterOf(find).disabled).toEqual(trusted({ $exists: false }))
+			expect(filterOf(find).$or).toBeUndefined()
+			// The same object, not an equal one: two filters that could drift would make `total`
+			// describe a different set than `items`, and the paging would be wrong in a way no
+			// single-page assertion can see.
+			expect(countDocuments).toHaveBeenCalledExactlyOnceWith(filterOf(find))
+		})
+
+		// ⚠️ `disabled: true` is an equality and `deleted: true` is an existence check, and swapping
+		// either is silent. `disabled` is stored `true` or removed, so `{$exists: true}` there would
+		// also match a hypothetical stored `false`; `deleted` is a timestamp, so `{$eq: true}` there
+		// would match nothing at all and the closed page would render empty for ever.
+		it('asks for the disabled by equality and for the soft-deleted by existence', async () => {
+			mockFindChain(find, [])
+
+			await shopOwnersActiveTblDb(args({ disabled: true, deleted: true }))
+
+			expect(filterOf(find).disabled).toBe(true)
+			expect(filterOf(find).deleted).toEqual(trusted({ $exists: true }))
+		})
+
+		// ⚠️ Four states, and the fourth is the reason the pair is two arguments rather than one enum
+		// of three: `shopOwnerDel` stamps `deleted` and leaves the `disabled` trio alone, so an account
+		// suspended and then closed carries both — and under a filter that offered "active or
+		// suspended or closed" it would answer to none of them and be unreachable from the admin's
+		// only table of shop owners (ADR-049).
+		it.each([
+			{
+				state: 'active',
+				disabled: false,
+				deleted: false,
+				isDisabled: trusted({ $exists: false }),
+				isDeleted: trusted({ $exists: false })
+			},
+			{ state: 'suspended', disabled: true, deleted: false, isDisabled: true, isDeleted: trusted({ $exists: false }) },
+			{
+				state: 'closed',
+				disabled: false,
+				deleted: true,
+				isDisabled: trusted({ $exists: false }),
+				isDeleted: trusted({ $exists: true })
+			},
+			{ state: 'closed and suspended', disabled: true, deleted: true, isDisabled: true, isDeleted: trusted({ $exists: true }) }
+		])('narrows to the $state accounts', async ({ disabled, deleted, isDisabled, isDeleted }) => {
+			mockFindChain(find, [])
+
+			await shopOwnersActiveTblDb(args({ disabled, deleted }))
+
+			expect(filterOf(find).disabled).toEqual(isDisabled)
+			expect(filterOf(find).deleted).toEqual(isDeleted)
+		})
 	})
 
 	describe('search', () => {

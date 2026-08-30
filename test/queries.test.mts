@@ -191,7 +191,15 @@ describe('shopOwnersActiveTbl', () => {
 		const page = { items: [{ _id }], total: 1 }
 		shopOwnersActiveTblDb.mockResolvedValueOnce(page)
 
-		const args = { offset: 25, limit: 10, search: 'ros', sortBy: 'LAST_NAME', sortDir: 'ASC' } as const
+		const args = {
+			offset: 25,
+			limit: 10,
+			disabled: true,
+			deleted: true,
+			search: 'ros',
+			sortBy: 'LAST_NAME',
+			sortDir: 'ASC'
+		} as const
 
 		await expect(shopOwnersActiveTbl.resolve(null, args)).resolves.toBe(page)
 		expect(shopOwnersActiveTblDb).toHaveBeenCalledExactlyOnceWith(args)
@@ -201,10 +209,10 @@ describe('shopOwnersActiveTbl', () => {
 describe('usersActiveTbl', () => {
 	beforeEach(() => usersActiveTblDb.mockReset())
 
-	// A pass-through, asserted as one — same contract as `shopOwnersActiveTbl` above. Forwarding the
-	// args OBJECT unchanged matters more here than there: seven arguments, three of them filters whose
-	// defaults decide what an admin sees on arrival, and rebuilding the object field by field is
-	// where a second, drifting set of defaults would take root.
+	// A pass-through, asserted as one — same contract as `shopOwnersActiveTbl` above. Seven arguments
+	// here too, three of them filters whose defaults decide what an admin sees on arrival, and
+	// rebuilding the object field by field is where a second, drifting set of defaults would take
+	// root.
 	it('hands its arguments to the lib and returns the page untouched', async () => {
 		const page = { items: [{ _id }], total: 1 }
 		usersActiveTblDb.mockResolvedValueOnce(page)
