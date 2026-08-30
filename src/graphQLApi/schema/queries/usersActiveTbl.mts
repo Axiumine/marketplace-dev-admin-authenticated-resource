@@ -14,8 +14,8 @@ import { GraphQLBoolean, GraphQLInt, GraphQLNonNull } from 'graphql'
  * ⚠️ **No `search` argument, deliberately, and this is the place it would be added.** Every field a
  * search could match on `user` — the two names, the city, a partial email — is encrypted, randomly for
  * all but the login address (ADR-029), and a prefix match against ciphertext returns nothing without
- * erroring. `phase5/epics/E19.md` E19-S05 is the anti-story; the lib repeats the reasoning where the
- * regex would have to be written.
+ * erroring. Making those fields searchable was proposed and declined for exactly that reason; the lib
+ * repeats the reasoning where the regex would have to be written.
  *
  * ⚠️ **`disabled` and `deleted` are `Boolean!` with a default rather than nullable filters**, so every
  * page names one state of each and the query stays on `tbl_active_registeredAt`. A third "either" state
@@ -24,8 +24,8 @@ import { GraphQLBoolean, GraphQLInt, GraphQLNonNull } from 'graphql'
  * index already bounded, and it is the flag the admin reads off the row rather than narrows by.
  *
  * The defaults answer "what does an admin see on arrival" with the live accounts, which is what
- * `usersActiveTbl` names. Whether that stays the answer is `phase5/epics/E19.md` §6, question 5 — and it
- * is a `defaultValue` on one line either way.
+ * `usersActiveTbl` names — and ADR-049 settles that as the arrival state on both admin tables, an admin
+ * reaching a hidden account by naming its state rather than by it being greyed in place.
  */
 export const usersActiveTbl = {
 	type: new GraphQLNonNull(GraphQLUsersActiveTblPage),
