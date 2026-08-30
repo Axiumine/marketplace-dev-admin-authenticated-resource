@@ -1,6 +1,6 @@
 import { throwNotFoundError } from '@axiumine/koa-utils/graphQL/throw/throwNotFoundError'
 import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner'
-import { unpublishOwnerStorefront } from '@lib/shopOwner/unpublishOwnerStorefront.mjs'
+import { unpublishOwnerStorefront } from '@axiumine/marketplace-common/others/unpublishOwnerStorefront'
 import mongoose, { trusted, Types } from 'mongoose'
 
 /**
