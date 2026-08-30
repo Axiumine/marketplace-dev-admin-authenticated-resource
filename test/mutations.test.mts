@@ -10,6 +10,7 @@ const funShopOwnerUpdateEmail = vi.fn()
 const funShopOwnerUpdateNote = vi.fn()
 const funShopOwnerUpdatePreferences = vi.fn()
 const funShopOwnerUpdateStatus = vi.fn()
+const funUserDelete = vi.fn()
 const funUserUpdateStatus = vi.fn()
 const funCompanyAdd = vi.fn()
 const funCompanyDelete = vi.fn()
@@ -30,6 +31,7 @@ vi.mock('@lib/shopOwner/funShopOwnerUpdateEmail.mjs', () => ({ funShopOwnerUpdat
 vi.mock('@lib/shopOwner/funShopOwnerUpdateNote.mjs', () => ({ funShopOwnerUpdateNote }))
 vi.mock('@lib/shopOwner/funShopOwnerUpdatePreferences.mjs', () => ({ funShopOwnerUpdatePreferences }))
 vi.mock('@lib/shopOwner/funShopOwnerUpdateStatus.mjs', () => ({ funShopOwnerUpdateStatus }))
+vi.mock('@lib/user/funUserDelete.mjs', () => ({ funUserDelete }))
 vi.mock('@lib/user/funUserUpdateStatus.mjs', () => ({ funUserUpdateStatus }))
 vi.mock('@lib/company/funCompanyAdd.mjs', () => ({ funCompanyAdd }))
 vi.mock('@lib/company/funCompanyDelete.mjs', () => ({ funCompanyDelete }))
@@ -65,6 +67,7 @@ const { shopOwnerUpdateEmail } = await import('../src/graphQLApi/schema/mutation
 const { shopOwnerUpdateNote } = await import('../src/graphQLApi/schema/mutations/shopOwnerUpdateNote.mts')
 const { shopOwnerUpdatePreferences } = await import('../src/graphQLApi/schema/mutations/shopOwnerUpdatePreferences.mts')
 const { shopOwnerUpdateStatus } = await import('../src/graphQLApi/schema/mutations/shopOwnerUpdateStatus.mts')
+const { userDel } = await import('../src/graphQLApi/schema/mutations/userDel.mts')
 const { userUpdateStatus } = await import('../src/graphQLApi/schema/mutations/userUpdateStatus.mts')
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
@@ -604,6 +607,65 @@ describe('shopOwnerUpdateStatus', () => {
 				shopOwnerUpdateStatus.resolve(null, { _id, disabled: true, waitApprov: true, disabledReason: 'Fraud report' }, ctx)
 			)
 		).toMatchObject({
+			message: 'Internal Server Error',
+			http: { status: 500 }
+		})
+	})
+})
+
+describe('userDel', () => {
+	beforeEach(() => {
+		funUserDelete.mockReset().mockResolvedValue(undefined)
+		endEveryUserSession.mockReset().mockResolvedValue(undefined)
+		captureException.mockReset()
+	})
+
+	// ⚠️ **The admin's id comes off `ctx.state.user`, never off the wire** (ADR-044). `deletedBy` beside
+	// a `deleted` stamp is what tells an admin closure apart from a self-service one, so an argument a
+	// client could set would let any admin sign somebody else's name to their decision. `adminId` is the
+	// admin and `_id` is the customer: this fails if a refactor ever crosses the two.
+	it('soft-deletes the customer in the admin name and answers true', async () => {
+		await expect(userDel.resolve(null, { _id }, ctx)).resolves.toBe(true)
+		expect(funUserDelete).toHaveBeenCalledExactlyOnceWith(_id, adminId)
+	})
+
+	it('propagates the failure', async () => {
+		funUserDelete.mockRejectedValueOnce(new Error('mongo down'))
+
+		await expect(userDel.resolve(null, { _id }, ctx)).rejects.toThrow('Internal Server Error')
+	})
+
+	/*
+	 * ⚠️ **Closing ends every session the customer holds, unconditionally.** Until this the stamp was a
+	 * label: `checkUserAuthorizationDisDel` refuses a closed account at the login gate and
+	 * `findAccountForSession` re-runs that on every refresh, but neither bites until the next rotation —
+	 * so a closed customer kept shopping for a whole access-token lifetime. Unlike the status mutation
+	 * there is no "off" to compare against; a closure has one direction.
+	 */
+	it('ends every session the customer holds', async () => {
+		await expect(userDel.resolve(null, { _id }, ctx)).resolves.toBe(true)
+
+		expect(endEveryUserSession).toHaveBeenCalledExactlyOnceWith(_id)
+		expect(endEveryUserSession.mock.invocationCallOrder[0]).toBeGreaterThan(funUserDelete.mock.invocationCallOrder[0])
+	})
+
+	// Gated on the write: `funUserDelete` answers 404 when nothing matched — an id naming no open account
+	// — and there are then no sessions to end.
+	it('revokes nothing when no open account carried that id', async () => {
+		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
+		funUserDelete.mockImplementationOnce(() => throwNotFoundError('user not found'))
+
+		await rejection(userDel.resolve(null, { _id }, ctx))
+
+		expect(endEveryUserSession).not.toHaveBeenCalled()
+	})
+
+	// A revoke that fails fails the mutation: answering `true` would tell the admin a closed customer is
+	// off the platform while their sessions are still live.
+	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
+		endEveryUserSession.mockRejectedValueOnce(new Error('redis down'))
+
+		expect(await rejection(userDel.resolve(null, { _id }, ctx))).toMatchObject({
 			message: 'Internal Server Error',
 			http: { status: 500 }
 		})
