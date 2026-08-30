@@ -14,7 +14,7 @@ interface IArgs {
  * No `validate*` call, unlike every other write here: `Boolean!` is the whole contract, so GraphQL has
  * already rejected everything a validator would have. Same shape as `shopOwnerUpdateStatus`.
  *
- * ⚠️ The owner can undo it from 4026 and nothing records that an operator did it — see
+ * ⚠️ The owner can undo it from 4026 and nothing records that an admin did it — see
  * `funItemUpdatePublished`.
  */
 export const itemUpdatePublished = {

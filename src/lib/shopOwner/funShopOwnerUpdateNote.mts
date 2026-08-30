@@ -3,7 +3,7 @@ import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner
 import { Types } from 'mongoose'
 
 /**
- * The operator's free-text note about an account.
+ * The admin's free-text note about an account.
  *
  * **An empty note removes the field, it does not store `''`.** Same rule the two account flags follow
  * in `funShopOwnerUpdateStatus`: the collection makes `notes` optional, so "no note" already has a
@@ -12,8 +12,8 @@ import { Types } from 'mongoose'
  * return every account whose note was ever cleared.
  *
  * `matchedCount`, not `modifiedCount`: 0 matched means no such shopOwner, which is a 404. A save
- * that changes nothing is not an error — the operator app refuses to submit a form that is not dirty,
- * and clearing a note that was already absent is still the state the operator asked for.
+ * that changes nothing is not an error — the admin app refuses to submit a form that is not dirty,
+ * and clearing a note that was already absent is still the state the admin asked for.
  */
 export async function funShopOwnerUpdateNote(_id: Types.ObjectId, notes: string) {
 	const ret = await ShopOwner.updateOne(

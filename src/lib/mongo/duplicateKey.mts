@@ -3,7 +3,7 @@
  *
  * MongoDB answers 11000 for a duplicate key on both an insert and an update. Without this test the
  * error travels through `tryCatchRethrow`, which reports it to Sentry and answers a generic 500 — so an
- * operator who retyped an email another shopOwner already owns is told the server broke, and the
+ * admin who retyped an email another shopOwner already owns is told the server broke, and the
  * platform gets an alert for a routine data-entry collision.
  *
  * The check is duck-typed rather than `instanceof MongoServerError`: mongoose re-exports the driver's

@@ -34,7 +34,7 @@ const POSITION_TYPE = 'Point'
  * address point is **optional** and is coordinates only.
  *
  * Both differences are deliberate. Optional, because the field was added long after the collection was
- * filled and cannot be back-derived from a street address — the operator app sends it the first time an
+ * filled and cannot be back-derived from a street address — the admin app sends it the first time an
  * address is picked from the autocomplete and not before. Coordinates only, because `type` has exactly
  * one legal value and accepting it from the client would only create a way to get it wrong — the same
  * reasoning `validateAddress.mts` applies to the company address.

@@ -10,11 +10,11 @@ interface IArgs {
 }
 
 /**
- * The operator's free-text note about an shopOwner.
+ * The admin's free-text note about an shopOwner.
  *
  * Its own mutation rather than a field of `shopOwnerUpdate`, because it is not part of the
  * personalData: `shopOwnerUpdate` `$set`s the whole `personalData` sub-document, and the note is what an
- * operator wrote *about* the account, not what the shopOwner declared. Same reason it sits at the
+ * admin wrote *about* the account, not what the shopOwner declared. Same reason it sits at the
  * top level of the document.
  *
  * `notes` is `String!` and not nullable: the empty string is how the note is cleared, and a nullable

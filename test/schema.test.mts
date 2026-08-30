@@ -126,10 +126,10 @@ describe('schema', () => {
 		])
 	})
 
-	// The operator writes the taxonomy and moderates items; it never authors one. `itemAdd` and
-	// `itemUpdate` live on 4026 only, and their absence here is the tier boundary — an operator with a
+	// The admin writes the taxonomy and moderates items; it never authors one. `itemAdd` and
+	// `itemUpdate` live on 4026 only, and their absence here is the tier boundary — an admin with a
 	// way to write an item into somebody's catalogue is a different product.
-	it('gives the operator no way to author an item', () => {
+	it('gives the admin no way to author an item', () => {
 		expect(fieldsOf('MutationsApi')).not.toContain('itemAdd')
 		expect(fieldsOf('MutationsApi')).not.toContain('itemUpdate')
 	})
@@ -201,7 +201,7 @@ describe('schema', () => {
 
 	// Asserted as an absence, because the absence is the security property: `adminUpdatePwd` takes
 	// no id of any kind. The account it changes is the one the Redis session names, so an argument
-	// added here would immediately be a way to set another operator's password — every admin
+	// added here would immediately be a way to set another admin's password — every admin
 	// authenticates against the same collection and there is no role field to stop it.
 	it('gives adminUpdatePwd no way to name the account it changes', () => {
 		expect(argsOf('MutationsApi', 'adminUpdatePwd').map((a) => a.name)).not.toContain('_id')
@@ -275,7 +275,7 @@ describe('shopOwnersActiveTbl paging contract', () => {
 })
 
 describe('usersActiveTbl paging contract', () => {
-	// ⚠️ The defaults are the answer to "what does an operator see on arrival" (E19.md §6, question 5),
+	// ⚠️ The defaults are the answer to "what does an admin see on arrival" (E19.md §6, question 5),
 	// and they are read from the assembled schema rather than from the resolver's source, so what is
 	// checked is what a client sending nothing actually gets: the newest 25 live, enabled customers,
 	// verified or not.
@@ -460,8 +460,8 @@ describe('object types', () => {
 	// pinned.** It stopped being required on the collection when `shopOwnerRegister` shipped: a
 	// self-registered seller has an address and a password and nothing else until onboarding. A
 	// `NonNull` here would not merely null one field — `items` is a non-null list of non-null rows, so
-	// one pending registration turns the operator's whole table into an error, and the detail page into
-	// a 500 for exactly the account the operator opened it to approve.
+	// one pending registration turns the admin's whole table into an error, and the detail page into
+	// a 500 for exactly the account the admin opened it to approve.
 	it.each([
 		['GraphQLShopOwnerActiveTbl', 'GraphQLPersonalData'],
 		['GraphQLShopOwnerById', 'GraphQLShopOwnerPersonalDataById']
@@ -534,7 +534,7 @@ describe('object types', () => {
 
 	it('GraphQLCompany carries the company, its owner and its legal seat', () => {
 		// `idShopOwner` is second, right after the id: it is the field every read of a company is
-		// scoped by, and the operator app reaches one only through its owner's page.
+		// scoped by, and the admin app reaches one only through its owner's page.
 		expect(fieldsOf('GraphQLCompany')).toEqual([
 			'_id',
 			'idShopOwner',
@@ -578,7 +578,7 @@ describe('object types', () => {
 		expect(nonNull).toEqual(['taxCode', 'uniqueCode', 'publicName', 'slug', 'description'])
 	})
 
-	// Flat: `idCategory` is an id and not a nested category object, because the operator's screen loads
+	// Flat: `idCategory` is an id and not a nested category object, because the admin's screen loads
 	// the taxonomy once with `itemCategories` and joins client-side. A resolver-level join would run one
 	// lookup per item on a list that can be a whole shop's catalogue.
 	it('GraphQLItem carries the item, its company and its category', () => {
@@ -607,7 +607,7 @@ describe('object types', () => {
 	/*
 	 * ⚠️ **The security property of the whole status screen, asserted by name rather than by snapshot**
 	 * (ADR-034, E01-S14). The record these types describe holds the platform's cookie-signing keys, and an
-	 * operator who could read one back could sign a session cookie for any account — a strictly larger
+	 * admin who could read one back could sign a session cookie for any account — a strictly larger
 	 * power than "may rotate the keys", which is the only one this screen exists to grant.
 	 *
 	 * By name, because a snapshot test answers a field added later by asking to be updated, and the update
@@ -630,7 +630,7 @@ describe('object types', () => {
 
 	// Nothing on this screen is optional: every field is read out of a record that either opened or threw,
 	// so there is no half-answered state — a nullable field here would be a way to render "unknown" for a
-	// fingerprint an operator is about to compare by eye.
+	// fingerprint an admin is about to compare by eye.
 	it('leaves nothing on the keygrip status nullable', () => {
 		const nullable = ['GraphQLKeygripStatus', 'GraphQLKeygripKeyInfo', 'GraphQLKeygripHolder'].flatMap((t) =>
 			(types.get(t)?.fields ?? []).filter((f) => f.type.kind !== 'NON_NULL').map((f) => `${t}.${f.name}`)
@@ -698,7 +698,7 @@ describe('object types', () => {
 	/*
 	 * E17-S01: the generated union `marketplace-admin` renders from and the runtime values the backend
 	 * writes into Redis are the same set, because both are `REUSE_EVENT_ACTIONS`. A hand-written enum on
-	 * either side would drift the moment a third case is added, and the drift would surface as an operator
+	 * either side would drift the moment a third case is added, and the drift would surface as an admin
 	 * reading a blank cell rather than as a failing build.
 	 */
 	it('GraphQLReuseEventAction holds exactly the shared action list', async () => {
@@ -721,9 +721,9 @@ describe('object types', () => {
 	 * can collide.
 	 *
 	 * ⚠️ **The description is asserted with the arguments, not as decoration.** These four are the only
-	 * fields on the operator surface that end a credential, and the text here is what an operator reads in
+	 * fields on the admin surface that end a credential, and the text here is what an admin reads in
 	 * a schema explorer before deciding to fire one — `revokeAllSessions` saying it ends *every* session is
-	 * the blast radius, and a rewrite that softened it would change what an operator believes they are
+	 * the blast radius, and a rewrite that softened it would change what an admin believes they are
 	 * about to do while changing nothing a behavioural test can see.
 	 */
 	it.each([
@@ -768,8 +768,8 @@ describe('input types', () => {
 	// `companyUpdatePublished` alone — a save of the card cannot carry it, and this assertion is what
 	// stops it coming back. Derived from the output type rather than spelled out, so a field added to one
 	// and forgotten on the other fails here instead of surfacing as a form that silently drops what the
-	// operator typed.
-	it('mirrors the company, minus the two fields the operator cannot set and the publish flag', () => {
+	// admin typed.
+	it('mirrors the company, minus the two fields the admin cannot set and the publish flag', () => {
 		expect(inputFieldsOf('GraphQLInputCompany')).toEqual(
 			fieldsOf('GraphQLCompany').filter((f) => f !== '_id' && f !== 'idShopOwner' && f !== 'published')
 		)
@@ -779,23 +779,23 @@ describe('input types', () => {
 	// Asserted as an absence, like adminUpdatePwd's missing `_id` above. A GeoJSON `type` has exactly
 	// one legal value here — the collection caps the field at 5 characters and the model declares it as
 	// an enum of `['Point']` — so an input field for it could only ever carry the right answer or a
-	// document that fails validation naming a field the operator never saw. The resolver writes the
+	// document that fails validation naming a field the admin never saw. The resolver writes the
 	// literal instead; putting `type` back would silently hand that decision to the client.
 	it('gives the position inputs no way to name a geometry other than Point', () => {
 		expect(inputFieldsOf('GraphQLInputCompanyPosition')).toEqual(['coordinates'])
 	})
 
 	// The write shape of a category is the read shape minus `_id`, reordered so the two fields the
-	// operator types come first. Spelled out rather than derived from `GraphQLItemCategory`, because
+	// admin types come first. Spelled out rather than derived from `GraphQLItemCategory`, because
 	// the orders genuinely differ and deriving it would only assert that they do not.
 	it('takes a category as one object', () => {
 		expect(inputFieldsOf('GraphQLInputItemCategory')).toEqual(['name', 'slug', 'idParent', 'position'])
 	})
 
-	// Asserted as an absence, like `adminUpdatePwd`'s missing `_id`. An operator moderates a catalogue,
+	// Asserted as an absence, like `adminUpdatePwd`'s missing `_id`. An admin moderates a catalogue,
 	// it does not write one — so there is no input type for an item on this tier at all, and the two
 	// item mutations here take scalars.
-	it('gives the operator no input shape for an item', () => {
+	it('gives the admin no input shape for an item', () => {
 		expect(types.has('GraphQLInputItem')).toBe(false)
 	})
 })

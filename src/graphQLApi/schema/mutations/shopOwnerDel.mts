@@ -10,9 +10,9 @@ interface IArgs {
 }
 
 /**
- * Closes a shop owner's account on the operator's authority.
+ * Closes a shop owner's account on the admin's authority.
  *
- * ⚠️ **The operator's id is recorded, and it comes off `ctx.state.user`** (ADR-044). `deletedBy` beside a
+ * ⚠️ **The admin's id is recorded, and it comes off `ctx.state.user`** (ADR-044). `deletedBy` beside a
  * `deleted` stamp is what distinguishes an account the platform closed from one its holder closed — the
  * absence of the field *is* the self-service case — so a closure that did not name its actor would erase
  * exactly the distinction the kept document exists to carry.

@@ -6,7 +6,7 @@ import { throwErrorWrongUserInput } from '@axiumine/koa-utils/graphQL/throw/thro
  * They exist because the collection's `$jsonSchema` is the only thing that was enforcing any of this,
  * and a validator rejection surfaces as a raw driver error: `Document failed validation`, with the
  * offending path buried in `errInfo`. Apollo turns that into a 500 with no usable message, so an
- * operator who typed a four-digit postal code was told the server had broken. Every helper below raises a 400
+ * admin who typed a four-digit postal code was told the server had broken. Every helper below raises a 400
  * naming the field instead.
  *
  * They also **normalise**, and that half is not cosmetic. `additionalProperties: false` plus
@@ -44,7 +44,7 @@ export const SHAPE_UNIQUE_CODE = /^[A-Za-z0-9]{7}$/
  * loosened. No leading, trailing or doubled hyphen, no uppercase, no dot and no slash: a slug lands in
  * a public route, where an uppercase letter is a different URL after normalisation and a slash is a
  * different route altogether. Both are worse than a rejected write, because they surface as a 404 on a
- * page an operator believed they had published.
+ * page an admin believed they had published.
  *
  * `minLength: 2` in all three collections, so the pattern alone is not enough — the length helpers
  * below carry it.
@@ -141,7 +141,7 @@ export const optionalTextWithFormat = (
 /**
  * A required slug: trimmed, within the collection's bounds, shaped like a URL segment.
  *
- * Not lowercased for the caller. An operator who typed `Northwind` is told the slug is lowercase
+ * Not lowercased for the caller. An admin who typed `Northwind` is told the slug is lowercase
  * rather than having it silently rewritten — the slug is the permanent address of a public page, and a
  * value that differs from what was typed is the kind of surprise that gets noticed only after the link
  * has been shared.

@@ -15,8 +15,8 @@ import mongoose, { trusted, Types } from 'mongoose'
  * while looking perfectly healthy in the collection.
  *
  * The alternative — cascade — was rejected: deleting one category would silently withdraw an unbounded
- * number of other shop owners' items, which is not a decision an operator should be able to take by
- * pressing Delete. Re-filing them first is the operator's call to make explicitly.
+ * number of other shop owners' items, which is not a decision an admin should be able to take by
+ * pressing Delete. Re-filing them first is the admin's call to make explicitly.
  *
  * Both counts filter `deleted`: a retired item or a retired subcategory is invisible everywhere and
  * cannot strand anything.

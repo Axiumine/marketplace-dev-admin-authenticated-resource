@@ -16,7 +16,7 @@ interface IArgs {
 /**
  * The disable switch and the manual-approval gate.
  *
- * Both flags are `Boolean!`, not optional: the operator app sends the state of both toggles on
+ * Both flags are `Boolean!`, not optional: the admin app sends the state of both toggles on
  * every save, so "not sent" would only ever mean a bug on the client. Nullable arguments here would
  * also make the mutation a partial update, and the one thing a partial update of these two cannot
  * express is turning a flag *off* — `null` for "leave alone" and `null` for "clear it" are the same
@@ -29,9 +29,9 @@ interface IArgs {
  * without a reason, caps the text at 1000 characters, and drops a reason that came with a release rather
  * than arguing with a form that kept its textarea populated.
  *
- * ⚠️ **The operator's own id comes off `ctx.state.user`, which the Redis session lookup writes and no
+ * ⚠️ **The admin's own id comes off `ctx.state.user`, which the Redis session lookup writes and no
  * request can reach.** ADR-044's whole point is that a suspension names a real actor; an `adminBy`
- * argument on the wire would let any operator sign somebody else's name to their decision.
+ * argument on the wire would let any admin sign somebody else's name to their decision.
  *
  * ⚠️ **Both flags arrive on every save, so the revoke below reads the target state and never a
  * transition.** There is no "what was it before" to compare against and none is fetched: re-saving an

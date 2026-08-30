@@ -2,7 +2,7 @@ import { GraphQLItemCategoryFrag } from '@axiumine/marketplace-common/schema/typ
 import { GraphQLID, GraphQLNonNull, GraphQLObjectType } from 'graphql'
 
 /**
- * A category of the platform-wide taxonomy — the one thing in the catalogue only an operator writes.
+ * A category of the platform-wide taxonomy — the one thing in the catalogue only an admin writes.
  *
  * `idParent` is nullable, and that nullability *is* the tree: absent means a top-level category,
  * present means a subcategory of the category it names. Depth is capped at two, which is why the list can

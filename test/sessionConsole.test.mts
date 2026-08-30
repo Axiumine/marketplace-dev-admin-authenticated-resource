@@ -26,7 +26,7 @@ const { revokeSession } = await import('../src/graphQLApi/schema/mutations/revok
 const { revokeAllSessions } = await import('../src/graphQLApi/schema/mutations/revokeAllSessions.mts')
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
-const ctx = { state: { user: { _id, email: 'operator@marketplace.test' } } } as never
+const ctx = { state: { user: { _id, email: 'admin@marketplace.test' } } } as never
 
 const ACCOUNT = '68b0f2c1a2b3c4d5e6f70819'
 const FIELD = 'a'.repeat(64)
@@ -94,7 +94,7 @@ describe('reuseEvents', () => {
 
 describe('revokeSession', () => {
 	/*
-	 * ⚠️ The operator's id comes off the Redis session and meters the rate limit; it is not an argument, so
+	 * ⚠️ The admin's id comes off the Redis session and meters the rate limit; it is not an argument, so
 	 * nobody can revoke on somebody else's allowance. It travels no further than the limiter — E17's open
 	 * question 4 answered "not attributable", so it never reaches the event trail.
 	 */
@@ -105,7 +105,7 @@ describe('revokeSession', () => {
 	})
 
 	// `false` is the already-ended case, and it must reach the console intact: reporting it as an error
-	// would train an operator to retry a call that has already done everything it can.
+	// would train an admin to retry a call that has already done everything it can.
 	it('passes an already-ended session through as false rather than as a failure', async () => {
 		funRevokeSession.mockResolvedValueOnce(false)
 

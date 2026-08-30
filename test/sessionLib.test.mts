@@ -27,7 +27,7 @@ const { funRevokeAllSessions } = await import('../src/lib/session/funRevokeAllSe
 const { funReuseEvents } = await import('../src/lib/session/funReuseEvents.mts')
 const { SESSION_WRITES_PER_HOUR, SESSION_WRITE_WINDOW_SECONDS } = await import('../src/lib/session/guardSessionWrite.mts')
 
-const OPERATOR = new Types.ObjectId('507f1f77bcf86cd799439011')
+const ADMIN = new Types.ObjectId('507f1f77bcf86cd799439011')
 const ACCOUNT = '68b0f2c1a2b3c4d5e6f70819'
 const INDEX_KEY = `test:idx:shopOwner:${ACCOUNT}`
 const TRAIL_KEY = `test:reuse:shopOwner:${ACCOUNT}`
@@ -64,11 +64,11 @@ const session = (familyId: string, originalLogin: string) => ({
  * The counter key a metered revocation increments.
  *
  * ⚠️ Spelled from the parts rather than imported from `assertUnderRateLimit`, so the assertion is that the
- * operator's *account id* is what gets metered — and that it arrives hashed. A scan of the limiter's
- * keyspace must not read back as a list of which operators ended whose sessions.
+ * admin's *account id* is what gets metered — and that it arrives hashed. A scan of the limiter's
+ * keyspace must not read back as a list of which admins ended whose sessions.
  */
-const meterKey = (operation: string, operator: string) =>
-	`test:rl:session:${operation}:${createHash('sha256').update(operator).digest('hex')}`
+const meterKey = (operation: string, admin: string) =>
+	`test:rl:session:${operation}:${createHash('sha256').update(admin).digest('hex')}`
 
 beforeEach(() => {
 	vi.stubEnv('REDIS_KEY', 'test:')
@@ -108,7 +108,7 @@ describe('funSessions', () => {
 
 	it('takes every field of a row from the session hash, not from the index entry', async () => {
 		// The index entry disagrees with the session on both fields it duplicates. The session wins: it is
-		// the record the platform authenticates against, and an operator deciding what to end reads that one.
+		// the record the platform authenticates against, and an admin deciding what to end reads that one.
 		hGetAll.mockImplementation((key: string) =>
 			Promise.resolve(
 				key === INDEX_KEY ? { [FIELD_A]: JSON.stringify({ tier: 'admin', mintedAt: '999999' }) } : session('fam-1', '1000')
@@ -195,7 +195,7 @@ describe('funSessions', () => {
 
 describe('funRevokeSession', () => {
 	it('deletes the session key first and prunes its index field second', async () => {
-		await expect(funRevokeSession(OPERATOR, 'shopOwner', ACCOUNT, FIELD_A)).resolves.toBe(true)
+		await expect(funRevokeSession(ADMIN, 'shopOwner', ACCOUNT, FIELD_A)).resolves.toBe(true)
 
 		// Single-key `del`s (BCON-08), the session's own built from the field verbatim — no rehashing, no token.
 		expect(del.mock.calls).toStrictEqual([[accessKeyOf(FIELD_A)], [`test:${FIELD_A}`]])
@@ -206,10 +206,10 @@ describe('funRevokeSession', () => {
 	/*
 	 * ⚠️ R54: ending a session ends the access token it minted, and reads the key for it *before* deleting the
 	 * hash that holds it. The reverse order can read nothing at all, and leaves the account a working bearer
-	 * token for up to 91 minutes after an operator was told the session was over.
+	 * token for up to 91 minutes after an admin was told the session was over.
 	 */
 	it('retires the access token the session minted, before deleting the session', async () => {
-		await funRevokeSession(OPERATOR, 'shopOwner', ACCOUNT, FIELD_A)
+		await funRevokeSession(ADMIN, 'shopOwner', ACCOUNT, FIELD_A)
 
 		expect(hGet).toHaveBeenCalledExactlyOnceWith(`test:${FIELD_A}`, 'accessKey')
 		expect(hGet.mock.invocationCallOrder[0]).toBeLessThan(del.mock.invocationCallOrder[1] as number)
@@ -219,7 +219,7 @@ describe('funRevokeSession', () => {
 	it('ends a session that carries no bound access key, deleting only the session', async () => {
 		hGet.mockResolvedValue(null)
 
-		await expect(funRevokeSession(OPERATOR, 'shopOwner', ACCOUNT, FIELD_A)).resolves.toBe(true)
+		await expect(funRevokeSession(ADMIN, 'shopOwner', ACCOUNT, FIELD_A)).resolves.toBe(true)
 
 		expect(del).toHaveBeenCalledExactlyOnceWith(`test:${FIELD_A}`)
 	})
@@ -229,18 +229,18 @@ describe('funRevokeSession', () => {
 
 		// The case that repairs the list: no session was ended, so the answer is `false` — and the row stops
 		// being rendered, which is the whole reason the `hDel` is unconditional.
-		await expect(funRevokeSession(OPERATOR, 'shopOwner', ACCOUNT, FIELD_A)).resolves.toBe(false)
+		await expect(funRevokeSession(ADMIN, 'shopOwner', ACCOUNT, FIELD_A)).resolves.toBe(false)
 		expect(hDel).toHaveBeenCalledExactlyOnceWith(INDEX_KEY, FIELD_A)
 	})
 
-	it('meters the operator by account id, hashed, and refuses over the cap', async () => {
+	it('meters the admin by account id, hashed, and refuses over the cap', async () => {
 		incr.mockResolvedValue(SESSION_WRITES_PER_HOUR + 1)
 
-		const outcome = await rejection(funRevokeSession(OPERATOR, 'shopOwner', ACCOUNT, FIELD_A))
+		const outcome = await rejection(funRevokeSession(ADMIN, 'shopOwner', ACCOUNT, FIELD_A))
 
 		expect(outcome.message).toBe('Too Many Requests')
 		expect(outcome.http).toEqual({ status: 429 })
-		expect(incr).toHaveBeenCalledExactlyOnceWith(meterKey('revoke', OPERATOR.toString()))
+		expect(incr).toHaveBeenCalledExactlyOnceWith(meterKey('revoke', ADMIN.toString()))
 		// The refusal lands before the store is touched: a metered call must not half-revoke, and must not
 		// read a session it is not going to end either.
 		expect(hGet).not.toHaveBeenCalled()
@@ -249,7 +249,7 @@ describe('funRevokeSession', () => {
 	})
 
 	it('names the index key by the tier it was given', async () => {
-		await funRevokeSession(OPERATOR, 'user', ACCOUNT, FIELD_A)
+		await funRevokeSession(ADMIN, 'user', ACCOUNT, FIELD_A)
 
 		expect(hDel).toHaveBeenCalledExactlyOnceWith(`test:idx:user:${ACCOUNT}`, FIELD_A)
 	})
@@ -261,7 +261,7 @@ describe('funRevokeAllSessions', () => {
 		// so the index key itself goes too.
 		hKeys.mockResolvedValueOnce([FIELD_A, FIELD_B]).mockResolvedValueOnce([])
 
-		await expect(funRevokeAllSessions(OPERATOR, 'shopOwner', ACCOUNT)).resolves.toBe(2)
+		await expect(funRevokeAllSessions(ADMIN, 'shopOwner', ACCOUNT)).resolves.toBe(2)
 		// Both halves of both sessions, the access ones first (R54), and the index key last of all.
 		expect(del.mock.calls).toStrictEqual([
 			[accessKeyOf(FIELD_A)],
@@ -287,7 +287,7 @@ describe('funRevokeAllSessions', () => {
 
 		// Three, not four: the count is what was actually revoked, so the caller never reports a session
 		// that is still open.
-		await expect(funRevokeAllSessions(OPERATOR, 'shopOwner', ACCOUNT)).resolves.toBe(3)
+		await expect(funRevokeAllSessions(ADMIN, 'shopOwner', ACCOUNT)).resolves.toBe(3)
 		expect(del).not.toHaveBeenCalledWith(INDEX_KEY)
 		expect(hDel.mock.calls).toStrictEqual([
 			[INDEX_KEY, FIELD_A],
@@ -296,21 +296,21 @@ describe('funRevokeAllSessions', () => {
 		])
 	})
 
-	it('meters the operator on its own bucket, separate from the single revoke', async () => {
+	it('meters the admin on its own bucket, separate from the single revoke', async () => {
 		incr.mockResolvedValue(SESSION_WRITES_PER_HOUR + 1)
 
-		const outcome = await rejection(funRevokeAllSessions(OPERATOR, 'shopOwner', ACCOUNT))
+		const outcome = await rejection(funRevokeAllSessions(ADMIN, 'shopOwner', ACCOUNT))
 
 		expect(outcome.message).toBe('Too Many Requests')
 		expect(outcome.http).toEqual({ status: 429 })
 		// `revokeAll`, not `revoke`: an afternoon spent ending single sessions must not spend the allowance
-		// for the call an operator makes when an account is confirmed compromised.
-		expect(incr).toHaveBeenCalledExactlyOnceWith(meterKey('revokeAll', OPERATOR.toString()))
+		// for the call an admin makes when an account is confirmed compromised.
+		expect(incr).toHaveBeenCalledExactlyOnceWith(meterKey('revokeAll', ADMIN.toString()))
 		expect(hKeys).not.toHaveBeenCalled()
 	})
 
 	it('answers zero for an account holding nothing, issuing no delete at all', async () => {
-		await expect(funRevokeAllSessions(OPERATOR, 'shopOwner', ACCOUNT)).resolves.toBe(0)
+		await expect(funRevokeAllSessions(ADMIN, 'shopOwner', ACCOUNT)).resolves.toBe(0)
 		expect(del).not.toHaveBeenCalled()
 	})
 })

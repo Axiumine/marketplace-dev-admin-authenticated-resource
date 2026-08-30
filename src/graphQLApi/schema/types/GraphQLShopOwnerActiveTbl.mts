@@ -15,7 +15,7 @@ export const GraphQLShopOwnerActiveTbl = new GraphQLObjectType({
 		/**
 		 * The address the account authenticates with, and on a self-registered row the only thing that
 		 * identifies it: `personalData` below is absent until onboarding, so a queue row would otherwise
-		 * be a date and an id. Operator tier only — `shopOwnerById` already answers the same field to the
+		 * be a date and an id. Admin tier only — `shopOwnerById` already answers the same field to the
 		 * same audience.
 		 *
 		 * Flattened out of `login` by hand. The document nests it, the table renders one column, and the
@@ -31,17 +31,17 @@ export const GraphQLShopOwnerActiveTbl = new GraphQLObjectType({
 		 * `shopOwnerRegister` shipped: a stranger signing themselves up gives an address and a password,
 		 * and nothing else exists until onboarding. Under the `NonNull` this field used to carry, one
 		 * pending registration made the *whole page* an error — `items` is a non-null list of non-null
-		 * rows, so a null anywhere in it propagates all the way up — and the table an operator needs in
+		 * rows, so a null anywhere in it propagates all the way up — and the table an admin needs in
 		 * order to approve that very account was the table it broke.
 		 */
 		personalData: { type: GraphQLPersonalData },
 		/**
-		 * Present and true while the account waits for an operator. Written by `shopOwnerRegister` (a
-		 * stranger signed themselves up) and by `shopOwnerUpdateStatus` (an operator parked an existing
+		 * Present and true while the account waits for an admin. Written by `shopOwnerRegister` (a
+		 * stranger signed themselves up) and by `shopOwnerUpdateStatus` (an admin parked an existing
 		 * account), `$unset` on approval — so the approved state is an absent key, never `false`, and the
 		 * frontend renders "pending" on truthiness rather than on equality.
 		 *
-		 * `shopOwnerAdd` writes nothing here on purpose: an account an operator created by hand has been
+		 * `shopOwnerAdd` writes nothing here on purpose: an account an admin created by hand has been
 		 * approved by the act of creating it.
 		 */
 		waitApprov: { type: GraphQLBoolean }

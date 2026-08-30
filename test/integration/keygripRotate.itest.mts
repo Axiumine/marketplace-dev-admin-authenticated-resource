@@ -82,8 +82,8 @@ async function gql(query: string, headers: Record<string, string> = {}) {
 /**
  * A session in Redis, in the shape a real login writes — `tier` included, or the guard answers 403.
  *
- * ⚠️ **A fresh operator id every call, and its rate-limit counters registered before the seed.** The two
- * write mutations meter per operator per hour (E16-S07), so a shared id would make each test spend the
+ * ⚠️ **A fresh admin id every call, and its rate-limit counters registered before the seed.** The two
+ * write mutations meter per admin per hour (E16-S07), so a shared id would make each test spend the
  * next one's allowance and the suite would start failing at whatever length it happened to reach. The
  * counter keys are pushed ahead of the `hSet` for the reason the session key is: a seed that throws
  * halfway still has to leave `afterAll` something to drain.
@@ -97,7 +97,7 @@ async function withSession(tier: string = TIER.admin) {
 	for (const operation of ['rotate', 'retire'])
 		seededKeys.push(`${ITEST_REDIS_KEY}rl:keygrip:${operation}:${createHash('sha256').update(_id).digest('hex')}`)
 
-	await redisClient.hSet(key, { _id, email: 'operator@marketplace.test', tier })
+	await redisClient.hSet(key, { _id, email: 'admin@marketplace.test', tier })
 
 	return { authorization: `Bearer ${token}` }
 }
@@ -238,7 +238,7 @@ describe('keygripRotate over HTTP, against the real record', () => {
 
 	/*
 	 * ⚠️ The holders table answers "which services are running the current keys", and it is read by an
-	 * operator deciding whether a rotation has landed everywhere. This service signs nothing, so a row for
+	 * admin deciding whether a rotation has landed everywhere. This service signs nothing, so a row for
 	 * it would be a service that never adopts anything and never stops looking stale — which is why
 	 * `funKeygripRotate` reads through `readKeygrip` and not `loadKeygrip`. Nothing else in this suite
 	 * writes to the table, so an empty one is the whole claim.
@@ -363,7 +363,7 @@ describe('keygripStatus over HTTP, against the record three rotations left behin
 	 * refused by validation before a resolver runs — which is a stronger statement than "the resolver does
 	 * not fill it in", and the one that stays true if somebody later returns the raw record from the lib.
 	 */
-	it('has no field an operator could ask key material with', async () => {
+	it('has no field an admin could ask key material with', async () => {
 		const headers = await withSession()
 
 		const { json } = await gql('query { keygripStatus { keys { material } } }', headers)
@@ -419,7 +419,7 @@ describe('keygripRetire over HTTP, against the record the rotations left at vers
 	})
 
 	/*
-	 * ⚠️ 404, and it has to be read as "nothing was retired". An operator halfway through a compromise who
+	 * ⚠️ 404, and it has to be read as "nothing was retired". An admin halfway through a compromise who
 	 * read this as "that key is already gone" would stop responding to a key that is still signing cookies,
 	 * which is why the description says so in words and why the record is asserted unchanged here.
 	 */
@@ -490,13 +490,13 @@ describe('keygripRetire over HTTP, against the record the rotations left at vers
 	})
 
 	/*
-	 * ⚠️ The metering, on the path that matters most: eleven attempts from one operator inside the hour, and
+	 * ⚠️ The metering, on the path that matters most: eleven attempts from one admin inside the hour, and
 	 * the eleventh is refused before the record is read. The first ten name a key that does not exist, so
 	 * every one of them is a refusal too — which is the point. A limiter that only counted successful writes
 	 * would let a loop guess ids at line speed, and the ids are what `keygripStatus` will not show an
 	 * unprivileged caller.
 	 */
-	it('refuses the eleventh retirement of the hour from one operator', async () => {
+	it('refuses the eleventh retirement of the hour from one admin', async () => {
 		const headers = await withSession()
 
 		for (let attempt = 0; attempt < 10; attempt++) expect((await gql(retire('k9'), headers)).status).toBe(404)

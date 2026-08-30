@@ -1,7 +1,7 @@
 import { GraphQLID, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql'
 
 /**
- * Everything an operator types about a category, in one object.
+ * Everything an admin types about a category, in one object.
  *
  * One argument rather than four, like `GraphQLInputCompany`, because it is one form and one Save —
  * and because it lets the update path `$set` the document in a single atomic write.

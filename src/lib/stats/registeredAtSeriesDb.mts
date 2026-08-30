@@ -1,7 +1,7 @@
 import { PipelineStage } from 'mongoose'
 
 /**
- * The registrations-over-time series behind an operator stats chart, over **any** collection whose
+ * The registrations-over-time series behind an admin stats chart, over **any** collection whose
  * documents carry a `registeredAt`.
  *
  * Three ranges, one shape. The caller picks how far back to look; the server picks how finely to
@@ -82,7 +82,7 @@ export interface ISeriesModel {
 /**
  * 24 × 60 × 60 × 1000, spelled as a literal.
  *
- * Written out because the product form has an operator to mutate and the literal does not: turning
+ * Written out because the product form has an admin to mutate and the literal does not: turning
  * one `*` into `/` makes the step a fraction of a millisecond, which does not fail a test — it turns
  * the loop in `dayBuckets` into ~10^12 iterations and kills the worker process, so the mutant is
  * reported as a runtime error and Stryker retries the whole run twice before giving up on it.

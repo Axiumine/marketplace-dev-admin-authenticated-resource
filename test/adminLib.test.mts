@@ -96,13 +96,13 @@ describe('funAdminUpdatePwd', () => {
 		expect(updateOne).not.toHaveBeenCalled()
 	})
 
-	// A disabled or soft-deleted operator keeps a working access token until it expires. The gate
+	// A disabled or soft-deleted admin keeps a working access token until it expires. The gate
 	// runs BEFORE the password is compared, so a suspended account cannot use this endpoint to
 	// confirm a guess either.
 	it.each([
 		['disabled', { disabled: true }],
 		['soft-deleted', { deleted: new Date() }]
-	])('refuses a %s operator before comparing anything', async (_label, state) => {
+	])('refuses a %s admin before comparing anything', async (_label, state) => {
 		mockAdmin(storedAdmin(state))
 
 		await expect(funAdminUpdatePwd(_id, OLD, NEW)).rejects.toMatchObject({
@@ -117,7 +117,7 @@ describe('funAdminUpdatePwd', () => {
 	describe('new password validation', () => {
 		// koa-utils' bounds, 10 to 72. The upper one is the one worth a test: bcrypt hashes at most
 		// 72 bytes and ignores the rest, so an unbounded passphrase would be stored as its prefix
-		// while the operator believes the whole thing protects the account.
+		// while the admin believes the whole thing protects the account.
 		it.each([
 			['too short', 'a'.repeat(9), 'Password is too short'],
 			['too long', 'a'.repeat(73), 'Password is too long']

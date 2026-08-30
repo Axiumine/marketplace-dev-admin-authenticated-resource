@@ -10,11 +10,11 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
  * rule and the wire's rule cannot be two different rules; `schema.test.mts` enumerates the set (BCON-01).
  *
  * `familyId` is the handle the revocation was issued against, which is what ties a line here to the rows
- * `sessions` no longer returns — the whole point of the trail: a mass logout an operator can explain
+ * `sessions` no longer returns — the whole point of the trail: a mass logout an admin can explain
  * instead of a mystery ticket.
  *
  * `at` is epoch millis as a string, as it is stored. A number would be a number in this process and a
- * string in the next one, and the console formats it against the operator's own locale either way.
+ * string in the next one, and the console formats it against the admin's own locale either way.
  */
 export const GraphQLReuseEvent = new GraphQLObjectType({
 	name: 'GraphQLReuseEvent',

@@ -4,7 +4,7 @@ import { sessionIndexKey, sessionKeyFromIndexField } from '@axiumine/marketplace
 import { Tier } from '@axiumine/marketplace-common/others/Tier'
 
 /**
- * One live session, as an operator needs to see it (E17-S02).
+ * One live session, as an admin needs to see it (E17-S02).
  *
  * ⚠️ **`id` is the session index field: the SHA-256 of the prefixed refresh token, never the token.** It is
  * safe to put on a screen and it is safe to accept back from one, and neither is obvious, so both are
@@ -40,19 +40,19 @@ export interface ISessionRow {
  * ⚠️ **Every field of every row comes from the session hash, not from the index entry.** The index value
  * carries its own copy of the tier and the mint time (`ISessionIndexEntry`), and reading it here would give
  * a row assembled from two records that a failed rotation could leave disagreeing. The session hash is the
- * record the platform actually authenticates against, so it is the one an operator deciding what to end
+ * record the platform actually authenticates against, so it is the one an admin deciding what to end
  * should be looking at. The index answers one question only: *which* sessions exist.
  *
  * ⚠️ **A field naming a session that is already gone is dropped, not rendered.** Rotation and logout prune
  * their own field and E15-S03 gives every field a TTL, but a session whose key expired between that TTL and
- * this read is a real state and it must not be listed as live — an operator ending a session that ended
+ * this read is a real state and it must not be listed as live — an admin ending a session that ended
  * itself would read the no-op as "it did not work". `hGetAll` on a missing key answers `{}`, which is the
  * whole test. The stale field is left in place rather than pruned here: this is a read, and a read that
  * writes is a read that needs a rate limit and an audit line of its own.
  *
  * Rows come back sorted newest login first, with the id as tie-break, because Redis returns hash fields in
  * whatever order the keyspace holds them — stable for nobody, and a table that reshuffles between polls is
- * a table an operator cannot click safely.
+ * a table an admin cannot click safely.
  */
 export async function funSessions(tier: Tier, accountId: string): Promise<ISessionRow[]> {
 	const fields = Object.keys((await redisClient.hGetAll(sessionIndexKey(tier, accountId))) as Record<string, string>)

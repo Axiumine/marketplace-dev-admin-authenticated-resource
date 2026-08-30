@@ -16,7 +16,7 @@ interface IArgs {
  * The input is the same object `itemCategoryAdd` takes, so an omitted `idParent` here means "top-level
  * category" rather than "leave the parent alone" — this is a save of the document, not a patch of it. That
  * is what makes promoting a subcategory back to the top level expressible at all: there is no other
- * value the operator could send to clear a parent.
+ * value the admin could send to clear a parent.
  *
  * ⚠️ Both halves of the two-level depth cap are enforced in the lib, not here. See
  * `funItemCategoryUpdate` — a category that already has subcategories cannot be given a parent, and

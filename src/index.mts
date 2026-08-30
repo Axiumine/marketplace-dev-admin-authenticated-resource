@@ -59,12 +59,12 @@ export const REQUIRED_ENV_VARS = [
 	// `SAMESITE_COOKIE` is the one that looks load-bearing and is not — the cookie policy it appears to
 	// name is the literal `sameSite: 'Strict'` in `@axiumine/koa-utils/dist/lib/tokenOptions.mjs`, which
 	// reads no variable, and the edge's `Secure` rewrite (ADR-034) is nginx config. A variable required at
-	// boot and read by nothing teaches operators that this list is noise, which is the one thing it cannot
+	// boot and read by nothing teaches admins that this list is noise, which is the one thing it cannot
 	// afford to be.
 	'INTROSPECTION_CODE',
 	// ADR-034, E01-S13. This service signs no cookie and never will; it holds the key that opens the
 	// record the five signing services read, because `keygripRotate` is where the platform's signing keys
-	// are minted and resealed. Required at boot rather than checked at first use: an operator reaching
+	// are minted and resealed. Required at boot rather than checked at first use: an admin reaching
 	// for rotation is usually doing it during an incident, and "this service was never given the KEK" is
 	// not an answer anybody wants at that moment. A KEK that is present but *wrong* cannot be caught
 	// here — nothing reads the record until a rotation runs — and the rotation refuses rather than
@@ -262,7 +262,7 @@ export async function start() {
 		 * run against a connection that has none. Nothing is awaited beyond arming it — the first pass runs
 		 * in the background and reports itself.
 		 *
-		 * This service and no other. It is the operator surface, it already writes both collections, and it
+		 * This service and no other. It is the admin surface, it already writes both collections, and it
 		 * is not the internet-facing unauthenticated one; a second service arming this would double-sweep,
 		 * which the Redis lock survives but which nobody would be able to read in the logs.
 		 */

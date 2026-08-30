@@ -10,7 +10,7 @@ import { GraphQLBoolean, GraphQLID, GraphQLNonNull, GraphQLObjectType, GraphQLSt
  * why a shopOwner running three shops no longer stores the registered legal name three times, and why the
  * unique VAT number no longer refuses the second of them.
  *
- * `idShopOwner` is exposed rather than kept internal: the operator app reaches a company through its
+ * `idShopOwner` is exposed rather than kept internal: the admin app reaches a company through its
  * owner's detail page and the field is what a client re-reading one company can check it against.
  *
  * `taxCode` and `uniqueCode` are the two nullable fields, matching the collection's `required` array. Neither

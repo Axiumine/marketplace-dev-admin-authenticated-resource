@@ -63,7 +63,7 @@ export type ICompanyValidated = Omit<ICompanySchema, '_id' | 'idShopOwner' | '__
  * box sent as `null` — which is what GraphQL serialises it to — fails the whole write.
  *
  * The path prefix is `company.` throughout because the fields arrive inside one input object, which is
- * the argument the operator's form maps onto.
+ * the argument the admin's form maps onto.
  *
  * ⚠️ `published` is not here at all — it is neither read from the input nor returned. Publishing is
  * `companyUpdatePublished`, and the rule that a published shop needs a `slug` and a `publicName` lives

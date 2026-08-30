@@ -23,7 +23,7 @@ export const revokeAllSessions = {
 	},
 	async resolve(_: unknown, args: { tier: Tier; accountId: string }, ctx: IContextAdminAuthenticatedResource) {
 		try {
-			// The operator's id meters the rate limit and travels nowhere else — never into the event trail,
+			// The admin's id meters the rate limit and travels nowhere else — never into the event trail,
 			// which E17's open question 4 answered "not attributable".
 			return await funRevokeAllSessions(ctx.state.user._id, args.tier, args.accountId)
 		} catch (e) {

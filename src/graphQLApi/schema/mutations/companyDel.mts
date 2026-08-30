@@ -11,7 +11,7 @@ interface IArgs {
  * Deletes one company.
  *
  * A soft delete: the lib stamps `deleted` and every read path filters on its absence, so the company
- * disappears from the operator's page without the document going anywhere. It answers `Boolean!` all
+ * disappears from the admin's page without the document going anywhere. It answers `Boolean!` all
  * the same — the client re-reads the list after a save.
  */
 export const companyDel = {

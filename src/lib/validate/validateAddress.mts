@@ -33,14 +33,14 @@ export type IAddressInput = Omit<ICompanyAddress, 'position'> & { position: { co
  * An address, including its GeoJSON point.
  *
  * `prefix` is the path the fields hang off in the mutation that called — `company.address`, since
- * the address arrives inside the `company` input object. The operator reads that path in the error
+ * the address arrives inside the `company` input object. The admin reads that path in the error
  * message, so it has to name the box they are actually looking at. The parameter stayed generic rather
  * than hard-coded to that one literal on the same reasoning the module doc-comment gives.
  *
  * `position.type` is **written**, not read off the argument. There is exactly one legal value, the
  * collection caps the field at 5 characters and the model declares it as an enum of one — so accepting
  * it from the client would only create a way to get it wrong, and a `type: 'point'` in the wrong case
- * is a document that fails validation for a reason no operator typed.
+ * is a document that fails validation for a reason no admin typed.
  */
 export const validateAddress = (address: IAddressInput, prefix: string): ICompanyAddress => ({
 	street: requiredText(address.street, `${prefix}.street`, MAX_ADDRESS),

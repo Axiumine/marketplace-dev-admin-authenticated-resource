@@ -154,7 +154,7 @@ describe('shopOwnersPerPeriodDb', () => {
 		/*
 		 * ⚠️ The reason `subMonthsUTC` clamps. `Date.UTC(2026, 1, 31)` is not 31 February, it is 3
 		 * March — the constructor rolls the overflow forward — so "one month before 31 March" would
-		 * answer 3 March and hand back a 29-day range the operator asked for a month of. 28 February
+		 * answer 3 March and hand back a 29-day range the admin asked for a month of. 28 February
 		 * is the only reading of "a month ago" a calendar supports, and it is what the clamp produces.
 		 */
 		it('lands on the last day of a shorter month rather than overflowing into the next one', async () => {

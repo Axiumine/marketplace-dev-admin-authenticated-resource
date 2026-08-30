@@ -13,7 +13,7 @@ import { Types } from 'mongoose'
  * `waitApprov` in `funShopOwnerUpdateStatus`, which are removed when false. The difference is not
  * arbitrary: those two are documented in the validator as flags whose *absence* is the "everything is
  * fine" state, and one of them backs the approval queue. Nothing reads these three by existence, so
- * `rememberMe: false` is simply the value, and storing it keeps "the operator turned this off" distinct
+ * `rememberMe: false` is simply the value, and storing it keeps "the admin turned this off" distinct
  * from "this account has never had a preference recorded".
  *
  * `onboardingStep` is the exception, because it is the one that can genuinely be *not set*: blank

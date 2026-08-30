@@ -9,7 +9,7 @@ import { checkUserAuthorizationDisDel } from '@axiumine/marketplace-common/other
 import { Types } from 'mongoose'
 
 /**
- * Changes the authenticated operator's own password.
+ * Changes the authenticated admin's own password.
  *
  * The `_id` is the session's, never the client's — see the mutation. Everything below is about the
  * one operation this must not become: a way to set someone else's password, or to confirm a guess
@@ -19,7 +19,7 @@ export async function funAdminUpdatePwd(_id: Types.ObjectId, passwordOld: string
 	// The platform's own bounds (koa-utils Constants: 10 minimum, 72 maximum), not a local pair of
 	// numbers. The maximum is the one that is easy to dismiss and must not be: bcrypt hashes at most
 	// 72 bytes and silently ignores everything after them, so without an upper bound a 200-character
-	// passphrase would be stored as its first 72 characters while the operator believes otherwise.
+	// passphrase would be stored as its first 72 characters while the admin believes otherwise.
 	// The OLD password is deliberately not length-checked — it is compared, not accepted, and
 	// validating it would only report which guesses were the wrong shape.
 	checkPwdLen(passwordNew)
@@ -40,7 +40,7 @@ export async function funAdminUpdatePwd(_id: Types.ObjectId, passwordOld: string
 		throwUnauthorizedError()
 	}
 
-	// Same gate every other authenticated path uses. A disabled or soft-deleted operator keeps a live
+	// Same gate every other authenticated path uses. A disabled or soft-deleted admin keeps a live
 	// access token until it expires, and must not be able to change the password on the way out.
 	checkUserAuthorizationDisDel(admin)
 

@@ -8,7 +8,7 @@ interface IArgs {
 }
 
 /**
- * Every company of one shopOwner, for the Companies box on the operator's detail page.
+ * Every company of one shopOwner, for the Companies box on the admin's detail page.
  *
  * The `deleted` filter matters here for the same reason it matters on every other list on this tier:
  * a deleted company must leave the box the moment it is removed, not linger until the page reloads.

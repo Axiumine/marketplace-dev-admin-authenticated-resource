@@ -18,7 +18,7 @@ export interface IKeygripHolder {
 	current: boolean
 }
 
-/** What the operator's screen renders. */
+/** What the admin's screen renders. */
 export interface IKeygripStatus {
 	version: number
 	fingerprint: string
@@ -34,7 +34,7 @@ const DAY_MS = 86_400_000
  * `<fingerprint>@<ISO-8601>`, written by `recordKeygripHolder` — and split on the **first** `@`, because
  * the timestamp contains none while a future fingerprint format might. A row that does not carry one at
  * all yields an empty timestamp rather than throwing: this is a status screen, and one malformed row must
- * not be the reason an operator cannot see the other five.
+ * not be the reason an admin cannot see the other five.
  */
 function splitHolderRow(row: string) {
 	const at = row.indexOf('@')
@@ -43,11 +43,11 @@ function splitHolderRow(row: string) {
 }
 
 /**
- * Everything an operator needs to answer "has the rotation landed everywhere yet" (ADR-034, E01-S14).
+ * Everything an admin needs to answer "has the rotation landed everywhere yet" (ADR-034, E01-S14).
  *
  * ⚠️ **No key material is read, returned or logged.** `readKeygrip` unwraps the record because that is
  * the only way to learn the ids and the dates, and this function drops `material` on the way out — the
- * GraphQL types it feeds have no field for it, and `schema.test.mts` asserts that by name. An operator
+ * GraphQL types it feeds have no field for it, and `schema.test.mts` asserts that by name. An admin
  * who could read one key back could mint a session cookie for any account on the platform.
  *
  * ⚠️ **Reading, not holding.** `readKeygrip` rather than `loadKeygrip`, so opening this screen does not
@@ -65,7 +65,7 @@ export async function funKeygripStatus(): Promise<IKeygripStatus> {
 		record = await readKeygrip(redisClient)
 	} catch (e) {
 		// Names a version and a fingerprint at most — see `readKeygrip`. It is also the only thing that
-		// tells an operator whether to fix this service's env or to re-seed the fleet.
+		// tells an admin whether to fix this service's env or to re-seed the fleet.
 		throwInternalError((e as Error).message)
 	}
 

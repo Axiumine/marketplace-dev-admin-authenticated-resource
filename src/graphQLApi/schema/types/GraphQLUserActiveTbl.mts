@@ -8,7 +8,7 @@ export interface IUserActiveTblRow {
 }
 
 /**
- * One row of the operator's customers table.
+ * One row of the admin's customers table.
  *
  * ⚠️ **No name, no address, no `personalData` of any kind, by design.** The shop-owner row carries all
  * three because `shopOwner` leaves them in the clear for exactly that table; `user` was designed not to
@@ -46,7 +46,7 @@ export const GraphQLUserActiveTbl = new GraphQLObjectType({
 		 *
 		 * ⚠️ **This row is the only place the reason is legible.** `disabledReason` is randomly encrypted
 		 * (ADR-029) and the driver decrypts it here because this service holds the data key; a shell
-		 * reading the collection sees `binData`. The customers table is the operator's only customer
+		 * reading the collection sees `binData`. The customers table is the admin's only customer
 		 * surface — there is no detail page — so a reason left off this row is a reason nobody can read.
 		 *
 		 * `disabledBy` is an attribution rather than a foreign key (ADR-044): nothing joins on it, and an

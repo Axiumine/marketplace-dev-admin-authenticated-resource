@@ -13,7 +13,7 @@ const { default: usersStatsDb } = await import('../src/lib/user/usersStatsDb.mts
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
 
-/** The operator taking the decision — `ctx.state.user._id` at the resolver, never a wire argument. */
+/** The admin taking the decision — `ctx.state.user._id` at the resolver, never a wire argument. */
 const adminId = new Types.ObjectId('507f1f77bcf86cd799439099')
 
 /** The helper ends in `.exec()`, so the chain has to be mocked one level deep. */
@@ -40,7 +40,7 @@ describe('funUserUpdateStatus', () => {
 	 * Every reader of `user.disabled` tests truthiness, so `{disabled: false}` would behave correctly today
 	 * and still be wrong: the collection would hold two spellings of "allowed to log in", and
 	 * `usersActiveTblDb` filters the live customers with `{disabled: {$exists: false}}` — every account ever
-	 * re-enabled would drop off the operator's default page and reappear under the disabled filter.
+	 * re-enabled would drop off the admin's default page and reappear under the disabled filter.
 	 */
 	it.each([
 		[true, { $set: { disabled: true, disabledBy: adminId, disabledReason: 'Chargeback ring' } }],
@@ -54,7 +54,7 @@ describe('funUserUpdateStatus', () => {
 	})
 
 	/*
-	 * Asserted as an absence: `user` is encrypted whole, and the one operator write on it must stay off
+	 * Asserted as an absence: `user` is encrypted whole, and the one admin write on it must stay off
 	 * every personal path. `disabledReason` is the single encrypted field it may name — the model's plugin
 	 * rewrites the `$set` operand into ciphertext on the way past — and a `$set` of `personalData` or of an
 	 * address here would be refused by the validator's `binData` declaration at runtime.
@@ -84,7 +84,7 @@ describe('funUserUpdateStatus', () => {
 	})
 
 	// A flag re-set to the value it already held matches without modifying, and that is a success: the
-	// operator asked for a state, and the state is what the document is in.
+	// admin asked for a state, and the state is what the document is in.
 	it('accepts a write that changed nothing, as long as the customer exists', async () => {
 		mockUpdateMatched(1)
 
@@ -92,7 +92,7 @@ describe('funUserUpdateStatus', () => {
 	})
 
 	// 0 matched is the only failure this write has: an id naming no customer. It is a 404 rather than a
-	// 500 because the operator sent it — a stale row in a table open in another tab.
+	// 500 because the admin sent it — a stale row in a table open in another tab.
 	it('raises a 404 when no customer carries the id', async () => {
 		mockUpdateMatched(0)
 

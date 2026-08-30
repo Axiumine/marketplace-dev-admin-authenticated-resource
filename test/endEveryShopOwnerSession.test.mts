@@ -33,7 +33,7 @@ describe('endEveryShopOwnerSession', () => {
 	/*
 	 * ⚠️ **`idx:shopOwner:`, and the tier is the whole safety of this call.** All nine services share one
 	 * `REDIS_KEY` prefix and the tier is the only thing separating one account's index from another's, so
-	 * `TIER.admin` here would read the index of an operator carrying the same `_id` — none exists, the
+	 * `TIER.admin` here would read the index of an admin carrying the same `_id` — none exists, the
 	 * revoke would delete nothing, and the mutation would report the shop owner locked out regardless.
 	 */
 	it('reads the shopOwner index of the account it was given', async () => {
@@ -71,8 +71,8 @@ describe('endEveryShopOwnerSession', () => {
 	})
 
 	/*
-	 * ⚠️ **The access tokens go too, and the operator never sees one** (R54). This call site is the one that
-	 * makes the mechanism worth having: an operator disabling a shop owner holds none of that account's
+	 * ⚠️ **The access tokens go too, and the admin never sees one** (R54). This call site is the one that
+	 * makes the mechanism worth having: an admin disabling a shop owner holds none of that account's
 	 * tokens, so before the session hash was read for its `accessKey` there was no name for the access half
 	 * at all and the account kept a working bearer token for up to 91 minutes after being disabled. Nothing
 	 * beyond those two keys per session and the index is touched.
@@ -85,7 +85,7 @@ describe('endEveryShopOwnerSession', () => {
 	})
 
 	/*
-	 * ⚠️ **The shop owner logging in while the operator disables them does not keep that session** (E17-S04).
+	 * ⚠️ **The shop owner logging in while the admin disables them does not keep that session** (E17-S04).
 	 * It is the likelier race of the two call sites: the account holder is at their keyboard and has no idea
 	 * a write is landing. The re-read catches the newcomer, and the index key survives until it has been
 	 * revoked — deleting it on the first round would leave that session live with nothing able to name it.

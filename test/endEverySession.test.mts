@@ -134,7 +134,7 @@ describe('endEverySession', () => {
 
 	/*
 	 * ⚠️ **A login landing mid-revoke does not survive the teardown**, asserted at the call site rather than
-	 * left to the shared routine's own suite — this is the scenario the mutation exists for. An operator
+	 * left to the shared routine's own suite — this is the scenario the mutation exists for. An admin
 	 * changes their password because someone else is in the account, and that someone logs in again between
 	 * the index read and its delete. E17-S04's re-read is what ends the second session too, and what keeps
 	 * the index key alive until it has: deleting it there would leave a live session nothing could name.

@@ -14,13 +14,13 @@ interface IArgs {
  * Changes `login.email` — the credential, not `personalData.contacts.email`.
  *
  * Separate from `shopOwnerUpdate` because it is the only field on the collection with a unique
- * index behind it, so it is the only one whose save can fail for a reason the operator can fix. Bundled
+ * index behind it, so it is the only one whose save can fail for a reason the admin can fix. Bundled
  * into the personalData write, a collision would have rolled back an otherwise valid page of edits.
  *
  * ⚠️ **`login.email` is a credential, so writing it ends the shop owner's sessions** (E15-S06). The
  * address is half of what they sign in with: after this mutation the old one no longer authenticates,
  * and a session minted against it has to stop working for the same reason a session minted against the
- * old password does. The operator's own session is untouched — theirs is not the account that changed.
+ * old password does. The admin's own session is untouched — theirs is not the account that changed.
  */
 export const shopOwnerUpdateEmail = {
 	type: new GraphQLNonNull(GraphQLBoolean),

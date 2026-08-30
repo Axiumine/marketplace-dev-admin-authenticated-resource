@@ -124,7 +124,7 @@ INTROSPECTION_CODE='xxx'
 # and *-authenticated-logout), and this one only rewrites it.
 #
 # The SAME value as in those five. A missing one stops the boot — it is in REQUIRED_ENV_VARS, because
-# an operator reaching for rotation is usually mid-incident and that is the worst moment to discover
+# an admin reaching for rotation is usually mid-incident and that is the worst moment to discover
 # the key was never installed. A *wrong* one cannot be caught at boot, since nothing here reads the
 # record until a rotation runs; the rotation then refuses rather than writing a record the five
 # signing services cannot open.

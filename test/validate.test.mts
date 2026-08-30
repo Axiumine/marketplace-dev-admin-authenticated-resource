@@ -477,7 +477,7 @@ describe('validateDisabledReason', () => {
 
 	/*
 	 * ⚠️ **A reason sent with a release is dropped, not refused.** The mutation's contract is a target
-	 * state rather than a transition, so a form that kept its textarea populated while the operator
+	 * state rather than a transition, so a form that kept its textarea populated while the admin
 	 * unticked the box is describing "not suspended" — and answering that with a 400 would be the service
 	 * arguing with a request it understood. `undefined` is what `funShopOwnerUpdateStatus` turns into the
 	 * `$unset` that clears the stored reason.
@@ -564,7 +564,7 @@ describe('validateAddress', () => {
 	})
 
 	// ⚠️ The prefix is the whole reason this takes a second argument: one validator serves both the
-	// shopOwner address and the company seat, and the operator has to be told which of the two addresses
+	// shopOwner address and the company seat, and the admin has to be told which of the two addresses
 	// on the page is wrong.
 	it('names the path it was given, so the same failure reads differently for each address', () => {
 		expect(reason(() => validateAddress({ ...valid, postalCode: 'ABCDE' }, 'address'))).toBe(
@@ -677,7 +677,7 @@ describe('validateCompany', () => {
 	})
 
 	// The shop listing, from 20260804000200. All three are optional because a company exists as a legal
-	// entity long before its operator writes a public page for it — and nothing here checks them against
+	// entity long before its admin writes a public page for it — and nothing here checks them against
 	// `published`, on purpose twice over: the flag is not this path's to write at all, and the
 	// collection's `$expr` refuses `published: true` without a slug and a publicName, which is the copy
 	// of the rule no write can bypass.
@@ -695,7 +695,7 @@ describe('validateCompany', () => {
 	})
 
 	// ⚠️ The slug is the permanent address of a public page, so a value that differs from what was typed
-	// is refused rather than silently rewritten: an operator who typed `Boutique` is told the slug is
+	// is refused rather than silently rewritten: an admin who typed `Boutique` is told the slug is
 	// lowercase, instead of finding out after the link has been shared. `--` is rejected by the same
 	// shape — a doubled hyphen comes from a name with punctuation in it and is not what a reader expects
 	// to see in a URL.
@@ -783,7 +783,7 @@ describe('validateItemCategory', () => {
 	})
 
 	// ⚠️ `position` is checked here rather than left to the collection because `bsonType: 'int'` answers
-	// `Document failed validation` and names no field — which Apollo turns into a 500 the operator cannot
+	// `Document failed validation` and names no field — which Apollo turns into a 500 the admin cannot
 	// act on. Zero is the first legal ordinal and 0.5 is the failure the collection would have swallowed.
 	it.each([
 		['zero', 0],

@@ -5,7 +5,7 @@ import { Types } from 'mongoose'
 /**
  * Removes one item from the platform — a soft delete, like every other delete on this tier.
  *
- * Unlike the owner's `itemDel` on 4026 this carries no ownership clause, because an operator owns
+ * Unlike the owner's `itemDel` on 4026 this carries no ownership clause, because an admin owns
  * nothing and is owned by nothing: the whole point of the tier is acting on items that belong to
  * somebody else. The 404 is therefore the only guard, and it is a real one — an id that names no item
  * is a stale client, not a silent success.
@@ -14,7 +14,7 @@ import { Types } from 'mongoose'
  * used to be an item should not silently become a different item when the shop reuses the name.
  *
  * `Date.now()`, a number, cast to the schema's `Date` path by mongoose on the way out. No `deleted`
- * filter on the write itself: a re-delete stamps a fresh instant, which is the state the operator asked
+ * filter on the write itself: a re-delete stamps a fresh instant, which is the state the admin asked
  * for, and the item is invisible to every read path either way.
  */
 export async function funItemDelete(_id: Types.ObjectId) {

@@ -45,7 +45,7 @@ export const authorizationAuthenticatedResourceHandler = () => async (ctx: ICont
 		} else {
 			// E12-S20 removed a `console.log('auth undefined')` from here. It printed a constant, so it
 			// leaked nothing and went for tidiness rather than for safety — but it fired once per
-			// unauthenticated request on the operator surface, which makes it a free line of log volume
+			// unauthenticated request on the admin surface, which makes it a free line of log volume
 			// for anyone who can reach the port. The 412 below is the record that this happened.
 			throw throwPreconditionFailedNoAuthHeader()
 		}
@@ -73,7 +73,7 @@ export const authorizationAuthenticatedResourceHandler = () => async (ctx: ICont
 			const redData = { ...redAccessSession } as unknown as IRedisDataAdmin // For safety, Redis return an object without the default Object.prototype  in its prototype chain.
 			// This is the check that made cross-tier tokens work. Every service reads Redis under the
 			// same `REDIS_KEY` prefix and this handler used to accept *any* non-empty session hash, so a
-			// ShopOwner access token authenticated here and its `_id` was then handed to operator-only
+			// ShopOwner access token authenticated here and its `_id` was then handed to admin-only
 			// resolvers. Nothing downstream re-derives the tier — `makeAuthCtx` builds the `ForNode`
 			// shape, which deliberately drops it — so this call site is the whole boundary. A session
 			// with no `tier` predates the discriminator and is refused too: fail closed, re-login.

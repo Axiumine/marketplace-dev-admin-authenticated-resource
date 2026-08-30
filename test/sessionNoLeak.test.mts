@@ -20,7 +20,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * deleting a row here, which is a visible act rather than an omission.
  */
 
-/** The refresh token an operator's own session was minted from. Prefixed, exactly as the platform hashes it. */
+/** The refresh token an admin's own session was minted from. Prefixed, exactly as the platform hashes it. */
 const TOKEN = 'refresh:27119032-9043-4a9f-bd4c-9d06fd576290'
 /** The bare lineage-shaped half of it. Checked separately so a resolver that strips the scheme still fails. */
 const TOKEN_BODY = '27119032-9043-4a9f-bd4c-9d06fd576290'
@@ -28,7 +28,7 @@ const TOKEN_BODY = '27119032-9043-4a9f-bd4c-9d06fd576290'
 const KEY = 'Zm9yYmlkZGVuLXNpZ25pbmcta2V5LW1hdGVyaWFsLTAwMDAwMDAw'
 
 const ACCOUNT = '68b0f2c1a2b3c4d5e6f70819'
-const OPERATOR = new Types.ObjectId('507f1f77bcf86cd799439011')
+const ADMIN = new Types.ObjectId('507f1f77bcf86cd799439011')
 const FAMILY = 'a2df6d1e-51f0-4a4e-9c0f-2b2f4f0f1a77'
 const MINTED_AT = '1754784000000'
 
@@ -83,7 +83,7 @@ const { default: QueriesApi } = await import('../src/graphQLApi/schema/queries.m
 const { default: MutationsApi } = await import('../src/graphQLApi/schema/mutations.mts')
 
 const schema = new GraphQLSchema({ query: QueriesApi, mutation: MutationsApi })
-const ctx = { state: { user: { _id: OPERATOR, email: 'operator@marketplace.test' } } }
+const ctx = { state: { user: { _id: ADMIN, email: 'admin@marketplace.test' } } }
 
 const prefix = process.env.REDIS_KEY
 

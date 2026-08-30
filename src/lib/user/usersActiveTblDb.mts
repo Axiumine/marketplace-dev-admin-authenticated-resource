@@ -4,7 +4,7 @@ import { IUserModel } from '@axiumine/marketplace-common/models/MongoDBInterface
 import { QueryFilter, trusted } from 'mongoose'
 
 /**
- * Server-side paging for the operator's customers table (E19-S02).
+ * Server-side paging for the admin's customers table (E19-S02).
  *
  * ⚠️ **`shopOwnersActiveTblDb` with the `search` cut out, and the cut is the whole design.** `user` is
  * the collection encrypted whole (ADR-029): `personalData.firstName`, `personalData.lastName` and every
@@ -18,7 +18,7 @@ import { QueryFilter, trusted } from 'mongoose'
  * Everything this query orders, filters or counts on was never encrypted: `registeredAt`, `deleted`,
  * `disabled`, `emailVerify.valid`. `login.email` is returned and never ordered — it is deterministic, so
  * the driver decrypts it on the way out and an *equality* lookup on it works, but its ciphertext order is
- * not alphabetical order and is not the operator's order either.
+ * not alphabetical order and is not the admin's order either.
  */
 
 export const USERS_TBL_DEFAULT_LIMIT = 25
@@ -33,7 +33,7 @@ export const USERS_TBL_MAX_LIMIT = 100
  * The projection the GraphQL table type consumes. A field dropped here nulls a NonNull.
  *
  * ⚠️ **Nothing from `personalData`, nothing from `addresses[]`, and that is a decision rather than a
- * minimal first version.** Those are the fields an operator has no stated task for, R25 is still open,
+ * minimal first version.** Those are the fields an admin has no stated task for, R25 is still open,
  * and every one of them is ciphertext the driver would decrypt on the way out — projecting them would put
  * a customer's name and home address on a screen built to answer "which account is this support request
  * about". `login.email` is what identifies the row instead, and it is the one personal field here.
@@ -43,7 +43,7 @@ export const USERS_TBL_MAX_LIMIT = 100
  *
  * ⚠️ **`disabledReason` is the one exception to the paragraph above, and it is deliberate** (ADR-044). It
  * is ciphertext the driver decrypts on the way out, like a name would be — but it is the platform's own
- * record of why it acted, not the customer's data, and this table is the only customer surface an operator
+ * record of why it acted, not the customer's data, and this table is the only customer surface an admin
  * has. Left off, a suspension is unanswerable: nothing else on any tier can read the field.
  */
 export const USERS_TBL_SELECTION = '_id registeredAt login.email disabled disabledBy disabledReason deleted emailVerify.valid'
@@ -144,10 +144,10 @@ function buildSort(sortBy: UsersTblSortField, sortDir: UsersTblSortDirection): R
  * "is soft-deleted" can only be `$exists: true`, which is a range: MongoDB cannot turn a range on a
  * leading index field into a sorted scan, so that one page pays a blocking sort. It is bounded to the
  * soft-deleted subset and bounded again by the ceiling on `limit`, and the default page — the one an
- * operator lands on — is fully indexed.
+ * admin lands on — is fully indexed.
  *
  * `emailVerify.valid` is the tri-state, and the only one: absent means "show both", because it is the
- * flag the operator *reads* off the row rather than narrows by. `false` is `$ne: true` rather than
+ * flag the admin *reads* off the row rather than narrows by. `false` is `$ne: true` rather than
  * `$eq: false` because an account that never asked for a confirmation link has no `valid` key at all —
  * `enableEmailAccess` is what writes it — so `{valid: false}` would answer "nobody is unverified" on
  * precisely the accounts that are. It is deliberately outside `tbl_active_registeredAt`, so it filters
@@ -169,7 +169,7 @@ function buildFilter(args: IUsersActiveTblArgs): QueryFilter<IUserModel> {
  * The two database calls run concurrently. They are independent — the count does not read the page — so
  * awaiting them in sequence would add the count's latency to every request for nothing. The same filter
  * OBJECT goes to both: two equal filters that could drift would make `total` describe a different set
- * than `items`, and the page count the operator sees would be wrong in a way no single page can show.
+ * than `items`, and the page count the admin sees would be wrong in a way no single page can show.
  */
 export default async function usersActiveTblDb(args: IUsersActiveTblArgs): Promise<IUsersActiveTblPage> {
 	assertPaging(args.offset, args.limit)

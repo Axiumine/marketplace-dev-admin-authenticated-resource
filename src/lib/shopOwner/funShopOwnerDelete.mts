@@ -6,7 +6,7 @@ import mongoose, { trusted, Types } from 'mongoose'
 /**
  * Closes a shop owner's account: a stamp, never a removal, and the whole storefront goes dark with it.
  *
- * ⚠️ **`deletedBy` is what says an operator did this** (ADR-044). The field is an `admin._id` and its
+ * ⚠️ **`deletedBy` is what says an admin did this** (ADR-044). The field is an `admin._id` and its
  * *absence* beside a `deleted` stamp is the record that the account holder closed it themselves — which is
  * why nothing here writes a collection name alongside the id. There is exactly one possible actor
  * collection per stamp, so the field's own name carries it; a second field saying which would be a `role`
@@ -26,7 +26,7 @@ import mongoose, { trusted, Types } from 'mongoose'
  * and all of them theirs to republish by hand.
  *
  * `waitApprov` is dropped so a closed account cannot sit in the approval queue. It comes back up by itself
- * if the owner ever returns — the restore in `confirmRegistration` re-raises it, so an operator who closed
+ * if the owner ever returns — the restore in `confirmRegistration` re-raises it, so an admin who closed
  * a seller for cause can simply decline to approve them a second time.
  *
  * `new Date()`, not `Date.now()`: the retention sweep compares `deleted` against a cutoff, and the model's
@@ -34,7 +34,7 @@ import mongoose, { trusted, Types } from 'mongoose'
  * stops the two spellings existing.
  *
  * `matchedCount` and a 404, not `modifiedCount` and a 500, which is what this used to answer. A closure
- * that matched nothing is an id the operator no longer has, and telling them the server broke was never
+ * that matched nothing is an id the admin no longer has, and telling them the server broke was never
  * true.
  */
 export async function funShopOwnerDelete(_id: Types.ObjectId, adminId: Types.ObjectId) {

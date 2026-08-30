@@ -85,7 +85,7 @@ async function gql(query: string, headers: Record<string, string> = {}) {
  * The key is also remembered for afterAll: `cleanup()` runs in a `finally`, which does not fire
  * when a seed throws before the `try` — that is how the namespace collected orphan sessions.
  */
-async function withSession(email = 'operator@marketplace.test', _id = new mongoose.Types.ObjectId()) {
+async function withSession(email = 'admin@marketplace.test', _id = new mongoose.Types.ObjectId()) {
 	const token = `access:${randomUUID()}`
 	const key = sessionKey(token)
 
@@ -157,7 +157,7 @@ async function seedSession(tier: (typeof TIER)[keyof typeof TIER], _id: mongoose
 	return { key, index, token, field: added[0], familyId: refreshData.familyId }
 }
 
-/** The two tiers an operator can end a session on from this service. */
+/** The two tiers an admin can end a session on from this service. */
 const seedShopOwnerSession = (_id: mongoose.Types.ObjectId) => seedSession(TIER.shopOwner, _id)
 const seedUserSession = (_id: mongoose.Types.ObjectId) => seedSession(TIER.user, _id)
 
@@ -217,7 +217,7 @@ async function shopOwnerEmailFilter(email: string) {
  * `Document failed validation` at insert time, so a seed that parks an account has to carry one — and
  * both seeds run `encryptDocument`, which covers the field on both tiers.
  *
- * `disabledBy` is deliberately absent: it is an operator id, and a seed has no operator. The rule asserts
+ * `disabledBy` is deliberately absent: it is an admin id, and a seed has no admin. The rule asserts
  * the reason only, so a suspension without an actor still inserts — which is also the shape a
  * pre-ADR-044 document has on a real cluster.
  */
@@ -402,7 +402,7 @@ async function seedAdmin(password: string, extra: Record<string, unknown> = {}) 
 				{
 					_id,
 					login: { email, password: await hash(password, 4) },
-					personalData: { firstName: 'Itest', lastName: 'Operator' },
+					personalData: { firstName: 'Itest', lastName: 'Admin' },
 					...extra
 				},
 				ENCRYPTED_FIELDS_ADMIN,
@@ -427,7 +427,7 @@ async function storedAdminHash(_id: mongoose.Types.ObjectId) {
  * ⚠️ **`personalData` is absent and that is the ordinary state of this collection**, not a shortcut:
  * registration on the customer tier is an address and a password, the name and the addresses arrive
  * later, and `user` is the one collection whose validator makes `personalData` optional for that reason.
- * The table under test projects nothing from it either way — every field in it is ciphertext an operator
+ * The table under test projects nothing from it either way — every field in it is ciphertext an admin
  * has no task for (ADR-029, E19-S05).
  *
  * `encryptDocument` still runs, because `login.email` is deterministically encrypted on this collection
@@ -676,10 +676,10 @@ describe('GraphQL over HTTP', () => {
 
 	// The projection in shopOwnerById is long and hand-written; running it against a document
 	// this run inserted is the only way to see that it really returns the nested login/personalData
-	// shape the operator frontend renders.
+	// shape the admin frontend renders.
 	//
 	// ⚠️ `notes` is asked for here because it is where that went wrong: the projection spelt the field
-	// `note`, Mongoose dropped the unknown token without a word, and the operator note came back `null`
+	// `note`, Mongoose dropped the unknown token without a word, and the admin note came back `null`
 	// for every shop owner who had one — indistinguishable from a shop owner who had none. A seed that
 	// stores a note and an assertion that reads it back is what tells those two apart. It also proves
 	// the field is decrypted on the way out: `notes` is an encrypted path, so a projection that loaded
@@ -835,7 +835,7 @@ describe('GraphQL over HTTP', () => {
 	})
 
 	/****************************************************************************************
-	 * usersActiveTbl (E19-S02) — the operator's first read of the customer collection.
+	 * usersActiveTbl (E19-S02) — the admin's first read of the customer collection.
 	 *
 	 * ⚠️ The exact-`total` assertions below are only stable because this file is the only one on the
 	 * platform that seeds `user`, and globalSetup drops and re-migrates the database before every run
@@ -987,7 +987,7 @@ describe('GraphQL over HTTP', () => {
 	 *   - `LAST_NAME` is not a member of `GraphQLUsersTblSortField`, because a sort on a randomly
 	 *     encrypted field is stable, arbitrary and indistinguishable from a working one.
 	 *
-	 * If either of these ever passes, the two silent failures above are live in the operator app.
+	 * If either of these ever passes, the two silent failures above are live in the admin app.
 	 */
 	it.each([
 		['a search argument', '{ usersActiveTbl(search: "ros") { total } }', 'search'],
@@ -1008,7 +1008,7 @@ describe('GraphQL over HTTP', () => {
 	// infoAdminAfterLogin reads nothing but ctx.state.user, so this proves the Redis hash really
 	// became the request context — the makeAuthCtx hop, over HTTP.
 	it('echoes the session identity back through infoAdminAfterLogin', async () => {
-		const email = `operator-${randomUUID()}@marketplace.test`
+		const email = `admin-${randomUUID()}@marketplace.test`
 		const session = await withSession(email)
 
 		try {
@@ -1057,8 +1057,8 @@ describe('shopOwnerDel mutation (real write, re-read by the raw driver)', () => 
 	// ⚠️ **`deletedBy` is the field that makes the kept document readable a year later** (ADR-044): a
 	// closure the platform performed and one the holder performed leave the same `deleted` stamp, and the
 	// presence of an actor is the only thing that separates them. It is asserted against the session's own
-	// `_id` rather than against "some ObjectId", because the whole point is that it is *that* operator.
-	it('soft-deletes a real shopOwner: deleted becomes a real Date, the operator is named, waitApprov is dropped', async () => {
+	// `_id` rather than against "some ObjectId", because the whole point is that it is *that* admin.
+	it('soft-deletes a real shopOwner: deleted becomes a real Date, the admin is named, waitApprov is dropped', async () => {
 		const session = await withSession()
 		const { _id } = await seedShopOwner({ waitApprov: true })
 
@@ -1084,8 +1084,8 @@ describe('shopOwnerDel mutation (real write, re-read by the raw driver)', () => 
 	 * closed account would silently hand it another month of life and push the scrub back. The guard is the
 	 * `deleted: { $exists: false }` clause in the filter, which turns the second call into 0 matched.
 	 *
-	 * The answer is the same 404 an unknown id gets, and deliberately so: from the operator's side both are
-	 * "there is no open account with this id", and the API has no reason to tell an operator which of the
+	 * The answer is the same 404 an unknown id gets, and deliberately so: from the admin's side both are
+	 * "there is no open account with this id", and the API has no reason to tell an admin which of the
 	 * two it was.
 	 */
 	it('refuses to re-close an account already closed, leaving the first stamp where it was', async () => {
@@ -1112,8 +1112,8 @@ describe('shopOwnerDel mutation (real write, re-read by the raw driver)', () => 
 	// case that drives shopOwnerDel's own catch arm.
 	//
 	// ⚠️ **It used to be a 500, and the change is deliberate.** An id naming no open account is something
-	// the operator sent — a stale row in a table left open in another tab — and nothing on the server went
-	// wrong when it arrived. A 500 tells the operator app to report an outage over a request it could have
+	// the admin sent — a stale row in a table left open in another tab — and nothing on the server went
+	// wrong when it arrived. A 500 tells the admin app to report an outage over a request it could have
 	// answered honestly.
 	it('answers 404 when the _id matches no shopOwner, and writes nothing', async () => {
 		const session = await withSession()
@@ -1552,7 +1552,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 	})
 
 	/*
-	 * E15-S07, end to end on the real cluster: a shop owner parked by an operator loses the sessions they
+	 * E15-S07, end to end on the real cluster: a shop owner parked by an admin loses the sessions they
 	 * were holding at that moment.
 	 *
 	 * ⚠️ **What is asserted is the keyspace, not a refused request, and that is a deviation from the
@@ -1611,7 +1611,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 
 	// The two booleans here behave the *opposite* way to the two above: `login.rememberMe` and
 	// `login.onboardingDone` are declared `bool` and are stored as false, while `onboardingStep` is the
-	// one optional string and is unset when the operator empties the box.
+	// one optional string and is unset when the admin empties the box.
 	it('shopOwnerUpdatePreferences: stores false booleans and unsets a blank onboardingStep', async () => {
 		const session = await withSession()
 		const { _id, email } = await seedShopOwner()
@@ -1675,7 +1675,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 
 /**
  * `userUpdateStatus` (E19-S03) — the first write this platform has ever made to a customer account from
- * the operator tier, and the only writer `user.disabled` has.
+ * the admin tier, and the only writer `user.disabled` has.
  *
  * ⚠️ **The refusal these tests would ideally assert happens on three other services** — `tryLoginUser` on
  * 4028, `tokenInfoUser` on 4031, `funUserUpdatePwd` on 4032 — none of which this suite boots. What is
@@ -1693,7 +1693,7 @@ describe('userUpdateStatus mutation (real user collection, real session index)',
 
 	/*
 	 * The flag is absent-or-true, never `false`, exactly as it is on `shopOwner` — and here the second
-	 * spelling would be visible in the operator's own table within a page load: `usersActiveTbl` selects
+	 * spelling would be visible in the admin's own table within a page load: `usersActiveTbl` selects
 	 * the live customers with `{disabled: {$exists: false}}`, so a stored `false` would drop every
 	 * re-enabled customer off the default page and list them among the suspended.
 	 *
@@ -1825,10 +1825,10 @@ describe('userUpdateStatus mutation (real user collection, real session index)',
 		}
 	})
 
-	// ⚠️ The operator's own session survives. This is the cross-account revoke, not E15-S05's "the caller
+	// ⚠️ The admin's own session survives. This is the cross-account revoke, not E15-S05's "the caller
 	// goes too" — and the caller here authenticates against a different collection on a different tier, so
 	// a revocation reaching them would mean the tier separation had failed in both directions at once.
-	it('leaves the operator signed in', async () => {
+	it('leaves the admin signed in', async () => {
 		const session = await withSession()
 		const { _id } = await seedUser()
 
@@ -1838,13 +1838,13 @@ describe('userUpdateStatus mutation (real user collection, real session index)',
 			const { json } = await gql('{ infoAdminAfterLogin { email } }', session.headers)
 
 			expect(json.errors).toBeUndefined()
-			expect(json.data?.infoAdminAfterLogin).toMatchObject({ email: 'operator@marketplace.test' })
+			expect(json.data?.infoAdminAfterLogin).toMatchObject({ email: 'admin@marketplace.test' })
 		} finally {
 			await session.cleanup()
 		}
 	})
 
-	// An id matching no customer is a 404, and it is a 404 the operator can actually get: a row left open
+	// An id matching no customer is a 404, and it is a 404 the admin can actually get: a row left open
 	// in a second tab of a table somebody else has since acted on.
 	it('answers 404 for an id no customer carries', async () => {
 		const session = await withSession()
@@ -1863,7 +1863,7 @@ describe('userUpdateStatus mutation (real user collection, real session index)',
 	/*
 	 * ⚠️ **There is no `waitApprov` argument and there never will be** (`phase5/CUSTOMER_ACCOUNT_ADDRESSES.md` §6, closed
 	 * 2026-08-25). Nothing on the customer's own tier reads such a flag, so an argument accepted here would
-	 * write a field that gates nothing while the operator believes it gates a login. graphql-js refuses it
+	 * write a field that gates nothing while the admin believes it gates a login. graphql-js refuses it
 	 * at validation, before any resolver runs.
 	 */
 	it('rejects a waitApprov argument at schema validation', async () => {
@@ -2062,7 +2062,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 	})
 
 	/*
-	 * ⚠️ Enforced by MongoDB itself, not by a pre-flight read: two operators saving the same VAT number
+	 * ⚠️ Enforced by MongoDB itself, not by a pre-flight read: two admins saving the same VAT number
 	 * at once both pass any check the service could make, and only the index refuses the second one. The
 	 * second owner is a DIFFERENT shopOwner on purpose — `vatNumber_unique` is global, not per owner.
 	 */
@@ -2120,7 +2120,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 		}
 	})
 
-	// The path prefix is `company.` because the fields arrive inside one input object, and the operator
+	// The path prefix is `company.` because the fields arrive inside one input object, and the admin
 	// reads that path to find the box. `taxCode` is the field to prove it with: it is the one the extraction
 	// added, and its rule — exactly eleven characters — is neither a max nor a min alone.
 	it('companyAdd: answers 400 naming the prefixed path, and writes nothing', async () => {
@@ -2325,7 +2325,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 		}
 	})
 
-	// The company is gone from every read path the operator has, which is the whole of what "deleted"
+	// The company is gone from every read path the admin has, which is the whole of what "deleted"
 	// means here — the document is still on disk and only the seed's own drain will remove it.
 	it('companyDel: drops the company out of shopOwnerCompanies', async () => {
 		const session = await withSession()
@@ -2411,7 +2411,7 @@ describe('company mutations (real company collection, real unique indexes)', () 
 describe('shopOwnerCompanies query (real company under a real shopOwner)', () => {
 	// Every field of the type, over the wire, against the real validator-backed collection: this is the
 	// query the shop form's `<select>` is populated from, so a field the resolver fails to project is a
-	// box the operator cannot fill. `taxCode` and `uniqueCode` come back null — the seed stores neither, which is
+	// box the admin cannot fill. `taxCode` and `uniqueCode` come back null — the seed stores neither, which is
 	// exactly the state every company predating the extraction is in.
 	it('returns the companies of the shopOwner whose id is passed, and nothing for a foreign id', async () => {
 		const session = await withSession()
@@ -2528,7 +2528,7 @@ describe('adminUpdatePwd mutation (real bcrypt, real admin collection)', () => {
 	})
 
 	// The old password is the re-authentication step. An access token is a bearer credential, so
-	// without this a stolen token is permanent ownership of the operator account.
+	// without this a stolen token is permanent ownership of the admin account.
 	it('refuses a wrong old password and leaves the stored hash untouched', async () => {
 		const admin = await seedAdmin(OLD)
 		const session = await withSession(admin.email, admin._id)
@@ -2545,11 +2545,11 @@ describe('adminUpdatePwd mutation (real bcrypt, real admin collection)', () => {
 		}
 	})
 
-	// A disabled operator keeps a working access token until it expires — the Redis session is not
+	// A disabled admin keeps a working access token until it expires — the Redis session is not
 	// revoked by the flag. checkUserAuthorizationDisDel is what stops the write, and it runs before
 	// the password is compared, so a suspended account cannot use this endpoint to confirm a guess
 	// either. Same 401 as a wrong password: the caller learns nothing about the account.
-	it('refuses a disabled operator and leaves the stored hash untouched', async () => {
+	it('refuses a disabled admin and leaves the stored hash untouched', async () => {
 		const admin = await seedAdmin(OLD, { disabled: true })
 		const session = await withSession(admin.email, admin._id)
 		const before = await storedAdminHash(admin._id)
@@ -2581,7 +2581,7 @@ describe('adminUpdatePwd mutation (real bcrypt, real admin collection)', () => {
 	})
 
 	// checkPwdLen's lower bound, over the wire. It runs before the account is even read, so a caller
-	// cannot use a too-short password to find out whether the session still names a real operator.
+	// cannot use a too-short password to find out whether the session still names a real admin.
 	it('refuses a new password shorter than the minimum, before reading the account', async () => {
 		const admin = await seedAdmin(OLD)
 		const session = await withSession(admin.email, admin._id)
@@ -2629,7 +2629,7 @@ describe('non-GraphQL routes', () => {
 
 /*
  * E17-S03, on the real cluster: the session console lists what a login actually wrote, ends what an
- * operator picks, and reads back the trail the authorization services actually append.
+ * admin picks, and reads back the trail the authorization services actually append.
  *
  * ⚠️ **What is asserted after a revocation is the keyspace, not a refused request — the same deviation
  * E15-S07 records above, for the same reason.** The refusal belongs to the service that owns the tier
@@ -2646,13 +2646,13 @@ describe('non-GraphQL routes', () => {
  */
 describe('session console (real sessions, real index, real reuse trail)', () => {
 	/**
-	 * The operator whose id meters the rate limit, plus the two meter keys their writes create.
+	 * The admin whose id meters the rate limit, plus the two meter keys their writes create.
 	 *
 	 * ⚠️ Registered before the first call that could create them (BCON-09): `assertUnderRateLimit` INCRs
-	 * a key named after the operator, so a console test that threw between the write and the drain used
+	 * a key named after the admin, so a console test that threw between the write and the drain used
 	 * to leave a live counter in the namespace — invisible, and enough to answer 429 to a later run.
 	 */
-	async function withOperator() {
+	async function withAdmin() {
 		const _id = new mongoose.Types.ObjectId()
 
 		seededKeys.push(
@@ -2660,11 +2660,11 @@ describe('session console (real sessions, real index, real reuse trail)', () => 
 			`${REDIS_KEY}rl:session:revokeAll:${sha256Hex(_id.toHexString())}`
 		)
 
-		return withSession('operator@marketplace.test', _id)
+		return withSession('admin@marketplace.test', _id)
 	}
 
 	it('sessions: lists a real login, keyed by the digest the index filed it under', async () => {
-		const session = await withOperator()
+		const session = await withAdmin()
 		const _id = new mongoose.Types.ObjectId()
 		const { field, token, familyId } = await seedShopOwnerSession(_id)
 
@@ -2690,7 +2690,7 @@ describe('session console (real sessions, real index, real reuse trail)', () => 
 	})
 
 	it('sessions: answers an empty list for an account that has never logged in', async () => {
-		const session = await withOperator()
+		const session = await withAdmin()
 
 		try {
 			const { json } = await gql(
@@ -2706,7 +2706,7 @@ describe('session console (real sessions, real index, real reuse trail)', () => 
 	})
 
 	it('revokeSession: ends the one session named and leaves the account able to hold others', async () => {
-		const session = await withOperator()
+		const session = await withAdmin()
 		const _id = new mongoose.Types.ObjectId()
 		const first = await seedShopOwnerSession(_id)
 		const second = await seedShopOwnerSession(_id)
@@ -2738,9 +2738,9 @@ describe('session console (real sessions, real index, real reuse trail)', () => 
 	})
 
 	// `false` is the already-ended answer, and it has to survive the round trip: the console shows
-	// "already ended" on it, and an operator told "error" would retry a call that has nothing left to do.
+	// "already ended" on it, and an admin told "error" would retry a call that has nothing left to do.
 	it('revokeSession: answers false and still prunes when the session had already gone', async () => {
-		const session = await withOperator()
+		const session = await withAdmin()
 		const _id = new mongoose.Types.ObjectId()
 		const { key, index, field } = await seedShopOwnerSession(_id)
 
@@ -2761,7 +2761,7 @@ describe('session console (real sessions, real index, real reuse trail)', () => 
 	})
 
 	it('revokeAllSessions: ends every session the account holds and removes the index key itself', async () => {
-		const session = await withOperator()
+		const session = await withAdmin()
 		const _id = new mongoose.Types.ObjectId()
 		const first = await seedShopOwnerSession(_id)
 		const second = await seedShopOwnerSession(_id)
@@ -2790,7 +2790,7 @@ describe('session console (real sessions, real index, real reuse trail)', () => 
 	 * the field names or the order, this is the test that notices.
 	 */
 	it('reuseEvents: reads back exactly what the authorization services append, newest first', async () => {
-		const session = await withOperator()
+		const session = await withAdmin()
 		const _id = new mongoose.Types.ObjectId()
 		const accountId = _id.toHexString()
 		const older = {
@@ -2822,7 +2822,7 @@ describe('session console (real sessions, real index, real reuse trail)', () => 
 	})
 
 	it('reuseEvents: answers an empty trail for an account that has never had a replay', async () => {
-		const session = await withOperator()
+		const session = await withAdmin()
 
 		try {
 			const { json } = await gql(
@@ -2868,16 +2868,16 @@ describe('retention sweep (real scrub, real collections, real validators)', () =
 		// writes, or it sits in the shared itest namespace for the hour and no later run can read it back.
 		seededKeys.push(`${REDIS_KEY}retention:lock`)
 
-		const operator = new mongoose.Types.ObjectId()
+		const admin = new mongoose.Types.ObjectId()
 		const closedAt = daysAgo(31)
 		// Suspended as well as closed: the one combination the validator can refuse, because the reason
-		// may not be removed while `disabled` stays true. `notes` is the operator's own file on this
+		// may not be removed while `disabled` stays true. `notes` is the admin's own file on this
 		// person and has to go with it.
 		const stale = await seedShopOwner({
 			deleted: closedAt,
-			deletedBy: operator,
+			deletedBy: admin,
 			disabled: true,
-			disabledBy: operator,
+			disabledBy: admin,
 			disabledReason: 'Repeated breaches of the marketplace terms, reported by three customers',
 			notes: 'Rang them about the same complaint in August'
 		})
@@ -2920,9 +2920,9 @@ describe('retention sweep (real scrub, real collections, real validators)', () =
 		// ⚠️ The record that a person held an account survives the scrub, for ever. `deletedBy` is
 		// meaningful by its absence — that is how a self-closure reads — so the sweep may not touch it.
 		expect(scrubbed?.disabled).toBe(true)
-		expect(scrubbed?.disabledBy).toEqual(operator)
+		expect(scrubbed?.disabledBy).toEqual(admin)
 		expect(scrubbed?.deleted).toEqual(closedAt)
-		expect(scrubbed?.deletedBy).toEqual(operator)
+		expect(scrubbed?.deletedBy).toEqual(admin)
 		expect(scrubbed?.registeredAt).toBeInstanceOf(Date)
 		expect(scrubbed?.scrubbedAt).toBeInstanceOf(Date)
 

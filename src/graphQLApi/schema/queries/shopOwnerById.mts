@@ -22,7 +22,7 @@ export const shopOwnerById = {
 				// not: Mongoose drops an unknown token from a projection string silently, so the field
 				// simply never loads and the GraphQL type answers `null` for it — a bug that looks exactly
 				// like an empty value. `note` sat here for a while in place of `notes`, which is why the
-				// operator note read as blank in the admin UI for every shop owner who had one.
+				// admin note read as blank in the admin UI for every shop owner who had one.
 				.select(
 					'_id login.email login.firstLogin login.lastLogin login.onboardingStep login.onboardingDone login.rememberMe ' +
 						'registeredAt personalData waitApprov notes resetPwd disabled disabledBy disabledReason deleted'

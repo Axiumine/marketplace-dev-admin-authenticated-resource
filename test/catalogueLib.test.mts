@@ -112,7 +112,7 @@ beforeEach(() => {
 })
 
 describe('funItemDelete', () => {
-	// ⚠️ No ownership clause and no `deleted` clause, unlike the owner's `itemDel` on 4026 — an operator
+	// ⚠️ No ownership clause and no `deleted` clause, unlike the owner's `itemDel` on 4026 — an admin
 	// owns nothing, and acting on somebody else's document is the whole tier. The exact key set is therefore
 	// the assertion: an `idCompany` quietly copied in from the sibling service would make every
 	// moderation delete a 404.
@@ -157,7 +157,7 @@ describe('funItemUpdatePublished', () => {
 	})
 
 	// `matchedCount`, not `modifiedCount`: re-publishing something already published matches one document
-	// and modifies none, and that is the state the operator asked for.
+	// and modifies none, and that is the state the admin asked for.
 	it('accepts a flip that changed nothing', async () => {
 		itemExec.mockResolvedValueOnce({ matchedCount: 1, modifiedCount: 0 })
 
@@ -313,7 +313,7 @@ describe('funItemCategoryAdd', () => {
 
 	// ⚠️ The `_id` is minted once, outside the callback, and a retry is exactly what the `$inc` provokes:
 	// the loser of a `WriteConflict` is re-run by `withTransaction`. A retry that re-mints would create a
-	// second document for one request the moment two operators file subcategories under one parent.
+	// second document for one request the moment two admins file subcategories under one parent.
 	it('re-uses one _id when the transaction is retried', async () => {
 		withTransaction.mockImplementationOnce(async (work) => {
 			await work()
@@ -393,7 +393,7 @@ describe('funItemCategoryDelete', () => {
 	})
 
 	// The alternative — cascade — was rejected on purpose: one Delete would silently withdraw an unbounded
-	// number of other shop owners' items. Re-filing them is the operator's call to make explicitly.
+	// number of other shop owners' items. Re-filing them is the admin's call to make explicitly.
 	it('refuses a category that still holds items, without writing', async () => {
 		itemCountDocuments.mockReturnValueOnce(counting(1))
 
@@ -525,7 +525,7 @@ describe('funItemCategoryUpdate', () => {
  *
  * `withTransaction` rather than a hand-rolled `startTransaction`/`commitTransaction` pair because it is
  * the form that retries a `TransientTransactionError` — which is exactly what the `$inc` in
- * `throwIfParentNotTopLevel` provokes when two operators race. Without the retry the loser would answer a
+ * `throwIfParentNotTopLevel` provokes when two admins race. Without the retry the loser would answer a
  * `WriteConflict` to a request with nothing wrong with it.
  */
 describe('every itemCategory write path is one transaction that ends its session', () => {

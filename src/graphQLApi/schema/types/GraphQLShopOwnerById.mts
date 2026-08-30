@@ -9,7 +9,7 @@ export const GraphQLShopOwnerById = new GraphQLObjectType({
 		login: { type: new GraphQLNonNull(GraphQLShopOwnerLogin) },
 		/**
 		 * ⚠️ **Nullable, for the reason the table's is.** `shopOwner.personalData` stopped being required
-		 * when `shopOwnerRegister` shipped, and this is the page an operator opens to decide whether to
+		 * when `shopOwnerRegister` shipped, and this is the page an admin opens to decide whether to
 		 * approve exactly those accounts: under a `NonNull` the query for a pending registration returned
 		 * an error instead of a document, so the one account that needed looking at was the one that
 		 * could not be looked at. `login.email` and `registeredAt` are what the page has to work with
@@ -25,7 +25,7 @@ export const GraphQLShopOwnerById = new GraphQLObjectType({
 		 * presence and never on `false`.
 		 *
 		 * ⚠️ **This is the only surface where the reason is legible at all.** `disabledReason` is randomly
-		 * encrypted (ADR-029), so an operator reading the collection with a shell sees `binData`; the
+		 * encrypted (ADR-029), so an admin reading the collection with a shell sees `binData`; the
 		 * driver decrypts it here because this service holds the data key. Dropping it from the type would
 		 * not hide the field, it would make a suspension unanswerable.
 		 *
@@ -36,7 +36,7 @@ export const GraphQLShopOwnerById = new GraphQLObjectType({
 		disabledBy: { type: GraphQLID },
 		disabledReason: { type: GraphQLString },
 		waitApprov: { type: GraphQLBoolean },
-		// Operator-only, and safe to expose here precisely because this is the operator tier: the
+		// Admin-only, and safe to expose here precisely because this is the admin tier: the
 		// ShopOwner-tier services never load this model at all, so the note has no way of reaching
 		// the person it was written about.
 		notes: { type: GraphQLString },
