@@ -1,7 +1,7 @@
 import { Types } from 'mongoose'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { armSessionIndex } from './sessionIndexMocks.mts'
+import { accessKeyOf, armSessionIndex, INDEXED_FIELDS, REDIS_KEY } from './sessionIndexMocks.mts'
 
 const hKeys = vi.fn()
 const hGet = vi.fn()
@@ -14,15 +14,10 @@ vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hKeys, 
 
 const { endEveryUserSession } = await import('../src/lib/auth/endEveryUserSession.mts')
 
-const REDIS_KEY = 'test:'
 const USER_ID = '507f1f77bcf86cd799439011'
-const FIELDS = ['a'.repeat(64), 'b'.repeat(64)]
-
-// The access key each session records under `accessKey` (R54). Uppercase, so it is read rather than derived.
-const accessKeyOf = (field: string) => `${REDIS_KEY}${field}`.toUpperCase()
 
 beforeEach(() => {
-	armSessionIndex({ hKeys, hGet, del, hDel }, REDIS_KEY, FIELDS)
+	armSessionIndex({ hKeys, hGet, del, hDel }, REDIS_KEY, INDEXED_FIELDS)
 })
 
 afterEach(() => {
@@ -71,8 +66,8 @@ describe('endEveryUserSession', () => {
 		await endEveryUserSession(USER_ID)
 
 		expect(del.mock.calls).toEqual([
-			...FIELDS.map((field) => [accessKeyOf(field)]),
-			...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
+			...INDEXED_FIELDS.map((field) => [accessKeyOf(field)]),
+			...INDEXED_FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
 			[`${REDIS_KEY}idx:user:${USER_ID}`]
 		])
 	})
@@ -87,8 +82,8 @@ describe('endEveryUserSession', () => {
 	it('deletes both halves of every session and nothing else', async () => {
 		await endEveryUserSession(USER_ID)
 
-		expect(hGet.mock.calls).toEqual(FIELDS.map((field) => [`${REDIS_KEY}${field}`, 'accessKey']))
-		expect(del).toHaveBeenCalledTimes(FIELDS.length * 2 + 1)
+		expect(hGet.mock.calls).toEqual(INDEXED_FIELDS.map((field) => [`${REDIS_KEY}${field}`, 'accessKey']))
+		expect(del).toHaveBeenCalledTimes(INDEXED_FIELDS.length * 2 + 1)
 	})
 
 	/*
@@ -101,20 +96,20 @@ describe('endEveryUserSession', () => {
 		const NEWCOMER = 'c'.repeat(64)
 
 		hKeys
-			.mockResolvedValueOnce(FIELDS)
-			.mockResolvedValueOnce([...FIELDS, NEWCOMER])
-			.mockResolvedValueOnce([...FIELDS, NEWCOMER])
+			.mockResolvedValueOnce(INDEXED_FIELDS)
+			.mockResolvedValueOnce([...INDEXED_FIELDS, NEWCOMER])
+			.mockResolvedValueOnce([...INDEXED_FIELDS, NEWCOMER])
 
 		await endEveryUserSession(USER_ID)
 
 		expect(del.mock.calls).toEqual([
-			...FIELDS.map((field) => [accessKeyOf(field)]),
-			...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
+			...INDEXED_FIELDS.map((field) => [accessKeyOf(field)]),
+			...INDEXED_FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
 			[accessKeyOf(NEWCOMER)],
 			[`${REDIS_KEY}${NEWCOMER}`],
 			[`${REDIS_KEY}idx:user:${USER_ID}`]
 		])
-		expect(hDel.mock.calls).toEqual(FIELDS.map((field) => [`${REDIS_KEY}idx:user:${USER_ID}`, field]))
+		expect(hDel.mock.calls).toEqual(INDEXED_FIELDS.map((field) => [`${REDIS_KEY}idx:user:${USER_ID}`, field]))
 	})
 
 	// A customer with no live session revokes quietly: `hKeys` on a missing key answers an empty array, and

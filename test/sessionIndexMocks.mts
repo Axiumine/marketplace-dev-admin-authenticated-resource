@@ -25,3 +25,15 @@ export function armSessionIndex({ hKeys, hGet, del, hDel }: SessionIndexMocks, r
 	del.mockReset().mockResolvedValue(1)
 	hDel.mockReset().mockResolvedValue(1)
 }
+
+/** The `REDIS_KEY` prefix every revocation suite stubs — all nine services share one, in test as in life. */
+export const REDIS_KEY = 'test:'
+
+/**
+ * The two session fields the tier-revocation suites arm their index with — one account holding two live
+ * sessions, which is the smallest set that can tell "revoked the session" from "revoked the account".
+ */
+export const INDEXED_FIELDS = ['a'.repeat(64), 'b'.repeat(64)]
+
+/** The access key each session records under `accessKey` (R54). Uppercase, so it is read rather than derived. */
+export const accessKeyOf = (field: string): string => `${REDIS_KEY}${field}`.toUpperCase()
