@@ -55,12 +55,13 @@ export const GraphQLUserActiveTbl = new GraphQLObjectType({
 		disabledBy: { type: GraphQLID },
 		disabledReason: { type: GraphQLString },
 		/**
-		 * A timestamp, not a flag (ADR-011). Written by `userDel` on the customer tier since 2026-08-26 —
-		 * a customer closing their own account — and by nothing else: there is still no Admin counterpart
-		 * to `shopOwnerDel` (E19.md §6, question 3). The stamp is permanent, because nothing on this
-		 * platform removes a document any more (ADR-041); what ends is the personal data, overwritten in
-		 * place by the retention sweeper thirty days later, unless the same address registers again inside
-		 * that window and takes the account back (ADR-046).
+		 * A timestamp, not a flag (ADR-011). Written by two closures and no third: `userDel` on the
+		 * customer tier, a customer giving up their own account, and `userDel` on this service, an admin
+		 * taking one off the platform (ADR-048) — which also names the admin in `deletedBy`, a field this
+		 * row does not carry because the table renders a state and not an audit trail. The stamp is
+		 * permanent, because nothing on this platform removes a document any more (ADR-041); what ends is
+		 * the personal data, overwritten in place by the retention sweeper thirty days later, unless the
+		 * same address registers again inside that window and takes the account back (ADR-046).
 		 */
 		deleted: { type: GraphQLDateTime },
 		/**

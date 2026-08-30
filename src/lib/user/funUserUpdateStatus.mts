@@ -43,8 +43,7 @@ export interface IUserStatus {
  * this one touches no `deleted*` field. `deleted` is the account being given up or taken off the
  * platform, `disabled` is the platform refusing its use — a path that could write both would let a
  * customer lift a sanction against themselves by closing and re-registering, which is exactly what
- * ADR-046 keeps the trio across a restore to prevent. ⚠️ This paragraph said no such counterpart existed
- * for an admin to call, which was true until 2026-08-30.
+ * ADR-046 keeps the trio across a restore to prevent.
  *
  * `matchedCount`, not `modifiedCount`: 0 matched means no such customer, which is a 404; a flag re-set to
  * the value it already held is still the state the admin asked for and not an error.
