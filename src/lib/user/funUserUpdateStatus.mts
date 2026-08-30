@@ -37,10 +37,14 @@ export interface IUserStatus {
  * ⚠️ **No cascade here, and none is missing.** A customer owns no company and no item — the FK chain runs
  * `shopOwner → company → item` and `user` sits outside it (ADR-045 touches nothing on this tier).
  *
- * ⚠️ **There is no closure counterpart on this tier for an admin to call.** A customer closes their own
- * account through `funUserDel`, which stamps `deleted` and never touches any `disabled*` field: `deleted`
- * is the subject giving the account up, `disabled` is the platform taking it away, and a path that could
- * write the second could lift a sanction against itself.
+ * ⚠️ **The closure counterpart is `funUserDelete`, and neither helper writes the other's fields.** A
+ * customer closes their own account through `funUserDel` on their own tier and an admin closes it through
+ * `funUserDelete` on this one; both stamp `deleted` and `deletedBy` and touch no `disabled*` field, and
+ * this one touches no `deleted*` field. `deleted` is the account being given up or taken off the
+ * platform, `disabled` is the platform refusing its use — a path that could write both would let a
+ * customer lift a sanction against themselves by closing and re-registering, which is exactly what
+ * ADR-046 keeps the trio across a restore to prevent. ⚠️ This paragraph said no such counterpart existed
+ * for an admin to call, which was true until 2026-08-30.
  *
  * `matchedCount`, not `modifiedCount`: 0 matched means no such customer, which is a 404; a flag re-set to
  * the value it already held is still the state the admin asked for and not an error.

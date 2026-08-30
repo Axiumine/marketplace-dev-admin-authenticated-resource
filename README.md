@@ -13,6 +13,7 @@ session and `marketplace-dev-authenticated-logout` (4030) ends it.
 | `shopOwnerAdd`, `shopOwnerUpdate`, `shopOwnerDel` | the accounts themselves |
 | `shopOwnerUpdateStatus` | `disabled` and `waitApprov` only — `deleted` is a timestamp and belongs to `shopOwnerDel` |
 | `shopOwnerUpdateEmail`, `shopOwnerUpdateNote`, `shopOwnerUpdatePreferences` | contact, internal notes, flags |
+| `userUpdateStatus`, `userDel` | the customer pair of the two above — same split, `disabled` here and `deleted` there, and no `waitApprov` on either because a customer has no approval gate |
 | `companyAdd`, `companyUpdate`, `companyDel` | any shop, not only the caller's |
 | `itemCategoryAdd`, `itemCategoryUpdate`, `itemCategoryDel` | **the only place category writes exist** |
 | `itemDel`, `itemUpdatePublished` | moderation — take an entry down or unpublish it |

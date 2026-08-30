@@ -1,4 +1,4 @@
-import { Types } from 'mongoose'
+import { trusted, Types } from 'mongoose'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { rejection } from './errors.mts'
@@ -8,6 +8,7 @@ const countDocuments = vi.fn()
 
 vi.mock('@axiumine/marketplace-common/models/MongoDB/User', () => ({ User: { updateOne, countDocuments } }))
 
+const { funUserDelete } = await import('../src/lib/user/funUserDelete.mts')
 const { funUserUpdateStatus } = await import('../src/lib/user/funUserUpdateStatus.mts')
 const { default: usersStatsDb } = await import('../src/lib/user/usersStatsDb.mts')
 
@@ -27,6 +28,82 @@ function updateArgs() {
 
 	return { filter, update }
 }
+
+describe('funUserDelete', () => {
+	beforeEach(() => updateOne.mockReset())
+
+	// Soft delete, like every other delete on this platform: the document stays and gains a `deleted`
+	// instant. `checkUserAuthorizationDisDel` already refuses a stamped account at the login gate, so this
+	// one write is what shuts the account and the mutation revokes the live sessions on top of it.
+	it('stamps deleted on an account that is still open', async () => {
+		mockUpdateMatched(1)
+
+		await expect(funUserDelete(_id, adminId)).resolves.toBeUndefined()
+
+		const { filter, update } = updateArgs()
+
+		expect(filter).toEqual({ _id, deleted: trusted({ $exists: false }) })
+		expect(update.$set.deleted).toBeInstanceOf(Date)
+	})
+
+	// ADR-044: `deletedBy` is what tells an admin closure apart from a self-service one, and the
+	// distinction is carried by the field's presence rather than by any value naming a collection — the
+	// customer's own `funUserDel` writes the stamp and leaves this absent.
+	it('records the admin who closed the account', async () => {
+		mockUpdateMatched(1)
+
+		await funUserDelete(_id, adminId)
+
+		expect(updateArgs().update.$set.deletedBy).toBe(adminId)
+	})
+
+	/*
+	 * Asserted as an absence, and the absence is the whole parity rule. Two fields move and no third:
+	 * no `waitApprov` — a customer never had an approval gate to be dropped from — and above all no
+	 * `disabled*`, in either direction. A closure that cleared the trio would let a suspended customer
+	 * launder the sanction away, and ADR-046 restores the document with the trio exactly as it stands.
+	 */
+	it('names deleted and deletedBy and no other field', async () => {
+		mockUpdateMatched(1)
+
+		await funUserDelete(_id, adminId)
+
+		const { update } = updateArgs()
+
+		expect(Object.keys(update)).toEqual(['$set'])
+		expect(Object.keys(update.$set)).toEqual(['deleted', 'deletedBy'])
+	})
+
+	// ⚠️ No cascade and no transaction, and neither is missing: a customer owns no company and no item —
+	// the FK chain runs `shopOwner -> company -> item` and `user` sits outside it, so ADR-045's storefront
+	// withdrawal has no counterpart here. One write cannot be half-applied. `mongoose` is deliberately not
+	// mocked in this file, so a source line reaching for `startSession()` fails here rather than passing.
+	it('writes once and opens no transaction', async () => {
+		mockUpdateMatched(1)
+
+		await funUserDelete(_id, adminId)
+
+		expect(updateOne).toHaveBeenCalledOnce()
+	})
+
+	/*
+	 * ⚠️ **The clock starts once.** `deleted` is what the retention sweep measures from and what ADR-046
+	 * turns into an undo window, so a second closure over the same document would push the scrub thirty
+	 * days further out and quietly postpone the erasure the first one promised. The `$exists: false`
+	 * clause is what stops it, and a 404 is the honest answer: the account is already gone. `trusted()`
+	 * is not decoration — `sanitizeFilter` is global and strips a bare `$exists`, which would leave the
+	 * filter matching closed accounts too.
+	 */
+	it('refuses an account that is already closed rather than resetting its retention clock', async () => {
+		mockUpdateMatched(0)
+
+		expect(await rejection(funUserDelete(_id, adminId))).toEqual({
+			message: 'Oops',
+			http: { status: 404 },
+			description: 'user not found'
+		})
+	})
+})
 
 describe('funUserUpdateStatus', () => {
 	beforeEach(() => updateOne.mockReset())

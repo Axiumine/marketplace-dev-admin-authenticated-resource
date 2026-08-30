@@ -99,7 +99,7 @@ describe('schema', () => {
 		])
 	})
 
-	it('exposes the twenty-two mutations', () => {
+	it('exposes the twenty-three mutations', () => {
 		expect(fieldsOf('MutationsApi')).toEqual([
 			'adminUpdatePwd',
 			'shopOwnerAdd',
@@ -109,6 +109,7 @@ describe('schema', () => {
 			'shopOwnerUpdateNote',
 			'shopOwnerUpdatePreferences',
 			'shopOwnerUpdateStatus',
+			'userDel',
 			'userUpdateStatus',
 			'companyAdd',
 			'companyDel',
@@ -156,6 +157,11 @@ describe('schema', () => {
 			['_id', 'disabled', 'waitApprov', 'disabledReason'],
 			'updates the status of the shopOwner account'
 		],
+		// One argument, exactly like `shopOwnerDel`: a closure has no options. There is deliberately no
+		// `disabled` or reason argument beside it — closing an account and suspending one are different
+		// decisions on different fields, and a mutation that could do both would let one be laundered
+		// into the other.
+		['userDel', ['_id'], 'deletes a user'],
 		// ⚠️ Three arguments where the shop owner's takes four, and the missing one is not an omission:
 		// `user` gets no approval gate, ever (`phase5/CUSTOMER_ACCOUNT_ADDRESSES.md` §6). A `waitApprov` here would be a lever
 		// nothing on the customer's own tier reads.
