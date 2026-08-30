@@ -1,6 +1,8 @@
 import { trusted } from 'mongoose'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { filterOf, mockFindChain } from './tblQueryMocks.mts'
+
 const find = vi.fn()
 const countDocuments = vi.fn()
 
@@ -18,26 +20,9 @@ const SELECTION = '_id registeredAt login.email waitApprov personalData.firstNam
 
 type Args = Parameters<typeof shopOwnersActiveTblDb>[0]
 
-/** The query builder, mocked one link per chained call: find → select → sort → skip → limit → lean. */
-function mockFind(items: unknown[]) {
-	const lean = vi.fn().mockResolvedValue(items)
-	const limit = vi.fn().mockReturnValue({ lean })
-	const skip = vi.fn().mockReturnValue({ limit })
-	const sort = vi.fn().mockReturnValue({ skip })
-	const select = vi.fn().mockReturnValue({ sort })
-
-	find.mockReturnValueOnce({ select })
-
-	return { select, sort, skip, limit, lean }
-}
-
 /** Every test overrides only what it is about; these are the resolver's own defaults. */
 function args(overrides: Partial<Args> = {}): Args {
 	return { offset: 0, limit: 25, sortBy: 'REGISTERED_AT', sortDir: 'DESC', ...overrides }
-}
-
-function filterOf() {
-	return find.mock.calls[0][0]
 }
 
 describe('shopOwnersActiveTblDb', () => {
@@ -48,7 +33,7 @@ describe('shopOwnersActiveTblDb', () => {
 
 	it('pages the active shopOwners and reports the size of the filtered set', async () => {
 		const docs = [{ firstName: 'Mark' }]
-		const builder = mockFind(docs)
+		const builder = mockFindChain(find, docs)
 		countDocuments.mockResolvedValueOnce(137)
 
 		await expect(shopOwnersActiveTblDb(args({ offset: 50, limit: 10 }))).resolves.toEqual({
@@ -67,7 +52,7 @@ describe('shopOwnersActiveTblDb', () => {
 	// leaves a page that renders and is useless — which is why they are named here and not merely
 	// inside the constant.
 	it('projects the address and the approval flag, or the queue is a page of blank rows', async () => {
-		const builder = mockFind([])
+		const builder = mockFindChain(find, [])
 
 		await shopOwnersActiveTblDb(args())
 
@@ -79,18 +64,18 @@ describe('shopOwnersActiveTblDb', () => {
 	// other side here, because a `waitApprov: { $exists: false }` clause added to "show only real shop
 	// owners" would hide every account waiting for an admin from the only table that lists them.
 	it('lists accounts awaiting approval rather than filtering them out', async () => {
-		mockFind([])
+		mockFindChain(find, [])
 
 		await shopOwnersActiveTblDb(args())
 
-		expect(Object.keys(filterOf())).toEqual(['disabled', 'deleted'])
+		expect(Object.keys(filterOf(find))).toEqual(['disabled', 'deleted'])
 	})
 
 	// The password never leaves the database on this path. The projection is a positive list, so this
 	// holds by construction — and it is asserted anyway, because the table is the one query here that
 	// runs for every row of every page and a whole-document fetch would be invisible in the output.
 	it('never projects the credential', async () => {
-		const builder = mockFind([])
+		const builder = mockFindChain(find, [])
 
 		await shopOwnersActiveTblDb(args())
 
@@ -101,32 +86,32 @@ describe('shopOwnersActiveTblDb', () => {
 	// value holding `$` keys into `{ $eq: <that object> }` — which would ask for documents whose
 	// `deleted` field literally equals `{$exists:false}`, match nothing, and empty the table.
 	it('excludes the disabled and the soft-deleted, and counts exactly what it lists', async () => {
-		mockFind([])
+		mockFindChain(find, [])
 
 		await shopOwnersActiveTblDb(args())
 
-		expect(filterOf().disabled).toEqual(trusted({ $exists: false }))
-		expect(filterOf().deleted).toEqual(trusted({ $exists: false }))
-		expect(filterOf().$or).toBeUndefined()
+		expect(filterOf(find).disabled).toEqual(trusted({ $exists: false }))
+		expect(filterOf(find).deleted).toEqual(trusted({ $exists: false }))
+		expect(filterOf(find).$or).toBeUndefined()
 		// The same object, not an equal one: two filters that could drift would make `total`
 		// describe a different set than `items`, and the paging would be wrong in a way no
 		// single-page assertion can see.
-		expect(countDocuments).toHaveBeenCalledExactlyOnceWith(filterOf())
+		expect(countDocuments).toHaveBeenCalledExactlyOnceWith(filterOf(find))
 	})
 
 	describe('search', () => {
 		it('matches a case-insensitive prefix across the three text columns', async () => {
-			mockFind([])
+			mockFindChain(find, [])
 
 			await shopOwnersActiveTblDb(args({ search: 'ros' }))
 
-			expect(filterOf().$or).toEqual([
+			expect(filterOf(find).$or).toEqual([
 				{ 'personalData.firstName': /^ros/i },
 				{ 'personalData.lastName': /^ros/i },
 				{ 'personalData.address.city': /^ros/i }
 			])
 
-			const [{ 'personalData.firstName': regex }] = filterOf().$or
+			const [{ 'personalData.firstName': regex }] = filterOf(find).$or
 
 			// Asserted separately from the deep-equal above, which compares RegExp objects by source
 			// and flags but reads as if it were about the paths.
@@ -138,11 +123,11 @@ describe('shopOwnersActiveTblDb', () => {
 		// gives a meaning to has to lose it. Unescaped, `.*` is a full scan and `(a+)+$` is a
 		// backtracking bomb the caller picked.
 		it('escapes every regex metacharacter in the term', async () => {
-			mockFind([])
+			mockFindChain(find, [])
 
 			await shopOwnersActiveTblDb(args({ search: 'a.b*c+d?e^f$g{h}i(j)k|l[m]n\\o' }))
 
-			const [{ 'personalData.firstName': regex }] = filterOf().$or
+			const [{ 'personalData.firstName': regex }] = filterOf(find).$or
 
 			expect(regex.source).toBe('^a\\.b\\*c\\+d\\?e\\^f\\$g\\{h\\}i\\(j\\)k\\|l\\[m\\]n\\\\o')
 			expect(regex.test('a.b*c+d?e^f$g{h}i(j)k|l[m]n\\o')).toBe(true)
@@ -151,22 +136,22 @@ describe('shopOwnersActiveTblDb', () => {
 		})
 
 		it('anchors the match, so a substring in the middle of a name is not a hit', async () => {
-			mockFind([])
+			mockFindChain(find, [])
 
 			await shopOwnersActiveTblDb(args({ search: 'ossi' }))
 
-			const [{ 'personalData.firstName': regex }] = filterOf().$or
+			const [{ 'personalData.firstName': regex }] = filterOf(find).$or
 
 			expect(regex.test('Rivers')).toBe(false)
 			expect(regex.test('ossido')).toBe(true)
 		})
 
 		it('trims the term before using it', async () => {
-			mockFind([])
+			mockFindChain(find, [])
 
 			await shopOwnersActiveTblDb(args({ search: '  ros  ' }))
 
-			expect(filterOf().$or[0]).toEqual({ 'personalData.firstName': /^ros/i })
+			expect(filterOf(find).$or[0]).toEqual({ 'personalData.firstName': /^ros/i })
 		})
 
 		// A text box that has been cleared sends '' or '   ', and neither means "search for
@@ -177,15 +162,15 @@ describe('shopOwnersActiveTblDb', () => {
 			['empty', ''],
 			['whitespace only', '   ']
 		])('treats %s as no search at all', async (_label, search) => {
-			mockFind([])
+			mockFindChain(find, [])
 
 			await shopOwnersActiveTblDb(args({ search }))
 
-			expect(filterOf().$or).toBeUndefined()
+			expect(filterOf(find).$or).toBeUndefined()
 		})
 
 		it('accepts a term of exactly the maximum length', async () => {
-			mockFind([])
+			mockFindChain(find, [])
 
 			await expect(shopOwnersActiveTblDb(args({ search: 'a'.repeat(100) }))).resolves.toBeDefined()
 		})
@@ -215,7 +200,7 @@ describe('shopOwnersActiveTblDb', () => {
 			['CITY', 'DESC', { 'personalData.address.city': -1, _id: -1 }],
 			['CITY', 'ASC', { 'personalData.address.city': 1, _id: 1 }]
 		])('sorts by %s %s', async (sortBy, sortDir, expected) => {
-			const builder = mockFind([])
+			const builder = mockFindChain(find, [])
 
 			await shopOwnersActiveTblDb(args({ sortBy: sortBy as Args['sortBy'], sortDir: sortDir as Args['sortDir'] }))
 
@@ -225,7 +210,7 @@ describe('shopOwnersActiveTblDb', () => {
 		// Key ORDER, not just presence: a sort document is ordered, so `{_id, registeredAt}` is a
 		// different query from `{registeredAt, _id}` — and only the second one an index can serve.
 		it('breaks ties on _id, last', async () => {
-			const builder = mockFind([])
+			const builder = mockFindChain(find, [])
 
 			await shopOwnersActiveTblDb(args({ sortBy: 'LAST_NAME' }))
 
@@ -256,7 +241,7 @@ describe('shopOwnersActiveTblDb', () => {
 			['limit 1', { limit: 1 }],
 			['limit at the ceiling', { limit: 100 }]
 		])('accepts %s', async (_label, overrides) => {
-			mockFind([])
+			mockFindChain(find, [])
 
 			await expect(shopOwnersActiveTblDb(args(overrides))).resolves.toBeDefined()
 		})
@@ -264,7 +249,7 @@ describe('shopOwnersActiveTblDb', () => {
 		// No upper bound on offset, deliberately: a deep skip is slow but correct, and capping it
 		// would make the last pages of a large result set unreachable.
 		it('accepts an offset far past the end of the collection', async () => {
-			mockFind([])
+			mockFindChain(find, [])
 
 			await expect(shopOwnersActiveTblDb(args({ offset: 1_000_000 }))).resolves.toBeDefined()
 		})

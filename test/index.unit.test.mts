@@ -224,18 +224,30 @@ describe('process handlers', () => {
 	})
 })
 
+/**
+ * The boot mocks both `start` suites open a test with: every dependency `start` awaits answers, and every
+ * variable `requireEnv` reads has a value, so what each test arms afterwards is only the failure it is
+ * about.
+ *
+ * `disconnectAllDatabases` is reset by the failure path alone — the success path never reaches it, and a
+ * suite that resets a mock it does not use hides the day that stops being true.
+ */
+function armBootMocks(): void {
+	captureException.mockReset()
+	RedisConnect.mockReset().mockResolvedValue(undefined)
+	MongoDBConnect.mockReset().mockResolvedValue(undefined)
+	initClamScan.mockReset().mockResolvedValue(undefined)
+	setupFieldEncryption.mockReset().mockResolvedValue(undefined)
+	startRetentionSweeper.mockReset()
+	for (const k of REQUIRED_ENV_VARS) vi.stubEnv(k, 'x')
+}
+
 describe('start (failure path)', () => {
 	let errorLog: ReturnType<typeof vi.spyOn>
 
 	beforeEach(() => {
-		captureException.mockReset()
 		disconnectAllDatabases.mockReset()
-		RedisConnect.mockReset().mockResolvedValue(undefined)
-		MongoDBConnect.mockReset().mockResolvedValue(undefined)
-		initClamScan.mockReset().mockResolvedValue(undefined)
-		setupFieldEncryption.mockReset().mockResolvedValue(undefined)
-		startRetentionSweeper.mockReset()
-		for (const k of REQUIRED_ENV_VARS) vi.stubEnv(k, 'x')
+		armBootMocks()
 		errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 	})
 	afterEach(() => {
@@ -461,13 +473,7 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
 
 describe('start (success path)', () => {
 	beforeEach(() => {
-		captureException.mockReset()
-		RedisConnect.mockReset().mockResolvedValue(undefined)
-		MongoDBConnect.mockReset().mockResolvedValue(undefined)
-		initClamScan.mockReset().mockResolvedValue(undefined)
-		setupFieldEncryption.mockReset().mockResolvedValue(undefined)
-		startRetentionSweeper.mockReset()
-		for (const k of REQUIRED_ENV_VARS) vi.stubEnv(k, 'x')
+		armBootMocks()
 		// Real listen() options, unlike the failure-path block above: this test actually binds a
 		// socket, so PORT needs a value Node can listen on rather than the placeholder 'x'.
 		vi.stubEnv('PORT', '0')
