@@ -38,6 +38,18 @@ const holding = (ids: string[]) => ({ lean: () => Promise.resolve(ids.map((id) =
 /** The index key of one account, spelled from the parts rather than through `sessionKeys.mts`. */
 const indexKeyOf = (tier: string, id: string) => `${REDIS_KEY}idx:${tier}:${id}`
 
+/**
+ * Arms `hKeys` so the named index keys reject and every other account revokes normally.
+ *
+ * The throw is placed on the *first* Redis command a revocation issues, so the account it belongs to
+ * contributes nothing at all — which is what makes the ended count a clean multiple of the accounts that
+ * did get through.
+ */
+const failingOn = (failures: Record<string, string>) =>
+	hKeys.mockImplementation((key: string) =>
+		failures[key] ? Promise.reject(new Error(failures[key] as string)) : Promise.resolve(INDEXED_FIELDS)
+	)
+
 /** Every index key the sweep must read, in the order the three tiers run. */
 const EVERY_INDEX_KEY = [
 	...ADMINS.map((id) => indexKeyOf('admin', id)),
@@ -118,7 +130,11 @@ describe('endEveryPlatformSession', () => {
 	 * the last one's — six accounts holding two sessions each.
 	 */
 	it('answers how many sessions it ended, across all three tiers', async () => {
-		await expect(endEveryPlatformSession()).resolves.toBe(EVERY_INDEX_KEY.length * INDEXED_FIELDS.length)
+		await expect(endEveryPlatformSession()).resolves.toEqual({
+			ended: EVERY_INDEX_KEY.length * INDEXED_FIELDS.length,
+			failed: 0,
+			reason: ''
+		})
 	})
 
 	// An empty platform revokes quietly: no ids, so no index to read and no key to guess at.
@@ -127,7 +143,7 @@ describe('endEveryPlatformSession', () => {
 		shopOwnerFind.mockReturnValue(holding([]))
 		userFind.mockReturnValue(holding([]))
 
-		await expect(endEveryPlatformSession()).resolves.toBe(0)
+		await expect(endEveryPlatformSession()).resolves.toEqual({ ended: 0, failed: 0, reason: '' })
 
 		expect(hKeys).not.toHaveBeenCalled()
 		expect(del).not.toHaveBeenCalled()
@@ -138,9 +154,106 @@ describe('endEveryPlatformSession', () => {
 	it('counts sessions rather than accounts when an account holds none', async () => {
 		hKeys.mockResolvedValue([])
 
-		await expect(endEveryPlatformSession()).resolves.toBe(0)
+		await expect(endEveryPlatformSession()).resolves.toEqual({ ended: 0, failed: 0, reason: '' })
 
 		expect(hKeys).toHaveBeenCalledTimes(EVERY_INDEX_KEY.length)
 		expect(del).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ **The sweep is what closes the retirement window, so one account's Redis failure must not close it
+	 * for everybody else** (R55). Before this, a single throw ended the tier it happened in *and* every tier
+	 * after it, so an unlucky round trip on the first shop owner left every customer holding live sessions
+	 * that a retired key still verifies on any service that has not adopted the retirement yet.
+	 */
+	it('keeps sweeping the rest of the platform when one account’s revoke throws', async () => {
+		const failed = indexKeyOf('shopOwner', SHOP_OWNERS[0] as string)
+
+		failingOn({ [failed]: 'Redis connection lost' })
+
+		await expect(endEveryPlatformSession()).resolves.toEqual({
+			ended: (EVERY_INDEX_KEY.length - 1) * INDEXED_FIELDS.length,
+			failed: 1,
+			reason: 'Redis connection lost'
+		})
+
+		// The tier the throw landed in finishes, and the tier after it still runs at all.
+		expect(hKeys).toHaveBeenCalledWith(indexKeyOf('shopOwner', SHOP_OWNERS[1] as string))
+		expect(hKeys).toHaveBeenCalledWith(indexKeyOf('user', USERS[0] as string))
+	})
+
+	// The count is what `funKeygripRetire` reports to the admin, so it has to be every tier's failures and
+	// not the last tier's — the same summing the ended count needs, on the number that decides whether the
+	// mutation answers at all.
+	it('counts the failures of all three tiers', async () => {
+		failingOn({
+			[indexKeyOf('admin', ADMINS[0] as string)]: 'Redis connection lost',
+			[indexKeyOf('user', USERS[2] as string)]: 'Redis connection lost'
+		})
+
+		await expect(endEveryPlatformSession()).resolves.toMatchObject({
+			ended: (EVERY_INDEX_KEY.length - 2) * INDEXED_FIELDS.length,
+			failed: 2
+		})
+	})
+
+	/*
+	 * One reason is kept and it is the first, for the reason `ISweepOutcome` records: a sweep that fails
+	 * usually fails once, and a thousand copies of `Redis connection lost` is not a better answer than one.
+	 *
+	 * ⚠️ **Two failures in one tier and a third in another, because "first" is decided twice.** Each tier
+	 * keeps the first of its own failures, and the three tiers are then merged in the order they ran — so a
+	 * fixture that only ever failed one account per tier would let the second of those rules be wrong
+	 * without a test noticing.
+	 */
+	it('reports the first failure’s reason and drops every later one', async () => {
+		failingOn({
+			[indexKeyOf('admin', ADMINS[0] as string)]: 'the first reason',
+			[indexKeyOf('user', USERS[0] as string)]: 'the customer tier’s first reason',
+			[indexKeyOf('user', USERS[1] as string)]: 'the last reason'
+		})
+
+		await expect(endEveryPlatformSession()).resolves.toEqual({
+			ended: (EVERY_INDEX_KEY.length - 3) * INDEXED_FIELDS.length,
+			failed: 3,
+			reason: 'the first reason'
+		})
+	})
+
+	/*
+	 * The customer tier is last and its reason has the furthest to travel, so it is asserted on its own: a
+	 * merge that only looked at the first two tiers would report an empty reason beside a non-zero
+	 * `failed`, and the admin would be told how many accounts are standing and nothing about why.
+	 *
+	 * ⚠️ **Two failures, and the *first* of them is what must come out.** With one, a tier that kept the
+	 * last of its failures instead of the first would answer identically here and be caught by nothing:
+	 * this is the tier whose own reason is the one reported, so it is the tier where that has to be read.
+	 */
+	it('reports the last tier’s first reason when the two before it swept cleanly', async () => {
+		failingOn({
+			[indexKeyOf('user', USERS[0] as string)]: 'the customer tier’s reason',
+			[indexKeyOf('user', USERS[1] as string)]: 'a later customer’s reason'
+		})
+
+		await expect(endEveryPlatformSession()).resolves.toEqual({
+			ended: (EVERY_INDEX_KEY.length - 2) * INDEXED_FIELDS.length,
+			failed: 2,
+			reason: 'the customer tier’s reason'
+		})
+	})
+
+	/*
+	 * ⚠️ **A tier that cannot be listed is not a partial sweep and must not be reported as one.** The
+	 * `find` sits outside the per-account catch on purpose: nothing was swept in that tier and no account
+	 * of it was even named, so a `{ failed: 0 }` here would tell `funKeygripRetire` the platform is signed
+	 * out when a third of it was never looked at.
+	 */
+	it('lets a collection that cannot be read through, rather than counting it as failed accounts', async () => {
+		shopOwnerFind.mockReturnValue({ lean: () => Promise.reject(new Error('Mongo is unreachable')) })
+
+		await expect(endEveryPlatformSession()).rejects.toThrow('Mongo is unreachable')
+
+		// It gave up where it stood: the tier after the unreadable one never ran.
+		expect(userFind).not.toHaveBeenCalled()
 	})
 })

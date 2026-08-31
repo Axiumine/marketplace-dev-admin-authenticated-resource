@@ -99,7 +99,7 @@ describe('schema', () => {
 		])
 	})
 
-	it('exposes the twenty-three mutations', () => {
+	it('exposes the twenty-four mutations', () => {
 		expect(fieldsOf('MutationsApi')).toEqual([
 			'adminUpdatePwd',
 			'shopOwnerAdd',
@@ -122,6 +122,7 @@ describe('schema', () => {
 			'itemUpdatePublished',
 			'keygripRotate',
 			'keygripRetire',
+			'keygripResweep',
 			'revokeSession',
 			'revokeAllSessions'
 		])
@@ -198,6 +199,15 @@ describe('schema', () => {
 			'keygripRetire',
 			['id'],
 			'drops one cookie-signing key from the whole platform and signs every account out, the calling admin included'
+		],
+		// ⚠️ No arguments, and not even the key id `keygripRetire` takes: this mutation touches the record
+		// not at all — the key it is finishing the work of is already out of it — and the sweep it runs is
+		// the whole platform by definition. An argument could only narrow it back into the partial sweep
+		// R55 is about.
+		[
+			'keygripResweep',
+			[],
+			'signs every account out again, to finish a retirement whose session sweep did not reach the whole platform'
 		]
 	])('%s takes the arguments the resolver reads', (name, expected, description) => {
 		const field = types.get('MutationsApi')?.fields?.find((f) => f.name === name)

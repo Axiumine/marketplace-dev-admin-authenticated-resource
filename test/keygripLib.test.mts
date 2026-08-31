@@ -43,6 +43,7 @@ vi.mock('@lib/keygrip/endEveryPlatformSession.mjs', () => ({ endEveryPlatformSes
 
 const { funKeygripRotate } = await import('../src/lib/keygrip/funKeygripRotate.mts')
 const { funKeygripRetire } = await import('../src/lib/keygrip/funKeygripRetire.mts')
+const { funKeygripResweep } = await import('../src/lib/keygrip/funKeygripResweep.mts')
 const { funKeygripStatus } = await import('../src/lib/keygrip/funKeygripStatus.mts')
 const { KEYGRIP_WRITES_PER_HOUR, KEYGRIP_WRITE_WINDOW_SECONDS } = await import('../src/lib/keygrip/guardKeygripWrite.mts')
 
@@ -125,6 +126,9 @@ const seedStatus = (keys: IKeygripKeyMaterial[], holders: Record<string, string>
 const meterKey = (operation: string, admin: string) =>
 	`test:rl:keygrip:${operation}:${createHash('sha256').update(admin).digest('hex')}`
 
+/** An `ISweepOutcome`, spelled at the call site so a test says which of the three numbers it is about. */
+const swept = (ended: number, failed = 0, reason = '') => ({ ended, failed, reason })
+
 /** A holders row as `recordKeygripHolder` writes it. */
 const heldAt = (fp: string, lastSeen: string) => `${fp}@${lastSeen}`
 
@@ -135,7 +139,7 @@ beforeEach(() => {
 	hSet.mockReset()
 	evalRedis.mockReset().mockResolvedValue(1)
 	captureMessage.mockReset()
-	endEveryPlatformSession.mockReset().mockResolvedValue(0)
+	endEveryPlatformSession.mockReset().mockResolvedValue(swept(0))
 	// One write inside the window, with its TTL already armed — the state every test but the metered ones
 	// wants, and the one that makes `expire` a signal rather than noise.
 	incr.mockReset().mockResolvedValue(1)
@@ -389,7 +393,7 @@ describe('funKeygripRetire', () => {
 
 	it('records which key was retired, by whom, at which version, and how many sessions it cost', async () => {
 		seed(FOUR)
-		endEveryPlatformSession.mockResolvedValue(12)
+		endEveryPlatformSession.mockResolvedValue(swept(12))
 
 		await funKeygripRetire(ADMIN, 'k2')
 
@@ -401,7 +405,7 @@ describe('funKeygripRetire', () => {
 		 * reply, which answers `true` and no figure at all.
 		 */
 		expect(captureMessage).toHaveBeenCalledExactlyOnceWith(
-			`keygrip key k2 retired at version 4 (${fp}) by admin ${sha256Hex(ADMIN.toString())}, ending 12 sessions`,
+			`keygrip key k2 retired at version 4 (${fp}) by admin ${sha256Hex(ADMIN.toString())}, ending 12 sessions across 0 unreached accounts`,
 			'info'
 		)
 	})
@@ -574,12 +578,16 @@ describe('funKeygripRetire', () => {
 	})
 
 	/*
-	 * ⚠️ A sweep that dies part way is a 500 that has to say the retirement *happened*. The key is out of
+	 * ⚠️ A sweep that never started is a 500 that has to say the retirement *happened*. The key is out of
 	 * the record and a second attempt answers 404 — which this service tells admins to read as "nothing
 	 * was retired" — so a bare failure here would send them hunting a key that is already gone while live
 	 * sessions are what still needs ending.
+	 *
+	 * ⚠️ **And it must name the way out** (R55). `keygripRetire` cannot be retried; `keygripResweep` can,
+	 * and it is the whole remedy, so the message that reports the hole is the message that has to point at
+	 * it — an admin reading this has a platform whose sessions all outlived a key they believe is leaked.
 	 */
-	it('reports a half-finished sweep as a 500 that says the key is already gone', async () => {
+	it('reports a sweep that could not start as a 500 that says the key is already gone', async () => {
 		seed(FOUR)
 		endEveryPlatformSession.mockRejectedValue(new Error('Redis connection lost'))
 
@@ -588,11 +596,50 @@ describe('funKeygripRetire', () => {
 		expect(outcome.message).toBe('Internal Server Error')
 		expect(outcome.http).toEqual({ status: 500 })
 		expect(outcome.description).toBe(
-			'Error reported to Dev Team.Key k2 is retired and the new key set is written, but ending the live sessions failed part way: Redis connection lost. Do not retire k2 again — it is already gone and a second attempt answers 404. Revoke the remaining sessions from the sessions console instead.'
+			'Error reported to Dev Team.Key k2 is retired and the new key set is written, but the session sweep could not start: Redis connection lost. Do not retire k2 again — it is already gone and a second attempt answers 404. Every account still holds its sessions: run keygripResweep to end them.'
 		)
-		// No audit line claiming a clean retirement: the record moved, the sessions did not all go, and the
-		// error is the only honest account of that.
+		// No audit line claiming sessions ended: nothing was swept, and the error is the only honest account
+		// of a retirement whose second half never ran.
 		expect(captureMessage).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ **The other shape of the same failure, and the one R55 is actually about**: the sweep ran, most of
+	 * the platform is signed out, and some accounts' revokes threw. That is not the same event as "the
+	 * sweep never started" — the admin's platform is mostly safe rather than wholly exposed — so it gets
+	 * its own message, carrying the count of what is left.
+	 *
+	 * ⚠️ **The audit line is written even though this refuses.** The key *is* retired at that version, and
+	 * the day someone asks when it was dropped is the day this happened; a 500 that swallowed the event
+	 * would answer that question with silence.
+	 */
+	it('reports a partly-finished sweep as a 500 that names how many accounts are left, and still records the retirement', async () => {
+		seed(FOUR)
+		endEveryPlatformSession.mockResolvedValue(swept(12, 3, 'Redis connection lost'))
+
+		const outcome = await rejection(funKeygripRetire(ADMIN, 'k2'))
+
+		expect(outcome.http).toEqual({ status: 500 })
+		expect(outcome.description).toBe(
+			'Error reported to Dev Team.Key k2 is retired and the new key set is written, and 12 sessions were ended, but 3 accounts could not be reached and may still hold live ones: Redis connection lost. Do not retire k2 again — it is already gone and a second attempt answers 404. Run keygripResweep instead: it walks every account again and is safe to repeat.'
+		)
+
+		const fp = keygripFingerprint(unwrapKeygripKeys(written().wrapped, 4, KEK))
+
+		expect(captureMessage).toHaveBeenCalledExactlyOnceWith(
+			`keygrip key k2 retired at version 4 (${fp}) by admin ${sha256Hex(ADMIN.toString())}, ending 12 sessions across 3 unreached accounts`,
+			'info'
+		)
+	})
+
+	// ⚠️ A sweep that reached everything is not a refusal, however many accounts it had to walk: `failed`
+	// is what decides, and an ended count of nothing at all — a platform with no live session on it — is a
+	// clean retirement rather than a broken one.
+	it('answers cleanly when the sweep reached every account and there was nothing to end', async () => {
+		seed(FOUR)
+		endEveryPlatformSession.mockResolvedValue(swept(0))
+
+		await expect(funKeygripRetire(ADMIN, 'k2')).resolves.toBeUndefined()
 	})
 
 	// The window is armed by hand because `INCR` on a missing key creates it with no TTL — and repaired on
@@ -605,6 +652,122 @@ describe('funKeygripRetire', () => {
 		await funKeygripRetire(ADMIN, 'k2')
 
 		expect(expire).toHaveBeenCalledExactlyOnceWith(meterKey('retire', '507f1f77bcf86cd799439011'), KEYGRIP_WRITE_WINDOW_SECONDS)
+	})
+})
+
+/**
+ * The resweep — the retirement's second half, on its own button (R55).
+ *
+ * ⚠️ **It is tested against the same faked sweep and the same faked limiter, and against no keygrip record
+ * at all**, because it reads none: the key it finishes the work of is already out of the set, which is why
+ * `keygripRetire` answers 404 on a retry and why this mutation exists. `hGetAll` never being called is the
+ * assertion that says so.
+ */
+describe('funKeygripResweep', () => {
+	// The whole operation: sweep the platform, record what it cost, answer nothing.
+	it('ends every session on the platform and records what that cost', async () => {
+		endEveryPlatformSession.mockResolvedValue(swept(9))
+
+		await expect(funKeygripResweep(ADMIN)).resolves.toBeUndefined()
+
+		expect(endEveryPlatformSession).toHaveBeenCalledExactlyOnceWith()
+		expect(captureMessage).toHaveBeenCalledExactlyOnceWith(
+			`keygrip session resweep by admin ${sha256Hex(ADMIN.toString())}, ending 9 sessions across 0 unreached accounts`,
+			'info'
+		)
+	})
+
+	/*
+	 * ⚠️ **No record read, no KEK, no compare-and-set.** There is nothing left to write, and a read here
+	 * would give this mutation a 500 and a 409 it has no business answering — the point of it is that it
+	 * is the one part of a retirement that is always safe to run again.
+	 */
+	it('touches the keygrip record not at all', async () => {
+		await funKeygripResweep(ADMIN)
+
+		expect(hGetAll).not.toHaveBeenCalled()
+		expect(evalRedis).not.toHaveBeenCalled()
+		expect(hSet).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ **The admin is named by digest**, on the same reasoning as the two writers above: this string
+	 * becomes an `event.message`, which `sentryBeforeSend` does not walk, so an id written here reaches
+	 * the vendor verbatim.
+	 */
+	it('names the admin by digest and never by id', async () => {
+		await funKeygripResweep(ADMIN)
+
+		const reported = JSON.stringify(captureMessage.mock.calls)
+
+		expect(reported).toContain(sha256Hex(ADMIN.toString()))
+		expect(reported).not.toContain(ADMIN.toString())
+	})
+
+	/*
+	 * ⚠️ **Its own bucket, not the retirement's.** A shared counter would let the ten writes an admin
+	 * spent rotating keys this afternoon lock them out of finishing a retirement that left the platform
+	 * holding live sessions — which is the one write that cannot wait an hour.
+	 */
+	it('meters its own hourly bucket', async () => {
+		await funKeygripResweep(ADMIN)
+
+		expect(incr).toHaveBeenCalledExactlyOnceWith(meterKey('resweep', '507f1f77bcf86cd799439011'))
+	})
+
+	it('refuses the eleventh resweep of the hour without sweeping', async () => {
+		incr.mockResolvedValue(KEYGRIP_WRITES_PER_HOUR + 1)
+
+		const outcome = await rejection(funKeygripResweep(ADMIN))
+
+		expect(outcome.message).toBe('Too Many Requests')
+		expect(outcome.http).toEqual({ status: 429 })
+		expect(endEveryPlatformSession).not.toHaveBeenCalled()
+	})
+
+	// The window is armed by hand for the reason the two writers state: `INCR` on a missing key creates it
+	// with no TTL, and a lost `EXPIRE` would otherwise lock an admin out of this for good.
+	it('arms the hour on a counter that lost its TTL', async () => {
+		incr.mockResolvedValue(2)
+		ttl.mockResolvedValue(-1)
+
+		await funKeygripResweep(ADMIN)
+
+		expect(expire).toHaveBeenCalledExactlyOnceWith(meterKey('resweep', '507f1f77bcf86cd799439011'), KEYGRIP_WRITE_WINDOW_SECONDS)
+	})
+
+	// Nothing was ended and nothing is claimed: no audit line, and a message that says to run it again,
+	// because running it again is the entire remedy.
+	it('reports a sweep that could not start as a 500 and records nothing', async () => {
+		endEveryPlatformSession.mockRejectedValue(new Error('Mongo is unreachable'))
+
+		const outcome = await rejection(funKeygripResweep(ADMIN))
+
+		expect(outcome.http).toEqual({ status: 500 })
+		expect(outcome.description).toBe(
+			"Error reported to Dev Team.The session sweep could not start: Mongo is unreachable. No session was ended. Run keygripResweep again once the platform's data stores answer."
+		)
+		expect(captureMessage).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ **A resweep that is itself partial refuses too.** `Boolean!` means the sweep reached every
+	 * account, and answering `true` for "mostly" would hide the exact state this mutation exists to
+	 * clear — on the screen an admin came to precisely because the last attempt was partial.
+	 */
+	it('reports its own partial sweep as a 500 naming what is left, and still records what it ended', async () => {
+		endEveryPlatformSession.mockResolvedValue(swept(4, 2, 'Redis connection lost'))
+
+		const outcome = await rejection(funKeygripResweep(ADMIN))
+
+		expect(outcome.http).toEqual({ status: 500 })
+		expect(outcome.description).toBe(
+			'Error reported to Dev Team.The resweep ended 4 sessions, but 2 accounts could not be reached and may still hold live ones: Redis connection lost. Run keygripResweep again — it walks every account and is safe to repeat.'
+		)
+		expect(captureMessage).toHaveBeenCalledExactlyOnceWith(
+			`keygrip session resweep by admin ${sha256Hex(ADMIN.toString())}, ending 4 sessions across 2 unreached accounts`,
+			'info'
+		)
 	})
 })
 
