@@ -197,7 +197,7 @@ describe('schema', () => {
 		[
 			'keygripRetire',
 			['id'],
-			'drops one cookie-signing key from the whole platform, logging out everyone whose cookie it signed'
+			'drops one cookie-signing key from the whole platform and signs every account out, the calling admin included'
 		]
 	])('%s takes the arguments the resolver reads', (name, expected, description) => {
 		const field = types.get('MutationsApi')?.fields?.find((f) => f.name === name)

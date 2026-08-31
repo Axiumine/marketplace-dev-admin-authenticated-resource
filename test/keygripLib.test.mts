@@ -27,8 +27,19 @@ const expire = vi.fn()
  */
 const hSet = vi.fn()
 
+/**
+ * The platform-wide session sweep a retirement runs once the new key set is written (R47).
+ *
+ * Faked rather than run: it reads three collections and talks to a second Redis keyspace, and what this
+ * file is about is the *record* writer — that the sweep happens, that it happens after the compare is won
+ * and never before it, and that its count reaches the audit event. What the sweep itself does to the
+ * keyspace is `endEveryPlatformSession.test.mts`, against a faked client and the real revoke routine.
+ */
+const endEveryPlatformSession = vi.fn()
+
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { hGetAll, hSet, eval: evalRedis, incr, ttl, expire } }))
 vi.mock('@sentry/node', () => ({ captureMessage }))
+vi.mock('@lib/keygrip/endEveryPlatformSession.mjs', () => ({ endEveryPlatformSession }))
 
 const { funKeygripRotate } = await import('../src/lib/keygrip/funKeygripRotate.mts')
 const { funKeygripRetire } = await import('../src/lib/keygrip/funKeygripRetire.mts')
@@ -124,6 +135,7 @@ beforeEach(() => {
 	hSet.mockReset()
 	evalRedis.mockReset().mockResolvedValue(1)
 	captureMessage.mockReset()
+	endEveryPlatformSession.mockReset().mockResolvedValue(0)
 	// One write inside the window, with its TTL already armed — the state every test but the metered ones
 	// wants, and the one that makes `expire` a signal rather than noise.
 	incr.mockReset().mockResolvedValue(1)
@@ -375,15 +387,21 @@ describe('funKeygripRetire', () => {
 		expect(hSet).not.toHaveBeenCalled()
 	})
 
-	it('records which key was retired, by whom, at which version', async () => {
+	it('records which key was retired, by whom, at which version, and how many sessions it cost', async () => {
 		seed(FOUR)
+		endEveryPlatformSession.mockResolvedValue(12)
 
 		await funKeygripRetire(ADMIN, 'k2')
 
 		const fp = keygripFingerprint(unwrapKeygripKeys(written().wrapped, 4, KEK))
 
+		/*
+		 * ⚠️ The count is on the line because it is the only record of what the retirement cost. It is a
+		 * platform-size number and names nobody — the accounts it counts are never listed, here or in the
+		 * reply, which answers `true` and no figure at all.
+		 */
 		expect(captureMessage).toHaveBeenCalledExactlyOnceWith(
-			`keygrip key k2 retired at version 4 (${fp}) by admin ${sha256Hex(ADMIN.toString())}`,
+			`keygrip key k2 retired at version 4 (${fp}) by admin ${sha256Hex(ADMIN.toString())}, ending 12 sessions`,
 			'info'
 		)
 	})
@@ -438,6 +456,9 @@ describe('funKeygripRetire', () => {
 		)
 		expect(evalRedis).not.toHaveBeenCalled()
 		expect(captureMessage).not.toHaveBeenCalled()
+		// Nothing was retired, so nobody is signed out: a 404 that logged the platform out would be an
+		// outage caused by a stale screen naming a key that had already gone.
+		expect(endEveryPlatformSession).not.toHaveBeenCalled()
 	})
 
 	/*
@@ -475,6 +496,7 @@ describe('funKeygripRetire', () => {
 			'The keygrip record changed while k2 was being retired, so nothing was written and that key is still in use. Reload the page and retire it again.'
 		)
 		expect(captureMessage).not.toHaveBeenCalled()
+		expect(endEveryPlatformSession).not.toHaveBeenCalled()
 	})
 
 	it('reports a missing record as a 500 carrying what to do about it', async () => {
@@ -527,6 +549,50 @@ describe('funKeygripRetire', () => {
 		expect(outcome.http).toEqual({ status: 429 })
 		expect(hGetAll).not.toHaveBeenCalled()
 		expect(evalRedis).not.toHaveBeenCalled()
+	})
+
+	/*
+	 * ⚠️ **The retirement is only half done when the record is written — this is the other half (R47).**
+	 * A signing service adopts the new record on a nudge or, if that is lost, on its next poll, and until
+	 * then it still verifies cookies the retired key signed. Ending every session leaves that service with
+	 * a signature it accepts and nothing behind it, so the adoption window stops mattering.
+	 *
+	 * ⚠️ **And it runs *after* the compare, which is why the order is asserted rather than assumed.**
+	 * Sweeping first and then losing the compare would sign the whole platform out and leave the suspect
+	 * key in the keyring — everybody logs back in, holding cookies signed by the key the admin was trying
+	 * to drop.
+	 */
+	it('ends every session on the platform, and only once the key set is written', async () => {
+		seed(FOUR)
+
+		await funKeygripRetire(ADMIN, 'k2')
+
+		expect(endEveryPlatformSession).toHaveBeenCalledExactlyOnceWith()
+		expect(evalRedis.mock.invocationCallOrder[0] as number).toBeLessThan(
+			endEveryPlatformSession.mock.invocationCallOrder[0] as number
+		)
+	})
+
+	/*
+	 * ⚠️ A sweep that dies part way is a 500 that has to say the retirement *happened*. The key is out of
+	 * the record and a second attempt answers 404 — which this service tells admins to read as "nothing
+	 * was retired" — so a bare failure here would send them hunting a key that is already gone while live
+	 * sessions are what still needs ending.
+	 */
+	it('reports a half-finished sweep as a 500 that says the key is already gone', async () => {
+		seed(FOUR)
+		endEveryPlatformSession.mockRejectedValue(new Error('Redis connection lost'))
+
+		const outcome = await rejection(funKeygripRetire(ADMIN, 'k2'))
+
+		expect(outcome.message).toBe('Internal Server Error')
+		expect(outcome.http).toEqual({ status: 500 })
+		expect(outcome.description).toBe(
+			'Error reported to Dev Team.Key k2 is retired and the new key set is written, but ending the live sessions failed part way: Redis connection lost. Do not retire k2 again — it is already gone and a second attempt answers 404. Revoke the remaining sessions from the sessions console instead.'
+		)
+		// No audit line claiming a clean retirement: the record moved, the sessions did not all go, and the
+		// error is the only honest account of that.
+		expect(captureMessage).not.toHaveBeenCalled()
 	})
 
 	// The window is armed by hand because `INCR` on a missing key creates it with no TTL — and repaired on
