@@ -61,7 +61,6 @@ export const REQUIRED_ENV_VARS = [
 	// reads no variable, and the edge's `Secure` rewrite (ADR-034) is nginx config. A variable required at
 	// boot and read by nothing teaches admins that this list is noise, which is the one thing it cannot
 	// afford to be.
-	'INTROSPECTION_CODE',
 	// ADR-034. This service signs no cookie and never will; it holds the key that opens the
 	// record the five signing services read, because `keygripRotate` is where the platform's signing keys
 	// are minted and resealed. Required at boot rather than checked at first use: an admin reaching

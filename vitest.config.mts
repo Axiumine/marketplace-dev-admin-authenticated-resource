@@ -51,8 +51,7 @@ export default defineConfig({
 					// process.env keys, so these win over whatever the local `.env` holds.
 					env: {
 						NODE_ENV: 'test',
-						REDIS_KEY: 'test:',
-						INTROSPECTION_CODE: 'test-introspection-code'
+						REDIS_KEY: 'test:'
 					}
 				}
 			},
@@ -67,8 +66,8 @@ export default defineConfig({
 					// is imported, so every collection carries the real validators and indexes.
 					globalSetup: ['./test/integration/globalSetup.mts'],
 					// Redis connection params (hosts/user/password/cluster flag) come from .env; the overrides
-					// below are pinned: per-service keyspace, ephemeral port, known introspection code, and
-					// the throwaway database reached with the least-privilege R/W user.
+					// below are pinned: per-service keyspace, ephemeral port, and the throwaway database reached
+					// with the least-privilege R/W user.
 					//
 					// REDIS_KEY carries the service name as a third segment so all seven services' integration
 					// suites can run at the same time. They used to share `marketplaceDev:itest:`, which meant a
@@ -80,7 +79,6 @@ export default defineConfig({
 					env: {
 						NODE_ENV: 'test',
 						REDIS_KEY: ITEST_REDIS_KEY,
-						INTROSPECTION_CODE: 'test-introspection-code',
 						PORT: '0',
 						MONGODB_URI: buildTestMongoUrl('rw'),
 						// ADR-029. start() refuses to boot without these two, and the file the first one
