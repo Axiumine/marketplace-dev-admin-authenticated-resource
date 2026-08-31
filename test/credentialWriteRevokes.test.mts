@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /*
- * ⚠️ **The enumeration E15-S06 asks for: every credential write in this service ends the account's
+ * ⚠️ **The enumeration: every credential write in this service ends the account's
  * sessions, and a new one cannot be added quietly.** The three tests above it — one per mutation —
  * prove the call sites that exist today. This one proves there are no *others*: it walks `src/`, finds
  * every file that writes a login identifier, and fails on any writer whose resolver does not revoke.

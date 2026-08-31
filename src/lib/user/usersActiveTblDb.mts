@@ -4,7 +4,7 @@ import { IUserModel } from '@axiumine/marketplace-common/models/MongoDBInterface
 import { QueryFilter, trusted } from 'mongoose'
 
 /**
- * Server-side paging for the admin's customers table (E19-S02).
+ * Server-side paging for the admin's customers table.
  *
  * ⚠️ **`shopOwnersActiveTblDb` with the `search` cut out, and the cut is the whole design.** `user` is
  * the collection encrypted whole (ADR-029): `personalData.firstName`, `personalData.lastName` and every
@@ -139,7 +139,7 @@ function buildSort(sortBy: UsersTblSortField, sortDir: UsersTblSortDirection): R
  *
  * ⚠️ **`disabled: true` is an equality and `deleted: true` is not, and the asymmetry is in the data
  * rather than in the code.** `disabled` is a flag stored as `true` or removed outright — the shape
- * `funShopOwnerUpdateStatus` already has and the one E19-S03 gives `user` — so both of its states are
+ * `funShopOwnerUpdateStatus` already has and the one `userUpdateStatus` gives `user` — so both of its states are
  * point predicates and the index serves the sort either way. `deleted` is a *timestamp* (ADR-011), so
  * "is soft-deleted" can only be `$exists: true`, which is a range: MongoDB cannot turn a range on a
  * leading index field into a sorted scan, so that one page pays a blocking sort. It is bounded to the

@@ -4,7 +4,7 @@ import { reuseEventsKey } from '@axiumine/marketplace-common/others/sessionKeys'
 import { Tier } from '@axiumine/marketplace-common/others/Tier'
 
 /**
- * Reads one account's reuse trail — what was revoked, when, and why (E17-S05).
+ * Reads one account's reuse trail — what was revoked, when, and why.
  *
  * ⚠️ **`lRange` over one key, newest first** (BCON-08). `recordReuseEvent` appends with `lPush`, so index 0
  * is the most recent event and the range is read in storage order rather than sorted here; the trail is

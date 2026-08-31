@@ -58,7 +58,7 @@ export const shopOwnerUpdateStatus = {
 				disabledReason: validateDisabledReason(args.disabled, args.disabledReason)
 			})
 
-			// ⚠️ **Parking an account ends its sessions; releasing one does not** (E15-S07). Either flag
+			// ⚠️ **Parking an account ends its sessions; releasing one does not.** Either flag
 			// standing is a shop owner the platform has decided must not be signed in, and until this line
 			// the status change was a label: `checkUserAuthorizationDisDel` and `checkShopOwnerApproval`
 			// only bite at the next rotation, so a parked owner kept working for a whole refresh window.

@@ -19,7 +19,7 @@ export const SESSION_WRITE_WINDOW_SECONDS = 3600
 export const SESSION_WRITES_PER_HOUR = 60
 
 /**
- * Meters one admin's session revocations (E17-S03).
+ * Meters one admin's session revocations.
  *
  * ⚠️ **The identity is the admin's account id, never a network address** (BCON-01). `app.proxy` is off
  * on every service here, so the address this process reports is nginx's own and a counter kept against it

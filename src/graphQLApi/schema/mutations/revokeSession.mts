@@ -28,7 +28,7 @@ export const revokeSession = {
 	async resolve(_: unknown, args: { tier: Tier; accountId: string; id: string }, ctx: IContextAdminAuthenticatedResource) {
 		try {
 			// The admin's id meters the rate limit and travels nowhere else — never into the event trail,
-			// which E17's open question 4 answered "not attributable".
+			// which is deliberately not attributable.
 			return await funRevokeSession(ctx.state.user._id, args.tier, args.accountId, args.id)
 		} catch (e) {
 			return tryCatchRethrow(e as GraphQLError | Error)

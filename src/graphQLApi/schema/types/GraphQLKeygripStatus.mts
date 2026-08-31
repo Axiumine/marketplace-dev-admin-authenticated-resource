@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
 
 /*
- * ⚠️ **Nothing in this file has a `material` field, and nothing in it ever may** (ADR-034, E01-S14).
+ * ⚠️ **Nothing in this file has a `material` field, and nothing in it ever may** (ADR-034).
  *
  * The record these types describe holds the platform's cookie-signing keys. An admin who could read
  * one back could sign a session cookie for any account on the platform — a strictly larger power than
@@ -24,7 +24,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
  * to ADR-034 records.** A rotation retires the tail once thirty days have passed since it *stopped
  * signing* — `isTailRetirable`, which reads the `createdAt` of the key in front of it. Under a cadence
  * faster than monthly the two diverge, and a key young by `ageDays` can already be retirable. Rendering
- * the demotion age is E17-S08's call; this field answers what it always answered.
+ * the demotion age is the console's call; this field answers what it always answered.
  */
 export const GraphQLKeygripKeyInfo = new GraphQLObjectType({
 	name: 'GraphQLKeygripKeyInfo',

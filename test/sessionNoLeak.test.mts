@@ -4,7 +4,7 @@ import { Types } from 'mongoose'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /*
- * E17-S07, backend half.
+ * The no-leak check on the admin session console, backend half.
  *
  * ⚠️ **Nothing below this line is stubbed except the network.** The store is real enough to answer the
  * commands the libs issue, the libs are the shipped ones, the schema is the assembled one, and the two
@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * reads a whole session hash and forwards a field nobody audited, or a resolver that answers an error
  * carrying the key it just failed to unwrap.
  *
- * ⚠️ **The loop is the mechanism, not a convenience.** A query or mutation added to this epic later has
+ * ⚠️ **The loop is the mechanism, not a convenience.** A query or mutation added to the console later has
  * to appear in `OPERATIONS` to be exercised at all, and the moment it does it inherits both seeds and
  * both assertions — there is no way to add a console operation that is checked by nothing without also
  * deleting a row here, which is a visible act rather than an omission.
@@ -97,7 +97,7 @@ beforeEach(() => {
 	 * The session hash itself, at the key the digest names, with more in it than the console renders —
 	 * `email` and `originalLogin` and the rest are there precisely so that a lib forwarding the hash
 	 * wholesale would be visible. The token is not a field of it: the key *is* the token's digest, which
-	 * is E13-S01's whole point and the reason the seeded value can only leak through a mistake.
+	 * is the whole point of the digest and the reason the seeded value can only leak through a mistake.
 	 */
 	store.set(`${prefix}${FIELD}`, {
 		_id: ACCOUNT,
@@ -110,7 +110,7 @@ beforeEach(() => {
 	})
 
 	// The access half the session names, seeded so that a revocation reaching it is visible in the store —
-	// and so that anything forwarding a session hash wholesale would put a *key name* on the wire (E17 §2).
+	// and so that anything forwarding a session hash wholesale would put a *key name* on the wire.
 	store.set(ACCESS_KEY, { _id: ACCOUNT, tier: 'shopOwner', email: 'owner@marketplace.test' })
 
 	store.set(`${prefix}reuse:shopOwner:${ACCOUNT}`, [
@@ -119,7 +119,7 @@ beforeEach(() => {
 
 	/*
 	 * The signing keys, in the same database the console's own client is pointed at. No operation this
-	 * epic adds has any business reading this key — seeding it is how "has any business" stops being an
+	 * console adds has any business reading this key — seeding it is how "has any business" stops being an
 	 * assumption and becomes an assertion.
 	 */
 	store.set(`${prefix}keygrip`, { version: '3', wrapped: KEY, fp: 'fp-4a1c' })
@@ -156,12 +156,12 @@ describe('no operation the session console adds can put a credential on the wire
 	 * Nothing stops an operation reading it except an operation not doing so, which is what the loop
 	 * asserts.
 	 *
-	 * **The token is not there, anywhere, and cannot be.** E13-S01 replaced raw-token keys with digests:
+	 * **The token is not there, anywhere, and cannot be.** Raw-token keys were replaced with digests:
 	 * the platform stores `sha256(prefixedRefreshToken)` and never the token, so a console operation
 	 * cannot leak it by forwarding something — only by reconstructing it, which sha256 does not permit.
 	 * The loop's token assertion is therefore a *regression* guard rather than a live check: it is the
-	 * test that fails if raw-token storage ever comes back — E13-S10 deleted the last reader of the raw
-	 * shape, so the only way back in now is a new field written in the clear.
+	 * test that fails if raw-token storage ever comes back — the last reader of the raw shape is gone, so
+	 * the only way back in now is a new field written in the clear.
 	 */
 	it('is checking a store that holds the key in the clear and the token nowhere at all', () => {
 		const serialisedStore = JSON.stringify([...store.entries()])

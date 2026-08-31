@@ -4,15 +4,15 @@ import { TIER } from '@axiumine/marketplace-common/others/Tier'
 import { Types } from 'mongoose'
 
 /**
- * Ends every session a **shop owner** holds, called by an admin's write to that shop owner's account
- * (E15-S06, and E15-S07 next). Called after the Mongo write has landed, never before it.
+ * Ends every session a **shop owner** holds, called by an admin's write to that shop owner's account.
+ * Called after the Mongo write has landed, never before it.
  *
  * ⚠️ **This is the cross-account revoke, and it is the mirror image of `endEverySession`.** There the
  * account being torn down is the caller's own; here the caller is an Admin and the account is somebody
  * else's, so two things flip. The admin's own session is untouched — they have done nothing to their
  * own credentials and logging them out mid-page would make the console unusable. And there is no access
  * key to delete: `deleteSession` needs the token, the admin does not have the shop owner's, and no
- * index files access keys. E15-S05's "the caller goes too" rule does not apply and is not being relaxed —
+ * index files access keys. `endEverySession`'s "the caller goes too" rule does not apply and is not being relaxed —
  * it is a rule about *whose* credentials changed, and the answer here is not the caller's.
  *
  * ⚠️ **There is no residual, and this comment claimed one until 2026-08-25.** It was written before R54

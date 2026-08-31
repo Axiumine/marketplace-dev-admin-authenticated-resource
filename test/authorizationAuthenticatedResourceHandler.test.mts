@@ -42,7 +42,7 @@ describe('authorizationAuthenticatedResourceHandler', () => {
 
 		await expect(authorizationAuthenticatedResourceHandler()(ctx, next)).resolves.toBe('next')
 
-		// ⚠️ The key is a digest, not the token (E13-S01). 'access:' stays *inside* the hashed value — it
+		// ⚠️ The key is a digest, not the token. 'access:' stays *inside* the hashed value — it
 		// is what tells an access hash from a refresh one — and the digest is written out as a literal,
 		// computed elsewhere: hashing the token here with the call the code makes would agree with it
 		// about any algorithm, including a mutated one.
@@ -54,7 +54,7 @@ describe('authorizationAuthenticatedResourceHandler', () => {
 	})
 
 	/*
-	 * ⚠️ **The inverted E13-S02 test** (E13-S10). The fixture is the one that used to prove the cutover was
+	 * ⚠️ **The inverted cutover test.** The fixture is the one that used to prove the cutover was
 	 * survivable — a perfectly valid session sitting under the raw-token key — and the expected answer is
 	 * now 498, because this handler names that key nowhere.
 	 *
@@ -120,7 +120,7 @@ describe('authorizationAuthenticatedResourceHandler', () => {
 		}
 	})
 
-	// E12-S20. The refusal used to print `auth undefined` and this test used to assert the string. The
+	// The refusal used to print `auth undefined` and this test used to assert the string. The
 	// print carried nothing — it was a constant — but it fired once per unauthenticated request on the
 	// admin surface, so it went; the absence is asserted so it does not come back with a debugging
 	// session.
@@ -211,7 +211,7 @@ describe('authorizationAuthenticatedResourceHandler', () => {
 		await expect(authorizationAuthenticatedResourceHandler()(ctx, next)).rejects.toThrow('Forbidden')
 	})
 	/*
-	 * E13-S11. The bypass is a development convenience and outside `development` and `test` it does not
+	 * The bypass is a development convenience and outside `development` and `test` it does not
 	 * exist: the gate is read before the code is, so the configured value is never consulted and the
 	 * header is worth exactly what a header nobody sent is worth.
 	 */

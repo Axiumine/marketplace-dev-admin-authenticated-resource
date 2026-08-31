@@ -5,7 +5,7 @@ import { GraphQLUsersTblSortField } from '@ptypes/GraphQLUsersTblSort.mjs'
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull } from 'graphql'
 
 /**
- * The admin's customers list — the first `user*` operation on this tier (E19-S02).
+ * The admin's customers list — the first `user*` operation on this tier.
  *
  * Every argument carries a server-side default, so a client that sends none still gets a bounded page,
  * ordered by the only clear field worth ordering by. Paging, filtering and sorting all live in the lib;

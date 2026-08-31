@@ -213,7 +213,7 @@ describe('funKeygripRotate', () => {
 	})
 
 	/*
-	 * ⚠️ E17 §6 question 5, as a test. The message becomes `event.message`, the one bag `sentryBeforeSend`
+	 * ⚠️ The digest rule, as a test. The message becomes `event.message`, the one bag `sentryBeforeSend`
 	 * does not walk, so an admin id written here reaches the vendor verbatim. Asserting the digest is
 	 * present is not enough on its own — this asserts the id is *absent*, which is the half a future edit
 	 * would break by appending a friendlier "by admin <id>" next to it.
@@ -404,7 +404,7 @@ describe('funKeygripRetire', () => {
 	})
 
 	/*
-	 * ⚠️ The epic's own line, on the operation that has the strongest reason to break it: an admin
+	 * ⚠️ The no-material rule, on the operation that has the strongest reason to break it: an admin
 	 * retiring a leaked key is the one most likely to want to see it, and the id is the only part of a key
 	 * that may ever be shown.
 	 */

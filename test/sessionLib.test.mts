@@ -124,7 +124,7 @@ describe('funSessions', () => {
 		hGetAll.mockImplementation((key: string) => {
 			if (key === INDEX_KEY) return Promise.resolve({ [FIELD_A]: '{}', [FIELD_B]: '{}' })
 
-			// `hGetAll` on a missing key answers `{}` — the whole liveness test, and the state E15-S03's
+			// `hGetAll` on a missing key answers `{}` — the whole liveness test, and the state the
 			// per-field TTL has not yet cleaned up.
 			return Promise.resolve(key === `test:${FIELD_A}` ? session('fam-1', '1000') : {})
 		})
@@ -256,7 +256,7 @@ describe('funRevokeSession', () => {
 })
 
 describe('funRevokeAllSessions', () => {
-	it('revokes through E15-S04’s routine and answers how many sessions there were', async () => {
+	it('revokes through the shared routine and answers how many sessions there were', async () => {
 		// Two fields on the first read, none on the re-read: the whole account was open and is now closed,
 		// so the index key itself goes too.
 		hKeys.mockResolvedValueOnce([FIELD_A, FIELD_B]).mockResolvedValueOnce([])
@@ -274,7 +274,7 @@ describe('funRevokeAllSessions', () => {
 
 	it('leaves the index key alive when a login lands mid-revoke, and prunes only what it ended', async () => {
 		/*
-		 * E17-S04's race, driven to the bound: a new field appears on every re-read, so the routine never
+		 * The re-read race, driven to the bound: a new field appears on every re-read, so the routine never
 		 * sees a clean one and gives up after three rounds. The index key survives holding the newcomer it
 		 * did not reach — an orphaned field is recoverable, a destroyed index is not, and destroying it here
 		 * would leave that session live and listed nowhere.

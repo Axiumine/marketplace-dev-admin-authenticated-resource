@@ -43,7 +43,7 @@ function splitHolderRow(row: string) {
 }
 
 /**
- * Everything an admin needs to answer "has the rotation landed everywhere yet" (ADR-034, E01-S14).
+ * Everything an admin needs to answer "has the rotation landed everywhere yet" (ADR-034).
  *
  * ⚠️ **No key material is read, returned or logged.** `readKeygrip` unwraps the record because that is
  * the only way to learn the ids and the dates, and this function drops `material` on the way out — the

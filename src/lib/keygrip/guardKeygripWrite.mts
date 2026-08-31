@@ -15,7 +15,7 @@ export const KEYGRIP_WRITE_WINDOW_SECONDS = 3600
 export const KEYGRIP_WRITES_PER_HOUR = 10
 
 /**
- * Meters one admin's keygrip writes (E16-S07).
+ * Meters one admin's keygrip writes.
  *
  * ⚠️ **The identity is the admin's account id, never a network address.** `app.proxy` is off on every
  * service here, so the address this process reports is nginx's own and a counter kept against it would be

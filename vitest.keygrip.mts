@@ -34,12 +34,11 @@ export const ITEST_KEYGRIP_KEYS = [
 /**
  * Mint a throwaway KEK and a keygrip record for the integration run (ADR-034).
  *
- * ⚠️ **Nothing boots without this.** `KEYGRIP_KEK` is in this service's `REQUIRED_ENV_VARS` since
- * E01-S13 — it holds the key that opens the record because `keygripRotate` is where the platform's
- * signing keys are minted — so an integration suite that only sets env starts a service that refuses to
- * start, correctly. Seeding is therefore part of provisioning the run, next to the throwaway database
- * and the throwaway CSFLE key, and for the same reason: the suite owns its secrets and destroys them
- * with the run.
+ * ⚠️ **Nothing boots without this.** `KEYGRIP_KEK` is in this service's `REQUIRED_ENV_VARS`: it holds
+ * the key that opens the record because `keygripRotate` is where the platform's signing keys are
+ * minted, so an integration suite that only sets env starts a service that refuses to start, correctly.
+ * Seeding is therefore part of provisioning the run, next to the throwaway database and the throwaway
+ * CSFLE key, and for the same reason: the suite owns its secrets and destroys them with the run.
  *
  * ⚠️ **The KEK is minted here and exported through `process.env`.** vitest forks its workers after
  * `globalSetup` returns, so they inherit it — the same mechanism `SEED_DEMO` already relies on. It is

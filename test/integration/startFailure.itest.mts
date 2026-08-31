@@ -62,7 +62,7 @@ describe('start() when MongoDB refuses the connection', () => {
 	 * not a signed cookie, so it holds the KEK for rotation alone — any entry from that list works the
 	 * same way here, since checkRequiredEnv throws on the first one it finds missing regardless of
 	 * position, and every other entry is still present from the real .env. It used to delete
-	 * PLATFORM_NAME, which E18-S13 took out of REQUIRED_ENV_VARS as read by nothing: the boot then
+	 * PLATFORM_NAME, which left REQUIRED_ENV_VARS as read by nothing: the boot then
 	 * stopped minding its absence and this test reached the real MongoDB instead of refusing.
 	 *
 	 * checkRequiredEnv here raises via throwInternalError (a GraphQLError, http 500), not `new

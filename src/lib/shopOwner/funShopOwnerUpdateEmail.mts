@@ -12,7 +12,7 @@ import { Types } from 'mongoose'
  * credential and is the collection's one unique index. Editing it can collide, and collisions are the
  * only reason this helper is not two lines.
  *
- * ⚠️ **Changing it now ends the shopOwner's sessions, and the revoke is not in here** (E15-S06). It was
+ * ⚠️ **Changing it now ends the shopOwner's sessions, and the revoke is not in here.** It was
  * true until 2026-08-13 that no write on this platform touched Redis; `adminUpdatePwd` changed that
  * first, exactly as the note that used to stand here predicted, and this write followed. The teardown
  * lives in the resolver — `shopOwnerUpdateEmail` calls `endEveryShopOwnerSession` after this returns —

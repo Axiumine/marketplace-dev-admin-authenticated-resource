@@ -65,7 +65,7 @@ export async function setup(): Promise<void> {
 	// and counts them, which fixed demo documents would silently offset.
 	process.env.SEED_DEMO = 'false'
 
-	// ⚠️ The record `keygripRotate` rewrites, and the KEK that opens it (ADR-034, E01-S13). start()
+	// ⚠️ The record `keygripRotate` rewrites, and the KEK that opens it (ADR-034). start()
 	// refuses to boot without the key — this service holds it because rotation lives here — so seeding is
 	// part of provisioning the run, exactly like the throwaway CSFLE key above. KEYGRIP_KEK is exported
 	// through process.env, which the workers inherit: they are forked after this returns.

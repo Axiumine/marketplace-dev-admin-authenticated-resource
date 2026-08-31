@@ -14,8 +14,8 @@ export const revokeAllSessions = {
 	 * for is answered by it. The blast radius of this mutation is one account, by construction.
 	 *
 	 * ⚠️ `Int!` is the count actually revoked, which is what the console reports back. It is never larger
-	 * than what happened: E15-S04's routine counts the sessions it deleted across every round, and on
-	 * exhaustion it leaves the newcomers it did not reach out of the total rather than claiming them.
+	 * than what happened: `revokeAllSessionsForAccount` counts the sessions it deleted across every round,
+	 * and on exhaustion it leaves the newcomers it did not reach out of the total rather than claiming them.
 	 */
 	args: {
 		tier: { type: new GraphQLNonNull(GraphQLTier) },
@@ -24,7 +24,7 @@ export const revokeAllSessions = {
 	async resolve(_: unknown, args: { tier: Tier; accountId: string }, ctx: IContextAdminAuthenticatedResource) {
 		try {
 			// The admin's id meters the rate limit and travels nowhere else — never into the event trail,
-			// which E17's open question 4 answered "not attributable".
+			// which is deliberately not attributable.
 			return await funRevokeAllSessions(ctx.state.user._id, args.tier, args.accountId)
 		} catch (e) {
 			return tryCatchRethrow(e as GraphQLError | Error)

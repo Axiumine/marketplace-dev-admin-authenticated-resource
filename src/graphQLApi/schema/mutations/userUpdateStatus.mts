@@ -15,7 +15,7 @@ interface IArgs {
 /**
  * The disable switch on a customer account — and, until this mutation, the platform had none at all.
  * `user.disabled` was read by five paths across four services and written by nothing, so suspending a
- * customer meant a hand-made production write on the one collection encrypted whole (E19 §1).
+ * customer meant a hand-made production write on the one collection encrypted whole.
  *
  * `disabled` is `Boolean!` rather than nullable, for the reason `shopOwnerUpdateStatus` documents: a
  * nullable flag makes this a partial update, and "leave it alone" and "clear it" are then the same wire
@@ -54,9 +54,10 @@ export const userUpdateStatus = {
 				disabledReason: validateDisabledReason(args.disabled, args.disabledReason)
 			})
 
-			// ⚠️ **Disabling ends the customer's sessions; re-enabling ends nothing** (E15-S07's rule). Until
-			// this line the flag was a label: the three gates that read it only bite at the next rotation, so
-			// a suspended customer kept shopping for a whole refresh window. Re-enabling revokes deliberately
+			// ⚠️ **Disabling ends the customer's sessions; re-enabling ends nothing** — the same rule
+			// `shopOwnerUpdateStatus` follows. Until this line the flag was a label: the three gates that read
+			// it only bite at the next rotation, so a suspended customer kept shopping for a whole refresh
+			// window. Re-enabling revokes deliberately
 			// nothing — nobody's credentials changed, and signing a customer out as the consequence of being
 			// re-enabled is not a control.
 			if (args.disabled) await endEveryUserSession(args._id)
