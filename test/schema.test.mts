@@ -225,8 +225,8 @@ describe('schema', () => {
 			'Get shopOwners for the table'
 		],
 		// Seven arguments each, differing by exactly one: the customer table takes `emailVerified`
-		// where the shop-owner table takes `search`. The absence of `search` here is the epic's
-		// boundary (E19-S05) — every searchable field on `user` is ciphertext — and it is asserted by
+		// where the shop-owner table takes `search`. The absence of `search` here is the table's
+		// boundary — every searchable field on `user` is ciphertext — and it is asserted by
 		// this list being exact.
 		[
 			'usersActiveTbl',
@@ -235,7 +235,7 @@ describe('schema', () => {
 		],
 		['shopOwnersPerPeriod', ['period'], 'Time series of registered shopOwners'],
 		['shopOwnersStats', [], 'ShopOwners stats'],
-		// The customer counterparts of the two above (E19 §6 question 2, answered 2026-08-29). Same
+		// The customer counterparts of the two above, added on 2026-08-29. Same
 		// argument list, because they are the same chart over the other collection — and unlike the two
 		// TABLE queries, which diverge over what `user` keeps encrypted, there is nothing here to
 		// diverge over: `registeredAt` is clear on both.
@@ -290,7 +290,7 @@ describe('shopOwnersActiveTbl paging contract', () => {
 })
 
 describe('usersActiveTbl paging contract', () => {
-	// ⚠️ The defaults are the answer to "what does an admin see on arrival" (E19.md §6, question 5),
+	// ⚠️ The defaults are the answer to "what does an admin see on arrival",
 	// and they are read from the assembled schema rather than from the resolver's source, so what is
 	// checked is what a client sending nothing actually gets: the newest 25 live, enabled customers,
 	// verified or not.
@@ -312,7 +312,7 @@ describe('usersActiveTbl paging contract', () => {
 		})
 	})
 
-	// ⚠️ **Exactly one member, and this is the assertion that keeps it one** (E19-S05). `sortBy` becomes
+	// ⚠️ **Exactly one member, and this is the assertion that keeps it one.** `sortBy` becomes
 	// a key of the Mongo sort document; on `user` the names and the city are randomly encrypted, so a
 	// second member here would order the customer base by ciphertext — an order that is stable,
 	// arbitrary, and looks exactly like a working sort until somebody checks it against the data.
@@ -325,7 +325,7 @@ describe('usersActiveTbl paging contract', () => {
 		expect(fieldsOf('GraphQLUsersActiveTblPage')).toEqual(['items', 'total'])
 	})
 
-	// ⚠️ The row is the epic's boundary in one line: the login address and three flags, and **nothing
+	// ⚠️ The row is the table's boundary in one line: the login address and three flags, and **nothing
 	// from `personalData` or `addresses[]`**. Asserted exactly, so a name or a city column added to the
 	// type fails here before it reaches a screen — every one of those fields is ciphertext the driver
 	// decrypts on the way out, and this tier has no stated task for any of them (ADR-029, R25).
@@ -642,7 +642,7 @@ describe('object types', () => {
 
 	/*
 	 * ⚠️ **The security property of the whole status screen, asserted by name rather than by snapshot**
-	 * (ADR-034, E01-S14). The record these types describe holds the platform's cookie-signing keys, and an
+	 * (ADR-034). The record these types describe holds the platform's cookie-signing keys, and an
 	 * admin who could read one back could sign a session cookie for any account — a strictly larger
 	 * power than "may rotate the keys", which is the only one this screen exists to grant.
 	 *
@@ -684,13 +684,13 @@ describe('object types', () => {
 	})
 
 	/*
-	 * ⚠️ **The security property of the session console, asserted by name rather than by snapshot** (BCON-01,
-	 * E17 §2). Two separate rules are being held here at once, and both are absolute.
+	 * ⚠️ **The security property of the session console, asserted by name rather than by snapshot**
+	 * (BCON-01). Two separate rules are being held here at once, and both are absolute.
 	 *
 	 * No token: `id` is the session index field — the SHA-256 of a *prefixed* refresh token — and a digest
 	 * of a 128-bit random value is not invertible. `familyId` is a lineage handle that authenticates
 	 * nothing. A field named for a token, a cookie or a secret would be a credential on a screen, which the
-	 * user made a condition of this epic existing.
+	 * user made a condition of the console existing.
 	 *
 	 * Nothing network- or device-derived: no address, not truncated, not hashed, not salted — the standing
 	 * decision on session rows. The answer to "was this session used from somewhere strange" on this
@@ -732,7 +732,7 @@ describe('object types', () => {
 	})
 
 	/*
-	 * E17-S01: the generated union `marketplace-admin` renders from and the runtime values the backend
+	 * The generated union `marketplace-admin` renders from and the runtime values the backend
 	 * writes into Redis are the same set, because both are `REUSE_EVENT_ACTIONS`. A hand-written enum on
 	 * either side would drift the moment a third case is added, and the drift would surface as an admin
 	 * reading a blank cell rather than as a failing build.

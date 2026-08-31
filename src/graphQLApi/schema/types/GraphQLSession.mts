@@ -2,9 +2,9 @@ import { GraphQLTier } from '@ptypes/GraphQLTier.mjs'
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
 
 /*
- * ⚠️ **Nothing in this file has a field capable of holding a token, and nothing in it ever may** (BCON-01,
- * E17 §2). `schema.test.mts` enumerates these fields against an exact expected set, so a field added here
- * fails a test rather than quietly reaching a screen.
+ * ⚠️ **Nothing in this file has a field capable of holding a token, and nothing in it ever may**
+ * (BCON-01). `schema.test.mts` enumerates these fields against an exact expected set, so a field added
+ * here fails a test rather than quietly reaching a screen.
  *
  * ⚠️ **Nothing network- or device-derived either** — no address, not truncated, not hashed, not salted.
  * That is the standing decision on session rows, and it is why an admin cannot answer "where was this
@@ -13,7 +13,7 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
  */
 
 /**
- * One live session of one account, as the console lists it (E17-S02).
+ * One live session of one account, as the console lists it.
  *
  * `id` is the session index field — the SHA-256 of the prefixed refresh token, never the token. It is
  * shown so a row can be pointed at and revoked; why a digest is safe to publish *and* safe to accept back

@@ -7,7 +7,7 @@ import { GraphQLEnumType } from 'graphql'
 // `schema/types/` is excluded from Stryker's `mutate` list, so a wrong path hard-coded here would never
 // be challenged by a surviving-mutant report.
 //
-// ⚠️ **One member, and it stays one member** (E19-S05). `sortBy` becomes a key of the Mongo sort
+// ⚠️ **One member, and it stays one member.** `sortBy` becomes a key of the Mongo sort
 // document, and on `user` the only clear field worth ordering by is the registration date: the names and
 // the city are randomly encrypted (ADR-029), so a `LAST_NAME` added here would sort the customer base by
 // ciphertext — an order that is stable, arbitrary and looks exactly like a working sort. It is an enum

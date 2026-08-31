@@ -83,7 +83,7 @@ async function gql(query: string, headers: Record<string, string> = {}) {
  * A session in Redis, in the shape a real login writes — `tier` included, or the guard answers 403.
  *
  * ⚠️ **A fresh admin id every call, and its rate-limit counters registered before the seed.** The two
- * write mutations meter per admin per hour (E16-S07), so a shared id would make each test spend the
+ * write mutations meter per admin per hour, so a shared id would make each test spend the
  * next one's allowance and the suite would start failing at whatever length it happened to reach. The
  * counter keys are pushed ahead of the `hSet` for the reason the session key is: a seed that throws
  * halfway still has to leave `afterAll` something to drain.
@@ -249,7 +249,7 @@ describe('keygripRotate over HTTP, against the real record', () => {
 })
 
 /*
- * `keygripStatus` over the same wire and the same record (ADR-034, E01-S14).
+ * `keygripStatus` over the same wire and the same record (ADR-034).
  *
  * ⚠️ **Last in the file, and not by accident.** The holders test above claims an empty table, and the
  * tests below write rows into it. vitest runs a file's tests in order; moving this block up would make
@@ -374,7 +374,7 @@ describe('keygripStatus over HTTP, against the record three rotations left behin
 })
 
 /*
- * `keygripRetire` over the same wire and the same record (ADR-034, E16-S04).
+ * `keygripRetire` over the same wire and the same record (ADR-034).
  *
  * ⚠️ **After the two blocks above, for the same reason `keygripStatus` is after the rotations.** This one
  * takes the record to version 4 and leaves the key set three long; the status block asserts version 3 and

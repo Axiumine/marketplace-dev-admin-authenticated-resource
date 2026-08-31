@@ -4,11 +4,11 @@ import { TIER } from '@axiumine/marketplace-common/others/Tier'
 import { Types } from 'mongoose'
 
 /**
- * Ends every session a **customer** holds, called by an admin's write to that customer's account
- * (E19-S03). Called after the Mongo write has landed, never before it.
+ * Ends every session a **customer** holds, called by an admin's write to that customer's account.
+ * Called after the Mongo write has landed, never before it.
  *
  * The third call site of `revokeAllSessionsForAccount` on this service and the second cross-account one:
- * the admin's own session is untouched — E15-S05's "the caller goes too" is a rule about whose
+ * the admin's own session is untouched — `endEverySession`'s "the caller goes too" is a rule about whose
  * credentials changed, and these are not the caller's — and no access key is deleted by name here, because
  * the admin does not hold the customer's token.
  *

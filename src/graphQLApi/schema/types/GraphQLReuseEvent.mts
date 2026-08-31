@@ -3,7 +3,7 @@ import { GraphQLTier } from '@ptypes/GraphQLTier.mjs'
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
 
 /**
- * One line of an account's reuse trail: a lineage that was revoked, and why (E17-S05).
+ * One line of an account's reuse trail: a lineage that was revoked, and why.
  *
  * ⚠️ **Five fields, and the omissions are the contract** — no token, no digest of one, no prefix of one,
  * nothing network-derived. This type mirrors `IReuseEvent` field for field precisely so that the store's

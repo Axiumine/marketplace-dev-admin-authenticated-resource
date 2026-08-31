@@ -12,7 +12,7 @@ export interface IUserActiveTblRow {
  *
  * ⚠️ **No name, no address, no `personalData` of any kind, by design.** The shop-owner row carries all
  * three because `shopOwner` leaves them in the clear for exactly that table; `user` was designed not to
- * pay that bill (ADR-029), and this epic's point is a table that does not incur it. What is here is the
+ * pay that bill (ADR-029), and the point of this table is that it does not incur it. What is here is the
  * identity the support request arrives with and the three flags that say what the account can do.
  */
 export const GraphQLUserActiveTbl = new GraphQLObjectType({
@@ -66,7 +66,7 @@ export const GraphQLUserActiveTbl = new GraphQLObjectType({
 		deleted: { type: GraphQLDateTime },
 		/**
 		 * Whether the customer confirmed the address above — the one gate between registering and logging
-		 * in on this tier, since `user` has no `waitApprov` and never will (E07.md §6).
+		 * in on this tier, since `user` has no `waitApprov` and never will (`phase5/CUSTOMER_ACCOUNT_ADDRESSES.md` §6).
 		 *
 		 * Flattened, and nullable for the same reason `disabled` is: `enableEmailAccess` is what writes
 		 * `valid`, so an account that has not confirmed yet has no `emailVerify.valid` key rather than a

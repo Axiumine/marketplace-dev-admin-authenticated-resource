@@ -47,7 +47,7 @@ describe('usersActiveTblDb', () => {
 		expect(builder.limit).toHaveBeenCalledExactlyOnceWith(10)
 	})
 
-	// ⚠️ The projection is the boundary this whole epic is built around (ADR-029, E19-S05). Every
+	// ⚠️ The projection is the boundary this whole table is built around (ADR-029). Every
 	// personal field on `user` is encrypted, `login.email` is the one the admin is allowed to read,
 	// and a name or an address tidied into the projection would be decrypted on the way out and land on
 	// a screen with no task for it. Asserted from both sides: the address must be there, the two PII
@@ -63,7 +63,7 @@ describe('usersActiveTblDb', () => {
 		expect(builder.select).toHaveBeenCalledExactlyOnceWith(expect.not.stringContaining('password'))
 	})
 
-	// ⚠️ Asserted as an absence, because the absence is the story (E19-S05). `$or` is the shape a prefix
+	// ⚠️ Asserted as an absence, because the absence is the story. `$or` is the shape a prefix
 	// search takes on the shop-owner table; against `user` the same clause compares a name to base64 and
 	// returns an empty customer base without erroring, on every term.
 	it('never builds a search clause, whatever it is handed', async () => {
@@ -153,7 +153,7 @@ describe('usersActiveTblDb', () => {
 		// Mongo path (a typo there silently downgrades the query to a blocking in-memory sort rather
 		// than failing) and the fact that the map has no second entry. A `personalData.lastName` added
 		// to it would order the customer base by ciphertext — stable, arbitrary, and indistinguishable
-		// from a working sort (E19-S05).
+		// from a working sort.
 		it.each([
 			['DESC', { registeredAt: -1, _id: -1 }],
 			['ASC', { registeredAt: 1, _id: 1 }]

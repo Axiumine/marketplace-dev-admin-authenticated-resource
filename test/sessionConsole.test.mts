@@ -95,8 +95,8 @@ describe('reuseEvents', () => {
 describe('revokeSession', () => {
 	/*
 	 * ⚠️ The admin's id comes off the Redis session and meters the rate limit; it is not an argument, so
-	 * nobody can revoke on somebody else's allowance. It travels no further than the limiter — E17's open
-	 * question 4 answered "not attributable", so it never reaches the event trail.
+	 * nobody can revoke on somebody else's allowance. It travels no further than the limiter: the event
+	 * trail is deliberately not attributable, so the id never reaches it.
 	 */
 	it('revokes on behalf of the session account and answers whether a live session went', async () => {
 		await expect(revokeSession.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT, id: FIELD }, ctx)).resolves.toBe(true)
@@ -154,14 +154,14 @@ describe('revokeAllSessions', () => {
 })
 
 /*
- * E17-S02 asks for the Admin-tier gate's *reject* path to have a test of its own, and it does — but not
- * here, because the gate is not here. `assertTier(redData.tier, TIER.admin)` runs in this service's
- * middleware (`authorizationAuthenticatedResourceHandler.mts`), one layer above every resolver in it, so
+ * The Admin-tier gate's *reject* path has a test of its own — but not here, because the gate is not
+ * here. `assertTier(redData.tier, TIER.admin)` runs in this service's middleware
+ * (`authorizationAuthenticatedResourceHandler.mts`), one layer above every resolver in it, so
  * a console resolver checking the tier again would be asserting a condition that cannot be false by the
  * time it runs. The reject path is covered by AB-02 and AB-03 in
  * `authorizationAuthenticatedResourceHandler.test.mts`: a session minted for the `shopOwner` or `user`
  * tier is refused with 403, and a session carrying no tier at all is refused too, failing closed.
  *
- * E17-S07's loop is not here either, for the same kind of reason: it has to run the *real* libs against a
+ * The no-leak loop is not here either, for the same kind of reason: it has to run the *real* libs against a
  * *real* seeded store to mean anything, and this file stubs the libs. It lives in `sessionNoLeak.test.mts`.
  */

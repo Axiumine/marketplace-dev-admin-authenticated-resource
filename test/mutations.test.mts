@@ -169,7 +169,7 @@ describe('adminUpdatePwd', () => {
 	})
 
 	/*
-	 * ⚠️ **Every session ends, and only after the write landed** (E15-S05). A password change made because
+	 * ⚠️ **Every session ends, and only after the write landed.** A password change made because
 	 * someone else is believed to be inside the account is the remedy it appears to be only if the
 	 * intruder's session dies with it — and on this tier that session reaches every shop owner and every
 	 * company. The order is the other half: revoking first would log an admin out of every device for a
@@ -450,10 +450,10 @@ describe('shopOwnerUpdateEmail', () => {
 	})
 
 	/*
-	 * ⚠️ **`login.email` is half of a credential, so writing it ends that account's sessions** (E15-S06).
+	 * ⚠️ **`login.email` is half of a credential, so writing it ends that account's sessions.**
 	 * The old address stops authenticating the moment this write lands; a session minted against it must
 	 * stop working for the same reason a session minted against the old password does. After the write,
-	 * for the reason S05 gives — a collision that never wrote must not log anybody out.
+	 * for the reason `adminUpdatePwd` gives — a collision that never wrote must not log anybody out.
 	 */
 	it('ends every session the shop owner holds, after the address is written', async () => {
 		await expect(shopOwnerUpdateEmail.resolve(null, { _id, email: 'updated@marketplace.test' })).resolves.toBe(true)
@@ -466,7 +466,7 @@ describe('shopOwnerUpdateEmail', () => {
 
 	// The account is the shop owner named by the argument, never the admin sending the mutation: an
 	// admin who has just edited somebody else's address has changed nothing about their own credentials,
-	// and logging them out mid-page would make the console unusable. E15-S05's caller rule is about *whose*
+	// and logging them out mid-page would make the console unusable. The caller rule is about *whose*
 	// credentials changed, and here the answer is not the caller's.
 	it('revokes nothing when the address was rejected before the write', async () => {
 		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
@@ -553,7 +553,7 @@ describe('shopOwnerUpdateStatus', () => {
 	})
 
 	/*
-	 * ⚠️ **One row per target state, and the fourth is the one worth reading** (E15-S07). Either flag
+	 * ⚠️ **One row per target state, and the fourth is the one worth reading.** Either flag
 	 * standing means "this account must not be signed in", and until this story the flags said so without
 	 * doing anything for up to a refresh window — `checkShopOwnerApproval` and `checkUserAuthorizationDisDel`
 	 * only bite at the next rotation. Approving *and* enabling revokes nothing on purpose: nobody's
@@ -598,7 +598,7 @@ describe('shopOwnerUpdateStatus', () => {
 	})
 
 	// A revoke that fails fails the mutation: answering `true` would tell the admin a disabled shop
-	// owner is off the platform while their sessions are still live, which is the lie E15 exists to stop.
+	// owner is off the platform while their sessions are still live, which is the lie this revoke exists to stop.
 	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
 		endEveryShopOwnerSession.mockRejectedValueOnce(new Error('redis down'))
 
@@ -724,7 +724,7 @@ describe('userUpdateStatus', () => {
 	})
 
 	/*
-	 * ⚠️ **Disabling revokes; re-enabling revokes nothing** (E15-S07's rule, and the reading
+	 * ⚠️ **Disabling revokes; re-enabling revokes nothing** (the rule, and the reading,
 	 * `shopOwnerUpdateStatus` already gives). Until this mutation existed the flag was a label — the three
 	 * gates that read `user.disabled` only bite at the next rotation, so a suspended customer kept a live
 	 * session for a whole refresh window. The second row is the one worth reading: signing a customer out
@@ -761,7 +761,7 @@ describe('userUpdateStatus', () => {
 	})
 
 	// A revoke that fails fails the mutation: answering `true` would tell the admin a suspended customer
-	// is off the platform while their sessions are still live, which is the lie E15 exists to stop.
+	// is off the platform while their sessions are still live, which is the lie this revoke exists to stop.
 	it('fails loudly when the sessions cannot be ended, rather than answering true', async () => {
 		endEveryUserSession.mockRejectedValueOnce(new Error('redis down'))
 
@@ -774,7 +774,7 @@ describe('userUpdateStatus', () => {
 	})
 
 	// ⚠️ The cross-account revoke ends the customer's sessions and nobody else's. `endEverySession` is the
-	// caller's own teardown (E15-S05) and firing it here would sign the admin out of the console for
+	// caller's own teardown and firing it here would sign the admin out of the console for
 	// having suspended somebody — asserted as an absence because that is how it would arrive: a copied line.
 	it('leaves the admin signed in', async () => {
 		endEverySession.mockReset()

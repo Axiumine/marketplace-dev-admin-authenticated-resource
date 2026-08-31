@@ -106,13 +106,13 @@ async function withSession(email = 'admin@marketplace.test', _id = new mongoose.
 
 /**
  * A live session on the cluster for one account of one tier: the refresh hash a login writes, plus the
- * entry that login files under the account's session index (E15-S02). What `shopOwnerUpdateStatus` and
+ * entry that login files under the account's session index. What `shopOwnerUpdateStatus` and
  * `userUpdateStatus` have to be able to end.
  *
  * ⚠️ **The tier is a parameter because the index key is per tier and nothing else separates two accounts
  * that happen to share an `_id`.** Seeding a customer's session under `TIER.shopOwner` would give the
  * revocation an index it can find, so a `userUpdateStatus` reading the wrong index would pass — the
- * single failure E19-S03 has to catch.
+ * single failure `userUpdateStatus` has to catch.
  *
  * ⚠️ **`indexSession` writes the index rather than a literal `hSet` here, deliberately.** The field name
  * is the digest of the *prefixed* token and nothing about it is guessable from the outside; spelling it
@@ -141,7 +141,7 @@ async function seedSession(tier: (typeof TIER)[keyof typeof TIER], _id: mongoose
 	await indexSession(redisClient, token, refreshData)
 
 	/*
-	 * `token` and `familyId` are handed back for E17's console tests, which need to assert that neither
+	 * `token` and `familyId` are handed back for the session console tests, which need to assert that neither
 	 * reaches the wire; `field` is the digest the index filed this session under, and therefore the `id`
 	 * the console renders and takes back.
 	 *
@@ -428,7 +428,7 @@ async function storedAdminHash(_id: mongoose.Types.ObjectId) {
  * registration on the customer tier is an address and a password, the name and the addresses arrive
  * later, and `user` is the one collection whose validator makes `personalData` optional for that reason.
  * The table under test projects nothing from it either way — every field in it is ciphertext an admin
- * has no task for (ADR-029, E19-S05).
+ * has no task for (ADR-029).
  *
  * `encryptDocument` still runs, because `login.email` is deterministically encrypted on this collection
  * and a raw seed of plaintext is refused by the validator's `binData` declaration. Deterministic is also
@@ -622,7 +622,7 @@ describe('GraphQL over HTTP', () => {
 	})
 
 	/*
-	 * The customer counterparts of the two tests above (E19 §6 question 2, answered 2026-08-29), driven
+	 * The customer counterparts of the two tests above, added on 2026-08-29, driven
 	 * against the real collection for the same two reasons — and for one more that is specific to `user`.
 	 *
 	 * ⚠️ `user` is the collection encrypted whole (ADR-029). `registeredAt` is NOT one of the encrypted
@@ -835,7 +835,7 @@ describe('GraphQL over HTTP', () => {
 	})
 
 	/****************************************************************************************
-	 * usersActiveTbl (E19-S02) — the admin's first read of the customer collection.
+	 * usersActiveTbl — the admin's first read of the customer collection.
 	 *
 	 * ⚠️ The exact-`total` assertions below are only stable because this file is the only one on the
 	 * platform that seeds `user`, and globalSetup drops and re-migrates the database before every run
@@ -913,9 +913,9 @@ describe('GraphQL over HTTP', () => {
 			// and has to render an empty table rather than break.
 			expect(await page('limit: 2, sortDir: ASC, offset: 100')).toEqual({ emails: [], total: 3 })
 
-			// ⚠️ And the other side of the same filter: the default page is the LIVE accounts. Answering
-			// question 5 of E19.md the other way is a `defaultValue` on one line, and this is the
-			// assertion that would have to change with it.
+			// ⚠️ And the other side of the same filter: the default page is the LIVE accounts. Defaulting
+			// the other way is a `defaultValue` on one line, and this is the assertion that would have to
+			// change with it.
 			const { json } = await gql('{ usersActiveTbl { items { email } } }', session.headers)
 			const live = (json.data?.usersActiveTbl as { items: Array<{ email: string }> }).items.map((doc) => doc.email)
 			for (const email of [oldest, middle, newest]) expect(live).not.toContain(email)
@@ -978,7 +978,7 @@ describe('GraphQL over HTTP', () => {
 	})
 
 	/*
-	 * ⚠️ **E19-S05 over the wire.** Both of these are refused by graphql-js at validation time, before any
+	 * ⚠️ **The table's boundary over the wire.** Both of these are refused by graphql-js at validation time, before any
 	 * resolver runs, which is what makes them unreachable rather than merely unimplemented:
 	 *
 	 *   - `search` is not an argument, because every field one could match on `user` is ciphertext and a
@@ -1552,7 +1552,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 	})
 
 	/*
-	 * E15-S07, end to end on the real cluster: a shop owner parked by an admin loses the sessions they
+	 * End to end on the real cluster: a shop owner parked by an admin loses the sessions they
 	 * were holding at that moment.
 	 *
 	 * ⚠️ **What is asserted is the keyspace, not a refused request, and that is a deviation from the
@@ -1674,7 +1674,7 @@ describe('shopOwnerUpdateEmail / shopOwnerUpdateStatus / shopOwnerUpdatePreferen
 })
 
 /**
- * `userUpdateStatus` (E19-S03) — the first write this platform has ever made to a customer account from
+ * `userUpdateStatus` — the first write this platform has ever made to a customer account from
  * the admin tier, and the only writer `user.disabled` has.
  *
  * ⚠️ **The refusal these tests would ideally assert happens on three other services** — `tryLoginUser` on
@@ -1781,10 +1781,10 @@ describe('userUpdateStatus mutation (real user collection, real session index)',
 	})
 
 	/*
-	 * E15-S07 on the customer tier: suspending an account ends the sessions it was holding at that moment.
+	 * Suspending an account on the customer tier ends the sessions it was holding at that moment.
 	 *
 	 * ⚠️ **The session is seeded under `idx:user:` and the revocation has to read that key.** This is the
-	 * test that fails on the one mistake E19-S03 can make — `TIER.shopOwner` copied along with the rest of
+	 * test that fails on the one mistake `userUpdateStatus` can make — `TIER.shopOwner` copied along with the rest of
 	 * `endEveryShopOwnerSession` — because that index does not exist for this `_id`, `hKeys` answers empty,
 	 * nothing is deleted, and the mutation still answers `true`.
 	 */
@@ -1825,7 +1825,7 @@ describe('userUpdateStatus mutation (real user collection, real session index)',
 		}
 	})
 
-	// ⚠️ The admin's own session survives. This is the cross-account revoke, not E15-S05's "the caller
+	// ⚠️ The admin's own session survives. This is the cross-account revoke, not `endEverySession`'s "the caller
 	// goes too" — and the caller here authenticates against a different collection on a different tier, so
 	// a revocation reaching them would mean the tier separation had failed in both directions at once.
 	it('leaves the admin signed in', async () => {
@@ -2628,11 +2628,11 @@ describe('non-GraphQL routes', () => {
 })
 
 /*
- * E17-S03, on the real cluster: the session console lists what a login actually wrote, ends what an
- * admin picks, and reads back the trail the authorization services actually append.
+ * The session console on the real cluster: it lists what a login actually wrote, ends what an admin
+ * picks, and reads back the trail the authorization services actually append.
  *
  * ⚠️ **What is asserted after a revocation is the keyspace, not a refused request — the same deviation
- * E15-S07 records above, for the same reason.** The refusal belongs to the service that owns the tier
+ * the shop-owner suspension records above, for the same reason.** The refusal belongs to the service that owns the tier
  * being revoked (`marketplace-dev-authenticated-resource` on 4026 for a `shopOwner`), which this suite
  * neither boots nor can boot. Redis is what the two share, so the honest end-to-end claim available here
  * is that the session hash and its index entry are gone — after which the refresh that service performs
@@ -2642,7 +2642,7 @@ describe('non-GraphQL routes', () => {
  *
  * ⚠️ **The residual is unchanged and is not a defect**: revocation ends the refresh lineage, and an
  * access token already minted from it keeps working until its own short expiry. `indexSession` states
- * this; the console has to say it too, which is E17-S06's job on the confirmation dialog.
+ * this; the console has to say it too, which is the confirmation dialog's job.
  */
 describe('session console (real sessions, real index, real reuse trail)', () => {
 	/**
@@ -2679,7 +2679,7 @@ describe('session console (real sessions, real index, real reuse trail)', () => 
 				{ id: field, tier: 'shopOwner', mintedAt: expect.stringMatching(/^\d+$/) as unknown as string, familyId }
 			])
 
-			// E17-S07 over HTTP, on a response built from a session that really exists: the token that
+			// The no-leak check over HTTP, on a response built from a session that really exists: the token that
 			// minted it is nowhere in the bytes, prefix or no prefix.
 			const body = JSON.stringify(json)
 			expect(body).not.toContain(token)

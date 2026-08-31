@@ -5,7 +5,7 @@ import { guardSessionWrite } from '@lib/session/guardSessionWrite.mjs'
 import { Types } from 'mongoose'
 
 /**
- * Ends one session and stops it being listed (E17-S03).
+ * Ends one session and stops it being listed.
  *
  * ⚠️ **Both commands run, always, and the index field is pruned even when the session was already gone.**
  * An index row outliving its session is the defect this function exists to prevent: the row would sit on
@@ -15,7 +15,7 @@ import { Types } from 'mongoose'
  *
  * ⚠️ **The session key first, its index field second.** A process death between the two leaves a row naming
  * a key that no longer exists, which the next call cleans up and which grants nobody anything. The reverse
- * order leaves a live session listed nowhere — invisible to the admin and to E15-S04's revocation, alive
+ * order leaves a live session listed nowhere — invisible to the admin and to `revokeAllSessionsForAccount`, alive
  * until its own cap. That asymmetry is the same one `revokeAllSessionsForAccount` is built on.
  *
  * ⚠️ **One single-key `del`** (BCON-08), and one `hDel` on the account's own index key. Nothing here scans,

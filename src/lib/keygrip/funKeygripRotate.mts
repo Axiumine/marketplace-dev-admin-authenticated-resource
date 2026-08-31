@@ -13,7 +13,7 @@ import * as Sentry from '@sentry/node'
 import { Types } from 'mongoose'
 
 /**
- * Rotates the fleet's cookie-signing keys, without restarting anything (ADR-034, E01-S13).
+ * Rotates the fleet's cookie-signing keys, without restarting anything (ADR-034).
  *
  * ⚠️ **This and `funKeygripRetire` are the only writers of the keygrip record on the platform** — the five
  * signing services read it and never write it, and the seed script runs once, before any of them exist.
@@ -41,7 +41,7 @@ export async function funKeygripRotate(_id: Types.ObjectId): Promise<void> {
 
 	// Reads and unwraps, or throws. Deliberately not `loadKeygrip`: that one announces its caller in the
 	// holders table, and this service holds the KEK to reseal the record, never to sign a cookie — a row
-	// here would be a permanently stale entry in the table E01-S14 reads to find stale entries.
+	// here would be a permanently stale entry in the table `keygripStatus` reads to find stale entries.
 	let record: IKeygripRecord
 	try {
 		record = await readKeygrip(redisClient)
@@ -81,7 +81,7 @@ export async function funKeygripRotate(_id: Types.ObjectId): Promise<void> {
 	 * behind — the record it writes holds no author. `captureMessage` at info level is what the boot
 	 * banner already uses; a missing DSN makes it inert rather than fatal.
 	 *
-	 * ⚠️ **The admin is named by digest, never by id** (E17 §6 question 5). This message becomes
+	 * ⚠️ **The admin is named by digest, never by id.** This message becomes
 	 * `event.message`, and `sentryBeforeSend` walks `event.request`, `event.user`, `contexts.trace.data`
 	 * and the breadcrumbs — never the top-level message — so whatever is written here leaves the host
 	 * verbatim. The digest keeps the trail attributable to whoever holds the `admin` collection, which is

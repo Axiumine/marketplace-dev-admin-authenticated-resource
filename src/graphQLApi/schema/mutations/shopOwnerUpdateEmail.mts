@@ -17,7 +17,7 @@ interface IArgs {
  * index behind it, so it is the only one whose save can fail for a reason the admin can fix. Bundled
  * into the personalData write, a collision would have rolled back an otherwise valid page of edits.
  *
- * ⚠️ **`login.email` is a credential, so writing it ends the shop owner's sessions** (E15-S06). The
+ * ⚠️ **`login.email` is a credential, so writing it ends the shop owner's sessions.** The
  * address is half of what they sign in with: after this mutation the old one no longer authenticates,
  * and a session minted against it has to stop working for the same reason a session minted against the
  * old password does. The admin's own session is untouched — theirs is not the account that changed.
@@ -33,7 +33,7 @@ export const shopOwnerUpdateEmail = {
 		try {
 			await funShopOwnerUpdateEmail(args._id, requiredEmail(args.email, 'email'))
 
-			// ⚠️ **After the write and inside the try, both deliberately** (E15-S06, the rule E15-S05 set).
+			// ⚠️ **After the write and inside the try, both deliberately** — the rule `adminUpdatePwd` sets.
 			// Before it, an address that then collided with another account's would have logged a shop owner
 			// out for a change that never happened. Outside it, a Redis that refused would leave this
 			// answering `true` with sessions still live on an address that no longer signs in.

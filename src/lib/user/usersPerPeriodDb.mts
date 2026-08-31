@@ -5,9 +5,9 @@ import registeredAtSeriesDb, { IPerPeriod, StatsPeriod } from '@lib/stats/regist
  * The customers-over-time series behind the admin's customers chart — `shopOwnersPerPeriodDb` with
  * `User` in place of `ShopOwner`, and nothing else.
  *
- * E19 §6 question 2, answered by the platform owner on 2026-08-29. The question had been open since the
- * customers table was built, and it was never blocked on anything: `registeredAt` is clear on `user`, so
- * ADR-029 has nothing to say about this query the way it has about the table's missing `search`.
+ * Added on the platform owner's call of 2026-08-29. It had been open since the customers table was
+ * built, and it was never blocked on anything: `registeredAt` is clear on `user`, so ADR-029 has nothing
+ * to say about this query the way it has about the table's missing `search`.
  * `20260829000200` in marketplace-db-setup gives it the `registeredAt_series` index `shopOwner` has had
  * since `20260301000100`.
  *

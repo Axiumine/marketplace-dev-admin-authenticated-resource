@@ -24,7 +24,7 @@ export const adminUpdatePwd = {
 		try {
 			await funAdminUpdatePwd(ctx.state.user._id, args.passwordOld, args.passwordNew)
 
-			// ⚠️ **After the write and inside the try, both deliberately** (E15-S05). Before it, a password
+			// ⚠️ **After the write and inside the try, both deliberately.** Before it, a password
 			// change that then failed validation would have logged the admin out of every device for
 			// nothing. Outside it, a Redis that refused would leave this answering `true` with every stolen
 			// session still live — which is the exact lie this story exists to stop telling. The caller's own

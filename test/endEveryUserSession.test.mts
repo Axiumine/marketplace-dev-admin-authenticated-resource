@@ -36,7 +36,7 @@ describe('endEveryUserSession', () => {
 	it('reads the user index of the account it was given', async () => {
 		await endEveryUserSession(USER_ID)
 
-		// Twice: the second is E17-S04's re-read, and both keys are asserted so a re-read of another tier's
+		// Twice: the second is the routine's re-read, and both keys are asserted so a re-read of another tier's
 		// index could not pass as "at least one right key".
 		expect(hKeys.mock.calls).toEqual([[`${REDIS_KEY}idx:user:${USER_ID}`], [`${REDIS_KEY}idx:user:${USER_ID}`]])
 	})
@@ -87,7 +87,7 @@ describe('endEveryUserSession', () => {
 	})
 
 	/*
-	 * ⚠️ **The customer logging in while the admin disables them does not keep that session** (E17-S04).
+	 * ⚠️ **The customer logging in while the admin disables them does not keep that session.**
 	 * The likelier race of the three call sites: a customer is at their keyboard, shopping, with no idea a
 	 * write is landing. The re-read catches the newcomer, and the index key survives until it has been
 	 * revoked — deleting it on the first round would leave that session live with nothing able to name it.

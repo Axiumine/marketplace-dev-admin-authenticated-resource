@@ -14,7 +14,7 @@ import * as Sentry from '@sentry/node'
 import { Types } from 'mongoose'
 
 /**
- * Takes one named key out of the fleet's keyring, for a suspected compromise (ADR-034, E16-S04).
+ * Takes one named key out of the fleet's keyring, for a suspected compromise (ADR-034).
  *
  * ⚠️ **This is the one operation on the platform that logs customers out on purpose.** Every cookie the
  * retired key signed stops verifying as soon as each process picks the new record up — which is what an
@@ -77,7 +77,7 @@ export async function funKeygripRetire(_id: Types.ObjectId, keyId: string): Prom
 	 * The audit trail. The *key* id is safe to name — it is what the fingerprint is computed over, and what
 	 * the status screen shows — and it is the only way to answer "when did we drop that key?" afterwards.
 	 *
-	 * ⚠️ **The *admin* is not, and is named by digest** (E17 §6 question 5). Two identifiers meet on this
+	 * ⚠️ **The *admin* is not, and is named by digest.** Two identifiers meet on this
 	 * line and only one of them is the platform's own: `keyId` describes a key, `_id` describes a person.
 	 * The message becomes `event.message`, which `sentryBeforeSend` does not walk, so an id written here
 	 * reaches the vendor verbatim. See `funKeygripRotate` for the full reasoning; the two lines must keep
