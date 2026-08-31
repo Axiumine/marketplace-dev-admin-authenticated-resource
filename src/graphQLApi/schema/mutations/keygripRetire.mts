@@ -5,7 +5,7 @@ import { GraphQLBoolean, GraphQLError, GraphQLNonNull, GraphQLString } from 'gra
 
 export const keygripRetire = {
 	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'drops one cookie-signing key from the whole platform, logging out everyone whose cookie it signed',
+	description: 'drops one cookie-signing key from the whole platform and signs every account out, the calling admin included',
 	/*
 	 * ⚠️ One argument, and it is an id — never key material, never a version. The id is public by
 	 * construction: `keygripStatus` renders it and the fingerprint is computed over the ids. What the
@@ -13,7 +13,10 @@ export const keygripRetire = {
 	 * record holds at that moment, so a stale screen loses the compare rather than retiring the wrong key.
 	 *
 	 * ⚠️ `Boolean!` for the same reason `keygripRotate` answers one: the reply is "it happened", and the
-	 * key set afterwards is `keygripStatus`, which reads the ids and never the material.
+	 * key set afterwards is `keygripStatus`, which reads the ids and never the material. **Not the number
+	 * of sessions ended**, which the audit event carries instead: this reply reaches a screen the caller
+	 * has just been signed out of, and a count of live sessions is a platform-size figure that nothing on
+	 * that screen needs.
 	 */
 	args: { id: { type: new GraphQLNonNull(GraphQLString) } },
 	async resolve(_: unknown, args: { id: string }, ctx: IContextAdminAuthenticatedResource) {

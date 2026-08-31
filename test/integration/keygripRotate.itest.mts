@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto'
 
 import { redisClient } from '@axiumine/koa-utils/dataSources/Redis'
+import { encryptDocument } from '@axiumine/marketplace-common/encryption/encryptDocument'
+import { ENCRYPTED_FIELDS_ADMIN, KEY_ALT_NAME_ADMIN } from '@axiumine/marketplace-common/encryption/encryptedFields'
 import { unwrapKeygripKeys } from '@axiumine/marketplace-common/encryption/unwrapKeygripKeys'
 import { IKeygripKeyMaterial } from '@axiumine/marketplace-common/others/IKeygripKeyMaterial'
 import { keygripFingerprint } from '@axiumine/marketplace-common/others/keygripFingerprint'
-import { sessionKey } from '@axiumine/marketplace-common/others/sessionKeys'
+import { indexSession, sessionIndexKey, sessionKey } from '@axiumine/marketplace-common/others/sessionKeys'
 import { TIER } from '@axiumine/marketplace-common/others/Tier'
 import * as dotenv from 'dotenv'
 import type { Server } from 'http'
@@ -56,6 +58,9 @@ let httpServer: Server
 let base: string
 let subscriber: { subscribe(channel: string, listener: (message: string) => void): Promise<unknown>; close(): Promise<unknown> }
 const seededKeys: string[] = []
+
+/** Every admin document this run inserted, dropped in `afterAll` while the connection is still open. */
+const seededAdmins: mongoose.Types.ObjectId[] = []
 
 /** Every version announced on the channel since the subscription opened, in arrival order. */
 const published: string[] = []
@@ -147,6 +152,14 @@ afterAll(async () => {
 			await redisClient.del(key)
 		} catch (error) {
 			console.error(`[afterAll] cleanup failed for ${key}:`, error)
+		}
+	}
+
+	for (const _id of seededAdmins) {
+		try {
+			await mongoose.connection.db?.collection('admin').deleteOne({ _id })
+		} catch (error) {
+			console.error(`[afterAll] cleanup failed for admin ${_id.toString()}:`, error)
 		}
 	}
 
@@ -509,5 +522,111 @@ describe('keygripRetire over HTTP, against the record the rotations left at vers
 		const record = await readRecord()
 
 		expect(record.version).toBe(4)
+	})
+})
+
+/*
+ * The other half of a retirement, and the one that closes R47.
+ *
+ * Dropping a key stops it verifying only once each signing service has adopted the new record — 8 ms
+ * measured, five minutes if the nudge is lost — and until then a lagging service still accepts the cookies
+ * the retired key signed. So the retirement ends the sessions themselves: the lagging service verifies a
+ * signature it still accepts, looks the session up, and finds nothing.
+ *
+ * ⚠️ **Only an integration test can prove this happened.** The sweep reads ids out of three collections and
+ * deletes keys in Redis; against mocks it can be wrong in the one way that matters and still look right — a
+ * query that selects nothing, or an index key spelled from the wrong tier, reports the same success as a
+ * sweep with nothing to do. Here the account is a real document behind the real validator, the session is
+ * filed by `indexSession` rather than by a hand-written `hSet`, and the assertion is that the keys are gone
+ * from the cluster.
+ */
+describe('a retirement ends every live session, not only the cookies the key signed', () => {
+	const retire = (id: string) => `mutation { keygripRetire(id: "${id}") }`
+
+	/**
+	 * One real admin document. The sweep walks the three account collections for ids, so a session filed
+	 * under an id nothing holds would be swept by nobody — the document *is* the fixture.
+	 *
+	 * The password is filler rather than a bcrypt hash: nothing here authenticates as this admin, and the
+	 * validator asks only for 60 characters.
+	 */
+	async function seedAdminAccount() {
+		const _id = new mongoose.Types.ObjectId()
+
+		seededAdmins.push(_id)
+		await mongoose.connection.db?.collection('admin').insertOne(
+			await encryptDocument(
+				{
+					_id,
+					login: { email: `itest-keygrip-${randomUUID()}@marketplace.invalid`, password: 'x'.repeat(60) },
+					personalData: { firstName: 'Itest', lastName: 'Keygrip' }
+				},
+				ENCRYPTED_FIELDS_ADMIN,
+				KEY_ALT_NAME_ADMIN
+			)
+		)
+
+		return _id
+	}
+
+	/**
+	 * A session as a login leaves it: an access hash, a refresh hash naming it under `accessKey`, and the
+	 * index entry that is the only way anything can find either again (BCON-08 bans `SCAN`).
+	 *
+	 * ⚠️ `indexSession` writes the index, never a literal `hSet`: the field is the digest of the prefixed
+	 * token, and a hand-spelled one would let a sweep looking in the wrong place pass this test.
+	 */
+	async function seedFiledSession(_id: mongoose.Types.ObjectId) {
+		const refreshToken = `refresh:${randomUUID()}`
+		const accessToken = `access:${randomUUID()}`
+		const refreshKey = sessionKey(refreshToken)
+		const accessKey = sessionKey(accessToken)
+		const index = sessionIndexKey(TIER.admin, _id.toHexString())
+		const refreshData = {
+			_id: _id.toHexString(),
+			tier: TIER.admin,
+			familyId: randomUUID(),
+			originalLogin: `${Date.now()}`,
+			sessionCapDays: '1',
+			accessKey
+		}
+
+		seededKeys.push(refreshKey, accessKey, index)
+		await redisClient.hSet(accessKey, { _id: _id.toHexString(), email: 'itest@marketplace.test', tier: TIER.admin })
+		await redisClient.hSet(refreshKey, refreshData)
+		await indexSession(redisClient, refreshToken, refreshData)
+
+		return { refreshKey, accessKey, index }
+	}
+
+	/*
+	 * ⚠️ **The caller's own session survives here and would not in production**, which is worth saying out
+	 * loud so nobody reads this test as the rule. `withSession` seeds a session hash and files it under no
+	 * index, because it stands in for a bearer token rather than for a login; a real login indexes itself,
+	 * and the admin pressing retire is signed out with everybody else.
+	 */
+	it('deletes both halves of a filed session and the index that named it', async () => {
+		const _id = await seedAdminAccount()
+		const { refreshKey, accessKey, index } = await seedFiledSession(_id)
+
+		expect(await redisClient.hGetAll(refreshKey)).not.toEqual({})
+		expect(await redisClient.hGetAll(accessKey)).not.toEqual({})
+		expect(await redisClient.hGetAll(index)).not.toEqual({})
+
+		const { status, json } = await gql(retire('k3'), await withSession())
+
+		expect(status).toBe(200)
+		expect(json.errors).toBeUndefined()
+		expect(json.data?.keygripRetire).toBe(true)
+
+		const record = await readRecord()
+
+		expect(record.version).toBe(5)
+		expect(record.keys.map((key: IKeygripKeyMaterial) => key.id)).toEqual(['k4', 'k1'])
+
+		// Redis drops a hash when its last field goes, so an empty object is the key being gone.
+		expect(await redisClient.hGetAll(refreshKey)).toEqual({})
+		expect(await redisClient.hGetAll(accessKey)).toEqual({})
+		expect(await redisClient.hGetAll(index)).toEqual({})
 	})
 })

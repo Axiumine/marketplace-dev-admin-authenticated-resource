@@ -19,12 +19,16 @@ session and `marketplace-dev-authenticated-logout` (4030) ends it.
 | `itemDel`, `itemUpdatePublished` | moderation — take an entry down or unpublish it |
 | `companyUpdatePublished` | the shop's own publish switch — see below |
 | `adminUpdatePwd` | the admin's own password |
+| `keygripRotate`, `keygripRetire`, `keygripResweep` | the platform's cookie-signing keys — **not domain data**, and answered here by decision ([`docs/decisions/admin-session-tooling-placement.md`](https://github.com/Axiumine/fullstack-marketplace-blueprint/blob/main/docs/decisions/admin-session-tooling-placement.md)). ⚠️ Retiring ends **every session on the platform**, the calling admin's included; `keygripResweep` runs that sweep again when it did not reach every account. Rotation logs nobody out |
+| `revokeSession`, `revokeAllSessions` | another tier's live sessions, one or all — the admin session console. `revokeAllSessions` is the one mutation here that answers `Int!` |
 
 | Queries | |
 |---|---|
 | `infoAdminAfterLogin` | what the admin SPA loads on entry |
 | `shopOwnerById`, `shopOwnersActiveTbl`, `shopOwnerCompanies`, `companyItems` | the admin's drill-down path |
 | `itemCategories` | the tree, readable everywhere, writable only here |
+| `keygripStatus` | the live key set — ids, fingerprint, ages, and which services hold it. Never key material |
+| `sessions`, `reuseEvents` | one account's live sessions and its revocation trail, for any tier |
 | `usersActiveTbl` | the customers table — the shopOwners one **minus `search`**, see below |
 | `shopOwnersStats`, `shopOwnersPerPeriod` | shopOwners dashboard aggregates |
 | `usersStats`, `usersPerPeriod` | the same two over `user` — one count, one series |

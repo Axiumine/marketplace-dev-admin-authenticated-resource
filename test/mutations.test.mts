@@ -22,6 +22,7 @@ const endEveryShopOwnerSession = vi.fn()
 const endEveryUserSession = vi.fn()
 const funKeygripRotate = vi.fn()
 const funKeygripRetire = vi.fn()
+const funKeygripResweep = vi.fn()
 const captureException = vi.fn()
 
 vi.mock('@axiumine/marketplace-common/models/MongoDB/ShopOwner', () => ({ ShopOwner: { create } }))
@@ -45,6 +46,7 @@ vi.mock('@lib/auth/endEveryShopOwnerSession.mjs', () => ({ endEveryShopOwnerSess
 vi.mock('@lib/auth/endEveryUserSession.mjs', () => ({ endEveryUserSession }))
 vi.mock('@lib/keygrip/funKeygripRotate.mjs', () => ({ funKeygripRotate }))
 vi.mock('@lib/keygrip/funKeygripRetire.mjs', () => ({ funKeygripRetire }))
+vi.mock('@lib/keygrip/funKeygripResweep.mjs', () => ({ funKeygripResweep }))
 // tryCatchRethrow is NOT mocked — the point of these tests is that a failure really travels
 // through it. Only its Sentry sink is stubbed.
 //
@@ -56,6 +58,7 @@ vi.mock('@sentry/node', () => ({ captureException }))
 const { adminUpdatePwd } = await import('../src/graphQLApi/schema/mutations/adminUpdatePwd.mts')
 const { keygripRotate } = await import('../src/graphQLApi/schema/mutations/keygripRotate.mts')
 const { keygripRetire } = await import('../src/graphQLApi/schema/mutations/keygripRetire.mts')
+const { keygripResweep } = await import('../src/graphQLApi/schema/mutations/keygripResweep.mts')
 const { companyAdd } = await import('../src/graphQLApi/schema/mutations/companyAdd.mts')
 const { companyDel } = await import('../src/graphQLApi/schema/mutations/companyDel.mts')
 const { companyUpdate } = await import('../src/graphQLApi/schema/mutations/companyUpdate.mts')
@@ -1124,6 +1127,50 @@ describe('keygripRetire', () => {
 		funKeygripRetire.mockRejectedValueOnce(error)
 
 		await expect(keygripRetire.resolve(null, { id: 'k2' }, ctx)).rejects.toThrow('Internal Server Error')
+		expect(captureException).toHaveBeenCalledWith(error)
+	})
+})
+
+describe('keygripResweep', () => {
+	beforeEach(() => {
+		funKeygripResweep.mockReset().mockResolvedValue(undefined)
+		captureException.mockReset()
+	})
+
+	/*
+	 * ⚠️ The admin comes off the session and there is no argument at all — not even the key id
+	 * `keygripRetire` takes. This mutation reads no record and narrows no sweep; it signs the whole
+	 * platform out again, which is the only thing that finishes a retirement whose sweep fell short (R55).
+	 */
+	it('resweeps on behalf of the session account and answers true', async () => {
+		await expect(keygripResweep.resolve(null, {}, ctx)).resolves.toBe(true)
+
+		expect(funKeygripResweep).toHaveBeenCalledExactlyOnceWith(adminId)
+	})
+
+	/*
+	 * ⚠️ The description is the whole value of the failure here: an admin running this is already holding
+	 * a platform whose sessions outlived a key they believe is leaked, and "how many accounts are still
+	 * standing, and why" is what decides whether they run it again or go looking at Redis. Flattened into
+	 * a bare 500 it would say nothing they can act on.
+	 */
+	it('preserves the description of a partial sweep raised downstream', async () => {
+		const { throwInternalError } = await import('@axiumine/koa-utils/graphQL/throw/throwInternalError')
+		funKeygripResweep.mockImplementationOnce(() => throwInternalError('2 accounts could not be reached'))
+
+		expect(await rejection(keygripResweep.resolve(null, {}, ctx))).toEqual({
+			message: 'Internal Server Error',
+			http: { status: 500 },
+			description: 'Error reported to Dev Team.2 accounts could not be reached'
+		})
+		expect(captureException).not.toHaveBeenCalled()
+	})
+
+	it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
+		const error = new Error('redis down')
+		funKeygripResweep.mockRejectedValueOnce(error)
+
+		await expect(keygripResweep.resolve(null, {}, ctx)).rejects.toThrow('Internal Server Error')
 		expect(captureException).toHaveBeenCalledWith(error)
 	})
 })

@@ -8,6 +8,7 @@ import { keygripFingerprint } from '@axiumine/marketplace-common/others/keygripF
 import { readKek } from '@axiumine/marketplace-common/others/readKek'
 import { IKeygripRecord, readKeygrip } from '@axiumine/marketplace-common/others/readKeygrip'
 import { sha256Hex } from '@axiumine/marketplace-common/others/sha256Hex'
+import { endEveryPlatformSession, ISweepOutcome } from '@lib/keygrip/endEveryPlatformSession.mjs'
 import { guardKeygripWrite } from '@lib/keygrip/guardKeygripWrite.mjs'
 import { keygripCasWrite } from '@lib/keygrip/keygripCas.mjs'
 import * as Sentry from '@sentry/node'
@@ -16,10 +17,11 @@ import { Types } from 'mongoose'
 /**
  * Takes one named key out of the fleet's keyring, for a suspected compromise (ADR-034).
  *
- * ⚠️ **This is the one operation on the platform that logs customers out on purpose.** Every cookie the
- * retired key signed stops verifying as soon as each process picks the new record up — which is what an
- * admin responding to a leaked key is asking for, and why it is a separate button from rotation rather
- * than something rotation does quietly.
+ * ⚠️ **This is the one operation on the platform that logs everybody out on purpose.** It does it twice
+ * over: the retired key stops verifying as each process picks the new record up, and the sessions
+ * themselves are ended here, so a process still carrying the old key has nothing left to hand back. That
+ * is what an admin responding to a leaked key is asking for, and why it is a separate button from
+ * rotation rather than something rotation does quietly.
  *
  * ⚠️ **Retiring the key the platform signs with is refused, by the shared rule and not by a read here.**
  * `retireKeygripKey` decides that, so the admin panel and any future automation cannot disagree about it,
@@ -32,7 +34,16 @@ import { Types } from 'mongoose'
  *
  * The five refusals: too many writes this hour (429), a record that cannot be read or opened (500), a key
  * id nothing matches (**404** — and the admin must read this as "nothing was retired", never as "it was
- * already gone"), the current key (409), and losing the compare to another admin (409).
+ * already gone"), the current key (409), and losing the compare to another admin (409). A sixth failure
+ * is not a refusal: the sweep below runs *after* the write has landed, so its 500 reports a retirement
+ * that happened with sessions still standing.
+ *
+ * ⚠️ **That sixth failure has two shapes and both send the admin to `keygripResweep`** (R55). Either the
+ * sweep could not start — a tier that Mongo would not list — or it ran and some accounts' revokes threw,
+ * in which case the rest of the platform *is* signed out and what is left is a count. Neither is fixed by
+ * retrying this mutation, which now answers 404, and neither is left to the admin to finish by hand: the
+ * resweep walks every account again, which is safe because `revokeAllSessionsForAccount` deletes each
+ * index key last.
  */
 export async function funKeygripRetire(_id: Types.ObjectId, keyId: string): Promise<void> {
 	await guardKeygripWrite('retire', _id.toString())
@@ -74,6 +85,37 @@ export async function funKeygripRetire(_id: Types.ObjectId, keyId: string): Prom
 		)
 
 	/*
+	 * ⚠️ **The retirement is not done until the sessions are gone, and this is the step that finishes it
+	 * (R47).** Adoption of the new record is a poll plus a nudge, not an instant, and until a signing
+	 * service has adopted it that service still verifies cookies the retired key signed. Ending every
+	 * session leaves the lagging holder with a signature it accepts and no session behind it, which is a
+	 * 498 — so the window stops mattering instead of being made smaller.
+	 *
+	 * ⚠️ **After the CAS, never before it.** Logging the platform out and then losing the compare would
+	 * be an outage with the suspect key still in the keyring: everyone signs back in, and the cookies they
+	 * get are signed by the key the admin was trying to drop.
+	 */
+	let sweep: ISweepOutcome
+
+	try {
+		sweep = await endEveryPlatformSession()
+	} catch (e) {
+		/*
+		 * ⚠️ A 500 that has to say the retirement *happened*. The key is out of the record and this admin's
+		 * next attempt answers 404, which the message above tells them to read as "nothing was retired" —
+		 * so a bare failure here would send them looking for a key that is already gone while live sessions
+		 * are what actually needs finishing.
+		 *
+		 * Nothing was swept at all on this path — a tier could not be listed — so every account still holds
+		 * what it held, and there is no session count worth auditing. The 500 is the record, and it names
+		 * the key.
+		 */
+		throwInternalError(
+			`Key ${keyId} is retired and the new key set is written, but the session sweep could not start: ${(e as Error).message}. Do not retire ${keyId} again — it is already gone and a second attempt answers 404. Every account still holds its sessions: run keygripResweep to end them.`
+		)
+	}
+
+	/*
 	 * The audit trail. The *key* id is safe to name — it is what the fingerprint is computed over, and what
 	 * the status screen shows — and it is the only way to answer "when did we drop that key?" afterwards.
 	 *
@@ -84,7 +126,21 @@ export async function funKeygripRetire(_id: Types.ObjectId, keyId: string): Prom
 	 * answering this the same way, because they are the same decision on the same screen.
 	 */
 	Sentry.captureMessage(
-		`keygrip key ${keyId} retired at version ${version} (${keygripFingerprint(keys)}) by admin ${sha256Hex(_id.toString())}`,
+		`keygrip key ${keyId} retired at version ${version} (${keygripFingerprint(keys)}) by admin ${sha256Hex(_id.toString())}, ending ${sweep.ended} sessions across ${sweep.failed} unreached accounts`,
 		'info'
 	)
+
+	/*
+	 * ⚠️ **The audit event is written first and the 500 second, because both are true** (R55): the key is
+	 * retired, and the sweep that finishes the retirement did not reach every account. Throwing before the
+	 * event would lose the one line that answers "when did we drop that key?" on the exact day it is asked.
+	 *
+	 * ⚠️ **The count, never the ids.** `ISweepOutcome` does not carry them and this message must not invent
+	 * them: it becomes an `event.message` that reaches the vendor verbatim, on the same reasoning that names
+	 * the admin by digest four lines above.
+	 */
+	if (sweep.failed > 0)
+		throwInternalError(
+			`Key ${keyId} is retired and the new key set is written, and ${sweep.ended} sessions were ended, but ${sweep.failed} accounts could not be reached and may still hold live ones: ${sweep.reason}. Do not retire ${keyId} again — it is already gone and a second attempt answers 404. Run keygripResweep instead: it walks every account again and is safe to repeat.`
+		)
 }
