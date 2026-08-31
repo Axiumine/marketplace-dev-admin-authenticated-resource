@@ -59,12 +59,10 @@ describe('production hardening actually applies to a real server', () => {
 	 * A credential is required here for a reason that does not exist on the public tier this pattern
 	 * was copied from: createServer() puts authorizationAuthenticatedResourceHandler in front of every
 	 * route, including ENDPOINT, so a bare request never reaches Apollo at all — it is turned back with
-	 * 412 before the schema is even consulted. That credential used to be the `x-introspectioncode`
-	 * header; the header now does nothing outside `development` and `test`, and the whole
-	 * point of booting this server is that it is neither. So the request carries a real session
-	 * instead — one access hash in the live Redis, exactly as a logged-in admin would — which also
-	 * makes the assertion stronger: introspection is refused for an authenticated caller, not merely
-	 * for an unauthenticated one.
+	 * 412 before the schema is even consulted. The request therefore carries a real session — one access
+	 * hash in the live Redis, exactly as a logged-in admin would — which also makes the assertion
+	 * stronger: introspection is refused for an authenticated caller, not merely for an unauthenticated
+	 * one.
 	 */
 	it('refuses introspection when booted as production', async () => {
 		const realNodeEnv = process.env.NODE_ENV

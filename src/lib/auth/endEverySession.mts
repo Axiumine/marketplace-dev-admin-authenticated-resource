@@ -36,8 +36,10 @@ import { IContextAdminAuthenticatedResource } from '@lib/auth/IContextAdminAuthe
  * `TIER.admin`, and the tier is not incidental: the index key is per tier, so the wrong constant here
  * reads an index that is empty or — worse — another tier's, and revokes nothing while reporting success.
  *
- * The missing-header branch is the introspection bypass, which reaches a resolver with no session at
- * all: there is no caller to log out, so there is no key to delete.
+ * The missing-header branch keeps this helper total rather than trusting a caller two layers away: the
+ * authorization handler refuses a request with no `Authorization` header before any resolver runs, and a
+ * key derived from a header that is not there would be the digest of the empty string — a key belonging to
+ * nobody, deleted with a success reported.
  */
 export async function endEverySession(ctx: IContextAdminAuthenticatedResource) {
 	await revokeAllSessionsForAccount({ store: redisClient, tier: TIER.admin, accountId: `${ctx.state.user._id}` })

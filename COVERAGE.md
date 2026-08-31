@@ -80,7 +80,7 @@ unscanned — and the unit project covers that failure path with a mock.
 The integration project uses the `REDIS_*` / `MONGODB_URI` values from `.env` (loaded by the
 sources' own `dotenv.config()`). It overrides only the keyspace prefix
 (`REDIS_KEY=marketplaceDev:itest:adminAuthenticatedResource:`, this service's own namespace under the
-ACL-allowed `marketplaceDev:itest:` stem), `PORT=0` (ephemeral) and `INTROSPECTION_CODE`. Run just one
+ACL-allowed `marketplaceDev:itest:` stem), and `PORT=0` (ephemeral). Run just one
 side with `yarn test:unit` / `yarn test:integration`.
 
 Consequence: the coverage gate — and therefore `pre-push` — needs Redis, MongoDB and clamd
@@ -141,11 +141,6 @@ so the deletions are not mistaken for lost features:
 - `src/lib/getWeek.mts` and `src/lib/typePagamento.mts` — **deleted**. QPANEL car-leasing
   leftovers (NLT / CVT / targaprova payment types, ISO week helper) with zero importers
   anywhere in the platform.
-- `authorizationAuthenticatedResourceHandler` — the `x-introspectioncode` bypass dereferenced a
-  missing `Authorization` header (`authorization!.startsWith(...)`) and threw a `TypeError`,
-  so it could never succeed and the `if (!introspection)` guard below it was unreachable.
-  Guarded with `!introspection &&`, matching the three sibling services. The dead
-  `accessToken !== ''` check and an unused `operationName` block went with it.
 - `shopOwnerAdd` — `return ShopOwner.create(doc)` inside a `try` meant the promise escaped
   before the `catch` could see it, and the mutation resolved to a Mongoose document against a
   declared `Boolean!`. Now `await`ed, like its two sibling mutations.
@@ -191,7 +186,7 @@ which its mutation run does not execute, so excluding it is the only way to avoi
 `NoCoverage` noise. Here, `test/index.unit.test.mts` boots the real Koa/Apollo server built by
 `createServer()` — over a real ephemeral-port `http.Server`, with only the datasources
 (Redis/MongoDB/clamd) mocked — and drives it with real HTTP requests (the CSRF-prevention
-branch, the introspection-code and bearer-token auth branches, `/health`, an unknown path, a
+branch, the bearer-token auth branch, `/health`, an unknown path, a
 graceful-shutdown-under-load race). That is enough for `index.mts` to be fully covered and
 fully mutated **inside the unit project alone**, so it stays in scope instead of being carved out.
 
@@ -224,11 +219,12 @@ matcher, or a `describe` block that never checked a mock's call count at all. Ev
 than just call presence — that specificity is what keeps mutants from surviving quietly inside
 an already-green suite.
 
-Current state (measured by `yarn test:mutation`, this session): **252 mutants instrumented, 233
-tested and killed, 19 ignored, 0 survived**, score 100.00, ~25 s. The 19 ignored mutants are the
-ones excluded by the `// Stryker disable next-line`/`// Stryker disable all` directives already
-documented above (the entrypoint wiring block and the `graphqlUploadKoa` options literal) — they
-are not run, so they are neither "killed" nor a live risk.
+Current state (measured by `yarn test:mutation`, which `pre-push` runs): **every tested mutant
+killed, 0 survived**, score 100.00, ~25 s. The instrumented and ignored totals move with the source,
+so read them off the run rather than from here; the ignored ones are exactly those excluded by the
+`// Stryker disable next-line`/`// Stryker disable all` directives already documented above (the
+entrypoint wiring block and the `graphqlUploadKoa` options literal) — they are not run, so they are
+neither "killed" nor a live risk.
 
 ## Running it
 

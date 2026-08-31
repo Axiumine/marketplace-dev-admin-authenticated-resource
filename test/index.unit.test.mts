@@ -16,9 +16,8 @@ const hGetAll = vi.fn()
 const startRetentionSweeper = vi.fn()
 
 vi.mock('@sentry/node', () => ({ captureException, captureMessage }))
-// redisClient.hGetAll backs the real (non-introspection) auth path exercised below by
-// "wires the Koa ctx into the resolver context" — everything else here only drives start()'s
-// failure paths, which never reach hGetAll.
+// redisClient.hGetAll backs the auth path every request in the createServer block below travels —
+// everything else here only drives start()'s failure paths, which never reach hGetAll.
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ RedisConnect, redisClient: { hGetAll } }))
 vi.mock('@axiumine/koa-utils/dataSources/MongoDB', () => ({ MongoDBConnect }))
 vi.mock('@axiumine/koa-utils/files/scanVirus', () => ({ initClamScan }))
@@ -70,7 +69,7 @@ describe('checkRequiredEnv', () => {
 	 * a `toContain` passes an addition, so neither notices the change. The order is asserted too — the
 	 * boot names the *first* missing variable, and that is the one an admin goes looking for.
 	 */
-	it('requires exactly these 16 variables, in this order', () => {
+	it('requires exactly these 15 variables, in this order', () => {
 		expect(REQUIRED_ENV_VARS).toStrictEqual([
 			'PORT',
 			'REDIS_IS_CLUSTER',
@@ -86,7 +85,6 @@ describe('checkRequiredEnv', () => {
 			'MONGODB_URI',
 			'CSFLE_MASTER_KEY_PATH',
 			'CSFLE_KEY_VAULT_NAMESPACE',
-			'INTROSPECTION_CODE',
 			'KEYGRIP_KEK'
 		])
 	})
@@ -315,15 +313,23 @@ describe('start (failure path)', () => {
 describe('createServer (real Koa/Apollo assembly, no real datasource behind it)', () => {
 	// createServer() never calls MongoDBConnect/RedisConnect/initClamScan itself — start() does,
 	// separately — so it can be driven directly over a real, ephemeral-port HTTP server with no
-	// datasource behind it at all. The bearer gate is satisfied with the introspection code, the
-	// same way test/integration/index.itest.mts satisfies it for /health; a real Redis session is
-	// exercised at the handler level by authorizationAuthenticatedResourceHandler.test.mts instead.
+	// datasource behind it at all. The bearer gate runs before any routing decision, so every request
+	// here carries a real access credential; Redis is mocked at the hGetAll seam (the same one
+	// authorizationAuthenticatedResourceHandler.test.mts uses) rather than a real cluster.
+	const OID = '507f1f77bcf86cd799439011'
+	const AUTHENTICATED = { authorization: 'Bearer access:unit-test-token' }
+
 	let httpServer: Awaited<ReturnType<typeof createServer>>['httpServer']
 	let apolloServer: Awaited<ReturnType<typeof createServer>>['apolloServer']
 	let base: string
 
 	beforeEach(async () => {
 		vi.mocked(ApolloServerPluginDrainHttpServer).mockClear()
+		// `tier` is not decoration: the auth middleware refuses a session that does not carry `admin`,
+		// so without it this whole assembly answers 403 instead of reaching anything under test.
+		hGetAll
+			.mockReset()
+			.mockResolvedValue(Object.assign(Object.create(null), { _id: OID, email: 'admin@marketplace.test', tier: 'admin' }))
 		const server = await createServer()
 		httpServer = server.httpServer
 		apolloServer = server.apolloServer
@@ -346,22 +352,12 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
 	})
 
 	// Proves apolloServerKoa's `context()` really hands the raw Koa `ctx` to resolvers, not the
-	// integration's own `{}` default. The introspection-code bypass (used by every other test in
-	// this block) deliberately skips setting ctx.state.user, so this is the one request here that
-	// goes through the real bearer-token branch of authorizationAuthenticatedResourceHandler, with
-	// Redis mocked at the hGetAll level (the same seam test/authorizationAuthenticatedResourceHandler
-	// .test.mts uses) rather than a real cluster.
+	// integration's own `{}` default: the resolver can only answer with the account the session in
+	// Redis names if the session travelled all the way from the middleware into the resolver context.
 	it('wires the Koa ctx into the resolver context, so an authenticated query sees ctx.state.user', async () => {
-		const OID = '507f1f77bcf86cd799439011'
-		// `tier` is not decoration: the auth middleware refuses a session that does not carry
-		// `admin`, so without it this whole assembly answers 403 instead of reaching the resolver.
-		hGetAll
-			.mockReset()
-			.mockResolvedValueOnce(Object.assign(Object.create(null), { _id: OID, email: 'admin@marketplace.test', tier: 'admin' }))
-
 		const res = await fetch(`${base}${ENDPOINT}`, {
 			method: 'POST',
-			headers: { 'content-type': 'application/json', authorization: 'Bearer access:unit-test-token' },
+			headers: { 'content-type': 'application/json', ...AUTHENTICATED },
 			body: JSON.stringify({ query: '{ infoAdminAfterLogin { _id email } }' })
 		})
 		const json = (await res.json()) as { data?: { infoAdminAfterLogin: { _id: string; email: string } } }
@@ -377,7 +373,7 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
 	it('blocks a form-encoded POST with no preflight header as a potential CSRF attempt (csrfPrevention: true)', async () => {
 		const res = await fetch(`${base}${ENDPOINT}`, {
 			method: 'POST',
-			headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-introspectioncode': 'test-introspection-code' },
+			headers: { 'content-type': 'application/x-www-form-urlencoded', ...AUTHENTICATED },
 			body: 'query=' + encodeURIComponent('{ __typename }')
 		})
 		const json = (await res.json()) as { errors?: Array<{ message: string }> }
@@ -386,10 +382,10 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
 		expect(json.errors?.[0]?.message).toContain('potential Cross-Site Request Forgery')
 	})
 
-	it('serves the assembled schema at ENDPOINT for an introspection-code caller', async () => {
+	it('serves the assembled schema at ENDPOINT for an authenticated caller', async () => {
 		const res = await fetch(`${base}${ENDPOINT}`, {
 			method: 'POST',
-			headers: { 'content-type': 'application/json', 'x-introspectioncode': 'test-introspection-code' },
+			headers: { 'content-type': 'application/json', ...AUTHENTICATED },
 			body: JSON.stringify({ query: '{ __schema { queryType { name } mutationType { name } } }' })
 		})
 		const json = (await res.json()) as {
@@ -401,7 +397,7 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
 	})
 
 	it('serves /health once the bearer gate is satisfied', async () => {
-		const res = await fetch(`${base}/health`, { headers: { 'x-introspectioncode': 'test-introspection-code' } })
+		const res = await fetch(`${base}/health`, { headers: AUTHENTICATED })
 		const json = (await res.json()) as { status: string; timestamp: string }
 
 		expect(res.status).toBe(200)
@@ -409,7 +405,7 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
 	})
 
 	it('falls through to 404 for an unknown path', async () => {
-		const res = await fetch(`${base}/nope`, { headers: { 'x-introspectioncode': 'test-introspection-code' } })
+		const res = await fetch(`${base}/nope`, { headers: AUTHENTICATED })
 
 		expect(res.status).toBe(404)
 	})
@@ -442,14 +438,11 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
 		const port = (httpServer.address() as AddressInfo).port
 		try {
 			await new Promise<void>((resolve, reject) => {
-				const req = http.request(
-					{ hostname: '127.0.0.1', port, path: '/health', agent, headers: { 'x-introspectioncode': 'test-introspection-code' } },
-					(res) => {
-						res.resume()
-						res.on('end', resolve)
-						res.on('error', reject)
-					}
-				)
+				const req = http.request({ hostname: '127.0.0.1', port, path: '/health', agent, headers: AUTHENTICATED }, (res) => {
+					res.resume()
+					res.on('end', resolve)
+					res.on('error', reject)
+				})
 				req.on('error', reject)
 				req.end()
 			})

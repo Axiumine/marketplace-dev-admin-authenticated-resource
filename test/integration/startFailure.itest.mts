@@ -58,20 +58,20 @@ describe('start() when MongoDB refuses the connection', () => {
 	 * calling checkRequiredEnv() directly, so it is that ordering being tested and not just the
 	 * guard's own loop.
 	 *
-	 * INTROSPECTION_CODE, not KEYGRIP_KEK: this tier authenticates over a bearer header against Redis,
-	 * not a signed cookie, so it holds the KEK for rotation alone — any entry from that list works the
-	 * same way here, since checkRequiredEnv throws on the first one it finds missing regardless of
-	 * position, and every other entry is still present from the real .env. It used to delete
-	 * PLATFORM_NAME, which left REQUIRED_ENV_VARS as read by nothing: the boot then
-	 * stopped minding its absence and this test reached the real MongoDB instead of refusing.
+	 * KEYGRIP_KEK is the entry deleted, and it is the LAST of the list, so a mutant that stops the loop
+	 * one short fails here as well as in the unit suite. Any entry would prove the ordering — checkRequiredEnv
+	 * throws on the first one it finds missing regardless of position, and every other entry is still
+	 * present from the real .env. It used to delete PLATFORM_NAME, which left REQUIRED_ENV_VARS as read
+	 * by nothing: the boot then stopped minding its absence and this test reached the real MongoDB
+	 * instead of refusing.
 	 *
 	 * checkRequiredEnv here raises via throwInternalError (a GraphQLError, http 500), not `new
 	 * Error` like the authorization services — the client-facing message stays generic while the
 	 * missing variable name travels in extensions.description.
 	 */
 	it('refuses to boot at all, and connects nothing, when a required variable is missing', async () => {
-		const realValue = process.env.INTROSPECTION_CODE
-		delete process.env.INTROSPECTION_CODE
+		const realValue = process.env.KEYGRIP_KEK
+		delete process.env.KEYGRIP_KEK
 
 		try {
 			await expect(start()).rejects.toThrow('Internal Server Error')
@@ -79,7 +79,7 @@ describe('start() when MongoDB refuses the connection', () => {
 			expect(mongoose.connection.readyState).toBe(0)
 			expect(redisClient.isOpen).toBe(false)
 		} finally {
-			process.env.INTROSPECTION_CODE = realValue
+			process.env.KEYGRIP_KEK = realValue
 		}
 	})
 })
