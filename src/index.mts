@@ -11,6 +11,7 @@ import type { EnvShape } from '@axiumine/marketplace-common/others/assertEnvShap
 import { assertEnvShape } from '@axiumine/marketplace-common/others/assertEnvShape'
 import { assertRedisNamespace } from '@axiumine/marketplace-common/others/assertRedisNamespace'
 import { IContextAdminAuthenticatedResource } from '@lib/auth/IContextAdminAuthenticatedResource.mjs'
+import { reportClamSignatureAge } from '@lib/clam/reportClamSignatureAge.mjs'
 import { authorizationAuthenticatedResourceHandler } from '@lib/db/authorizationAuthenticatedResourceHandler.mjs'
 import { disconnectAllDatabases } from '@lib/db/disconnectAllDatabases.mjs'
 import { startRetentionSweeper } from '@lib/retention/startRetentionSweeper.mjs'
@@ -337,8 +338,15 @@ export async function start() {
 
 		/****************
 		 * Antivirus
+		 *
+		 * ⚠️ `initClamScan()` proves the daemon is reachable and says nothing about what it knows: a scanner
+		 * whose signature database stopped updating six months ago answers `clean` just as fast. Nothing on
+		 * this platform runs `freshclam`, so the age is read here and reported — never thrown on, because a
+		 * stale scanner is worse than a fresh one and far better than refusing to serve at all.
 		 */
-		await initClamScan()
+		const clam = await initClamScan()
+
+		await reportClamSignatureAge(clam)
 
 		/****************
 		 * Retention scrub (ADR-041)

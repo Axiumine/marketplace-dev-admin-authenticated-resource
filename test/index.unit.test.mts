@@ -11,10 +11,14 @@ const captureMessage = vi.fn()
 const RedisConnect = vi.fn()
 const MongoDBConnect = vi.fn()
 const initClamScan = vi.fn()
+const reportClamSignatureAge = vi.fn()
 const setupFieldEncryption = vi.fn()
 const disconnectAllDatabases = vi.fn()
 const hGetAll = vi.fn()
 const startRetentionSweeper = vi.fn()
+
+/** The NodeClam initClamScan() hands back — identity is all start() does with it, so it needs no behaviour. */
+const clamScanner = { getVersion: vi.fn() }
 
 vi.mock('@sentry/node', () => ({ captureException, captureMessage }))
 // redisClient.hGetAll backs the auth path every request in the createServer block below travels —
@@ -22,6 +26,9 @@ vi.mock('@sentry/node', () => ({ captureException, captureMessage }))
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ RedisConnect, redisClient: { hGetAll } }))
 vi.mock('@axiumine/koa-utils/dataSources/MongoDB', () => ({ MongoDBConnect }))
 vi.mock('@axiumine/koa-utils/files/scanVirus', () => ({ initClamScan }))
+// Mocked because the real one talks to the daemon initClamScan just opened. What start() owes it is
+// that it is handed that daemon and awaited; what it does with the answer is its own suite's business.
+vi.mock('@lib/clam/reportClamSignatureAge.mjs', () => ({ reportClamSignatureAge }))
 // Mocked, not real: the real one reads the platform's 96-byte master key off disk and mints data
 // keys in the key vault, neither of which a unit test may touch. What is under test here is only
 // that start() calls it, and calls it after the connection it borrows exists.
@@ -409,7 +416,9 @@ function armBootMocks(): void {
 	captureException.mockReset()
 	RedisConnect.mockReset().mockResolvedValue(undefined)
 	MongoDBConnect.mockReset().mockResolvedValue(undefined)
-	initClamScan.mockReset().mockResolvedValue(undefined)
+	// The scanner start() gets back, and the only member anything downstream of it reads.
+	initClamScan.mockReset().mockResolvedValue(clamScanner)
+	reportClamSignatureAge.mockReset().mockResolvedValue({ state: 'fresh', alerted: false, detail: 'stubbed' })
 	setupFieldEncryption.mockReset().mockResolvedValue(undefined)
 	// A seeded namespace, so every test below is about the failure it arms rather than about the
 	// keygrip probe start() now runs first. Only `wrapped` is read — presence, never the value.
@@ -511,6 +520,8 @@ describe('start (failure path)', () => {
 		expect(initClamScan).toHaveBeenCalledTimes(1)
 		expect(captureException).toHaveBeenCalledWith(error)
 		expect(disconnectAllDatabases).toHaveBeenCalledWith(1)
+		// Nothing asks a scanner that failed to start how old its signatures are.
+		expect(reportClamSignatureAge).not.toHaveBeenCalled()
 	})
 })
 
@@ -689,6 +700,12 @@ describe('start (success path)', () => {
 		// point of the probe is which namespace it looked in. `REDIS_KEY` is `shaped()`'s prefix here.
 		expect(hGetAll).toHaveBeenCalledExactlyOnceWith(`${SHAPED.keyPrefix}keygrip`)
 		expect(initClamScan).toHaveBeenCalledTimes(1)
+		/*
+		 * A reachable scanner and a current one are not the same claim, and only the second one keeps an
+		 * upload safe — RISK_REGISTER R22. The reading is handed the daemon initClamScan just opened; that
+		 * a stale answer is reported rather than thrown on is asserted in test/reportClamSignatureAge.test.mts.
+		 */
+		expect(reportClamSignatureAge).toHaveBeenCalledExactlyOnceWith(clamScanner)
 		// Called with nothing: it takes the client off the mongoose connection MongoDBConnect just
 		// opened, and both its variables from the environment. An argument here would mean a second
 		// client and a second connection pool for the same cluster.
