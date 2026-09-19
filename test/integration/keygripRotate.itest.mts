@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 dotenv.config()
 
 import { ENDPOINT } from '../../src/index.mts'
-import { ITEST_KEYGRIP_KEYS, ITEST_REDIS_KEY } from '../../vitest.keygrip.mts'
+import { ITEST_REDIS_KEY, itestKeygripKeys } from '../../vitest.keygrip.mts'
 import { bootServer } from './bootServer.mts'
 
 /*
@@ -47,6 +47,15 @@ import { bootServer } from './bootServer.mts'
  * "the rotation wrote where the seeder seeded" only means something if the two sides spell the key
  * independently. `ITEST_REDIS_KEY` is what `vitest.config.mts` hands the service as `REDIS_KEY`.
  */
+/**
+ * The record `globalSetup` sealed, spelled from the same ages it used.
+ *
+ * ⚠️ Read once here rather than called at each assertion: the stamps come from the run's epoch, which the
+ * worker inherits through the environment, and a second call must answer the same two strings the seeder
+ * wrapped — so the value is pinned where a reader can see that it is one value, not two computations.
+ */
+const SEEDED_KEYS = itestKeygripKeys()
+
 const KEYGRIP_KEY = `${ITEST_REDIS_KEY}keygrip`
 const HOLDERS_KEY = `${ITEST_REDIS_KEY}keygrip:holders`
 const ROTATED_CHANNEL = `${ITEST_REDIS_KEY}keygrip:rotated`
@@ -187,7 +196,7 @@ describe('keygripRotate over HTTP, against the real record', () => {
 		const record = await readRecord()
 
 		expect(record.version).toBe(1)
-		expect(record.keys).toEqual(ITEST_KEYGRIP_KEYS)
+		expect(record.keys).toEqual(SEEDED_KEYS)
 	})
 
 	/*
@@ -210,7 +219,7 @@ describe('keygripRotate over HTTP, against the real record', () => {
 		expect(record.keys).toHaveLength(3)
 		expect(record.keys[0].id).toBe('k3')
 		expect(Buffer.from(record.keys[0].material, 'base64')).toHaveLength(64)
-		expect(record.keys.slice(1)).toEqual(ITEST_KEYGRIP_KEYS)
+		expect(record.keys.slice(1)).toEqual(SEEDED_KEYS)
 		expect(record.fp).toBe(keygripFingerprint(record.keys))
 
 		// ⚠️ The rollback defence, on the bytes Redis is actually holding: the version is the AAD, so this
