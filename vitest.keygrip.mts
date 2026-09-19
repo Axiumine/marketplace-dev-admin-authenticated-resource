@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 
 import { redisClient, RedisConnect } from '@axiumine/koa-utils/dataSources/Redis'
 import { wrapKeygripKeys } from '@axiumine/marketplace-common/encryption/wrapKeygripKeys'
+import { IKeygripKeyMaterial } from '@axiumine/marketplace-common/others/IKeygripKeyMaterial'
 import { keygripFingerprint } from '@axiumine/marketplace-common/others/keygripFingerprint'
 
 /**
@@ -14,22 +15,75 @@ import { keygripFingerprint } from '@axiumine/marketplace-common/others/keygripF
  */
 export const ITEST_REDIS_KEY = 'marketplaceDev:itest:adminAuthenticatedResource:'
 
+/** Milliseconds in a day. The seed keys are dated in days back from the run, and read in days by the rule. */
+const DAY_MS = 86_400_000
+
+/**
+ * How long ago each seed key was minted, in days back from `itestKeygripEpoch()`.
+ *
+ * ⚠️ **Both have to stay inside `SESSION_CAP_DAYS_REMEMBERED` (30), and `K2_AGE_DAYS` is the one that
+ * decides it.** A rotation retires the tail once the key *in front of it* stopped signing longer ago than
+ * the longest session this platform issues, and the key in front of the tail is `k2` in every array this
+ * file seeds — so `k2` passing thirty days makes the first rotation of a run drop `k1`, and the whole
+ * file's arithmetic (three keys after one rotation, four after two) shifts by one.
+ */
+const K2_AGE_DAYS = 1
+const K1_AGE_DAYS = 11
+
+/**
+ * The instant this run's seed keys are dated back from, minted once and shared through the environment.
+ *
+ * ⚠️ **Relative, never a literal date.** This fixture carried `2026-08-01` and `2026-08-11` until the
+ * calendar walked past them: on 2026-09-10 `k2` turned thirty days old, the first rotation of every run
+ * started retiring `k1`, and nine tests in `keygripRotate.itest.mts` began failing on a suite nobody had
+ * touched. A stamp written into a test is a date that expires; an age is not.
+ *
+ * ⚠️ **Stamped into `process.env`, for the same reason `KEYGRIP_KEK` is.** `globalSetup` seals the record
+ * in its own process and the workers assert against it in theirs, and the two only agree about
+ * `createdAt` to the millisecond if they read one instant rather than each calling the clock. vitest
+ * forks its workers after `globalSetup` returns, so they inherit whichever value it minted.
+ */
+const itestKeygripEpoch = (): number => {
+	const stamped = process.env.ITEST_KEYGRIP_EPOCH
+
+	if (stamped !== undefined) return Number(stamped)
+
+	const minted = Date.now()
+	process.env.ITEST_KEYGRIP_EPOCH = String(minted)
+
+	return minted
+}
+
 /**
  * The key set the integration run starts from.
  *
  * Two entries, not one: this is the service that *rotates*, and a rotation of a single-key set proves
  * nothing about the property that matters — that the keys still verifying customers' cookies survive
- * the write, in order, behind the new one. Both are old enough to be inert as credentials and visibly
- * not minted by anybody (`Buffer.alloc`), and neither is old enough to be retired, so the first
- * rotation of a run always answers three keys.
+ * the write, in order, behind the new one. Both are visibly not minted by anybody (`Buffer.alloc`), and
+ * neither is old enough to be retired, so the first rotation of a run always answers three keys.
  *
  * The ids carry the `k<n>` shape the seed script mints rather than a test-only one, so the id a rotation
  * derives from them is the id it would derive in production — `k3`, then `k4`.
+ *
+ * A function rather than a constant: the stamps are computed from `itestKeygripEpoch()`, which has to run
+ * after `globalSetup` has had a chance to mint it, not at whatever moment this module is first imported.
  */
-export const ITEST_KEYGRIP_KEYS = [
-	{ id: 'k2', material: Buffer.alloc(64, 42).toString('base64'), createdAt: '2026-08-11T00:00:00.000Z' },
-	{ id: 'k1', material: Buffer.alloc(64, 24).toString('base64'), createdAt: '2026-08-01T00:00:00.000Z' }
-]
+export const itestKeygripKeys = (): IKeygripKeyMaterial[] => {
+	const epoch = itestKeygripEpoch()
+
+	return [
+		{
+			id: 'k2',
+			material: Buffer.alloc(64, 42).toString('base64'),
+			createdAt: new Date(epoch - K2_AGE_DAYS * DAY_MS).toISOString()
+		},
+		{
+			id: 'k1',
+			material: Buffer.alloc(64, 24).toString('base64'),
+			createdAt: new Date(epoch - K1_AGE_DAYS * DAY_MS).toISOString()
+		}
+	]
+}
 
 /**
  * Mint a throwaway KEK and a keygrip record for the integration run (ADR-034).
@@ -56,11 +110,13 @@ export async function seedKeygrip(): Promise<void> {
 
 	await RedisConnect()
 	try {
+		const keys = itestKeygripKeys()
+
 		await redisClient.del(`${ITEST_REDIS_KEY}keygrip`)
 		await redisClient.hSet(`${ITEST_REDIS_KEY}keygrip`, {
 			version: '1',
-			wrapped: wrapKeygripKeys(ITEST_KEYGRIP_KEYS, 1, kek),
-			fp: keygripFingerprint(ITEST_KEYGRIP_KEYS)
+			wrapped: wrapKeygripKeys(keys, 1, kek),
+			fp: keygripFingerprint(keys)
 		})
 	} finally {
 		// This process only provisions; every test file opens its own client.
