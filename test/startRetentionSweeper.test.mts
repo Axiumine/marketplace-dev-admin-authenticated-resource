@@ -1,3 +1,4 @@
+import { retentionLockKey } from '@axiumine/marketplace-common/others/retentionKeys'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const set = vi.fn()
@@ -8,13 +9,10 @@ vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: { set } }
 vi.mock('@lib/retention/retentionSweep.mjs', () => ({ retentionSweep }))
 vi.mock('@sentry/node', () => ({ captureException }))
 
-const { SWEEP_INTERVAL_MS, retentionLockKey, runLockedSweep, startRetentionSweeper } =
+const { SWEEP_INTERVAL_MS, runLockedSweep, startRetentionSweeper } =
 	await import('../src/lib/retention/startRetentionSweeper.mts')
 
 const NOW = new Date('2026-08-29T10:00:00.000Z')
-
-/** The prefix the unit project pins in `vitest.config.mts`, so the key under test is a real one. */
-const REDIS_KEY = 'test:'
 
 let info: ReturnType<typeof vi.spyOn>
 
@@ -41,26 +39,20 @@ describe('SWEEP_INTERVAL_MS', () => {
 	})
 })
 
-describe('retentionLockKey', () => {
-	/*
-	 * Under the deployment's own prefix, like every other key this platform writes: two services
-	 * sharing a Redis with no prefix would contend on one lock and only one of them would ever sweep.
-	 */
-	it('lives under the configured keyspace prefix', () => {
-		expect(retentionLockKey()).toBe(`${REDIS_KEY}retention:lock`)
-	})
-})
-
 describe('runLockedSweep', () => {
 	/*
 	 * ⚠️ The exact options object. `NX` is what makes this a lock at all — without it every instance
 	 * in the fleet sweeps every hour — and `PX` is what makes it self-releasing, since nothing ever
 	 * deletes this key. A mutant dropping either leaves a call that still succeeds against Redis.
+	 *
+	 * The key itself is asserted against the real `retentionLockKey()` from marketplace-common, not a
+	 * hand-rolled literal — what this pins is that the sweeper locks on the key the shared builder
+	 * produces, not on a copy of its shape that could drift from it unnoticed.
 	 */
 	it('takes the lock with SET NX PX, stamped with the instant it is sweeping for', async () => {
 		await runLockedSweep(NOW)
 
-		expect(set).toHaveBeenCalledExactlyOnceWith(`${REDIS_KEY}retention:lock`, NOW.toISOString(), {
+		expect(set).toHaveBeenCalledExactlyOnceWith(retentionLockKey(), NOW.toISOString(), {
 			NX: true,
 			PX: SWEEP_INTERVAL_MS
 		})

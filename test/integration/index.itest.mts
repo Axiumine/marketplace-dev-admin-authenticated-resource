@@ -23,6 +23,7 @@ import {
 	scrubbedEmail
 } from '@axiumine/marketplace-common/others/accountScrub'
 import { IReuseEvent, recordReuseEvent } from '@axiumine/marketplace-common/others/recordReuseEvent'
+import { retentionLockKey } from '@axiumine/marketplace-common/others/retentionKeys'
 import {
 	indexSession,
 	readSessionHash,
@@ -2871,7 +2872,7 @@ describe('retention sweep (real scrub, real collections, real validators)', () =
 		// The boot in `beforeAll` armed the real sweeper, which took the fleet lock with a one-hour TTL and
 		// releases it by design never. Registered for the afterAll drain like every other key this file
 		// writes, or it sits in the shared itest namespace for the hour and no later run can read it back.
-		seededKeys.push(`${REDIS_KEY}retention:lock`)
+		seededKeys.push(retentionLockKey())
 
 		const admin = new mongoose.Types.ObjectId()
 		const closedAt = daysAgo(31)
