@@ -1,4 +1,5 @@
 import { redisClient } from '@axiumine/koa-utils/dataSources/Redis'
+import { retentionLockKey } from '@axiumine/marketplace-common/others/retentionKeys'
 import { retentionSweep } from '@lib/retention/retentionSweep.mjs'
 import * as Sentry from '@sentry/node'
 
@@ -12,9 +13,6 @@ import * as Sentry from '@sentry/node'
  * never a backlog that arrives all at once.
  */
 export const SWEEP_INTERVAL_MS = 60 * 60 * 1000
-
-/** The single key the fleet's sweeps contend on, under this deployment's own Redis prefix. */
-export const retentionLockKey = () => `${process.env.REDIS_KEY}retention:lock`
 
 /**
  * The one Redis verb this needs, written out rather than called on `redisClient` directly.
@@ -30,13 +28,6 @@ export interface IRetentionLockStore {
 
 /**
  * Takes the lock, sweeps if it got it, and never lets either throw reach the interval.
- *
- * ⚠️ **`SET NX PX`, and the lock is never released** (ADR-041). Its TTL is the sweep interval, so the key
- * survives until the next tick is due and exactly one instance in the fleet sweeps per interval. Releasing
- * it at the end would reintroduce the classic unlock-ownership race — an instance whose sweep outran the
- * TTL would delete a lock a *different* instance had since taken — and buy nothing, because there is no
- * hurry to sweep again. An instance that dies mid-sweep costs at most one skipped interval; the documents
- * it did not reach are still selected by the next run, since `scrubbedAt` is stamped per document.
  *
  * ⚠️ **`null` means somebody else holds it, and that is a normal result, not a failure.** Every instance
  * ticks; all but one lose, every hour, for ever. Reporting that would drown the real thing this job has to
