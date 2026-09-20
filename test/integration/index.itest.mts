@@ -22,7 +22,7 @@ import {
 	SCRUBBED_PASSWORD_HASH,
 	scrubbedEmail
 } from '@axiumine/marketplace-common/others/accountScrub'
-import { recordReuseEvent } from '@axiumine/marketplace-common/others/recordReuseEvent'
+import { IReuseEvent, recordReuseEvent } from '@axiumine/marketplace-common/others/recordReuseEvent'
 import {
 	indexSession,
 	readSessionHash,
@@ -2798,14 +2798,14 @@ describe('session console (real sessions, real index, real reuse trail)', () => 
 		const session = await withAdmin()
 		const _id = new mongoose.Types.ObjectId()
 		const accountId = _id.toHexString()
-		const older = {
+		const older: IReuseEvent = {
 			familyId: randomUUID(),
 			tier: TIER.shopOwner,
 			accountId,
 			action: 'refreshTokenReplayed',
 			at: '1754784000000'
 		}
-		const newer = { ...older, familyId: randomUUID(), at: '1754784060000' }
+		const newer: IReuseEvent = { ...older, familyId: randomUUID(), at: '1754784060000' }
 
 		seededKeys.push(reuseEventsKey(TIER.shopOwner, accountId))
 

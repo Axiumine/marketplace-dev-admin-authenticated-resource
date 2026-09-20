@@ -36,7 +36,7 @@ const itemCategory = { name: ' Footwear ', slug: ' footwear ', idParent, positio
 /** The same category once `validateItemCategory` is done with it. */
 const validated = { name: 'Footwear', slug: 'footwear', idParent, position: 3 }
 
-type Resolver = { resolve: (...a: never[]) => unknown }
+type Resolver = { resolve: (...a: never[]) => Promise<unknown> }
 
 const run = (mutation: Resolver, args: unknown) => mutation.resolve(null as never, args as never)
 

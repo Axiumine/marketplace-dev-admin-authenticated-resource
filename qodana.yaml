@@ -168,9 +168,17 @@ exclude:
   #
   # Scoped to test/integration/, not disabled globally: if a genuinely shortenable
   # import ever appears in src/, it must still be reported.
+  #
+  # Widened to the whole test/ tree once yarn typecheck (tsconfig.test.json) started
+  # gating test/ too: the rule also fires one directory up, on plain files rather than
+  # index.mts, e.g. `from '../src/lib/auth/makeAuthCtx.mts'` -> `'../src/lib/auth/makeAuthCtx'`,
+  # dropping the extension rather than the filename. Same NodeNext resolver, same failure
+  # mode — and now it does not even reach vitest: `allowImportingTsExtensions` requires the
+  # extension whenever one is written, so a shortened relative import fails tsc itself
+  # (TS2835, "Relative import paths need explicit file extensions") before a test can run.
   - name: ES6PreferShortImport
     paths:
-      - test/integration
+      - test
 
 #Execute shell command before Qodana execution (Applied in CI/CD pipeline)
 #bootstrap: sh ./prepare-qodana.sh

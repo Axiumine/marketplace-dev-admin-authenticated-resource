@@ -18,6 +18,12 @@ import { describe, expect, it } from 'vitest'
 
 const FIXTURES = new URL('./fixtures/restrictedSyntax/', import.meta.url)
 
+// `ESLint` builds a fresh TypeScript program from `parserOptions.project` on every instantiation — cheap
+// alone, but `lintFixture`/`lintImports` call `new ESLint()` per case, and under parallel `test:cov` load
+// that crossed 5s and failed a real push round. One instance, reused by every case in this file, plus an
+// explicit timeout on the fixture-driving tests so a slow CI box still passes rather than flaking.
+const eslint = new ESLint()
+
 const TLS_MESSAGE = 'certificate verification stays on.'
 const PII_MESSAGE = 'the blanket Sentry PII flag is absent by decision, not set to false.'
 const BODY_MESSAGE = 'the request body is never captured.'
@@ -25,7 +31,7 @@ const HOOKS_MESSAGE = '`beforeSend` and `beforeSendTransaction` are wired togeth
 
 const lintFixture = async (name: string) => {
 	const code = await readFile(new URL(`${name}.mts.fixture`, FIXTURES), 'utf8')
-	const [result] = await new ESLint().lintText(code, { filePath: 'test/restrictedSyntaxFixture.mts' })
+	const [result] = await eslint.lintText(code, { filePath: 'test/restrictedSyntaxFixture.mts' })
 
 	return (result?.messages ?? []).filter((message) => message.ruleId === 'no-restricted-syntax')
 }
@@ -40,19 +46,23 @@ describe('the no-restricted-syntax block fires on every shape it names', () => {
 		['literal-node-tls-reject-unauthorized', TLS_MESSAGE],
 		['max-incoming-request-body-size', BODY_MESSAGE],
 		['before-send-without-transaction', HOOKS_MESSAGE]
-	])('reports %s exactly once', async (fixture, expected) => {
-		const messages = await lintFixture(fixture)
+	])(
+		'reports %s exactly once',
+		async (fixture, expected) => {
+			const messages = await lintFixture(fixture)
 
-		expect(messages).toHaveLength(1)
-		expect(messages[0]?.message).toContain(expected)
-		expect(messages[0]?.severity).toBe(2)
-	})
+			expect(messages).toHaveLength(1)
+			expect(messages[0]?.message).toContain(expected)
+			expect(messages[0]?.severity).toBe(2)
+		},
+		30_000
+	)
 })
 
 describe('the block stays silent on the shape the services carry', () => {
 	it('reports nothing on the compliant init options', async () => {
 		expect(await lintFixture('compliant')).toStrictEqual([])
-	})
+	}, 30_000)
 })
 
 const REDIS_DEL_MESSAGE = 'BCON-08: one Redis key per `del`.'
@@ -76,17 +86,21 @@ describe('the one-key-per-del rule fires on every batched shape', () => {
 		['redis-del-two-arguments', REDIS_DEL_MESSAGE],
 		['redis-del-array-argument', REDIS_DEL_MESSAGE],
 		['redis-del-spread-argument', REDIS_DEL_MESSAGE]
-	])('reports %s exactly once', async (fixture, expected) => {
-		const messages = await lintFixture(fixture)
+	])(
+		'reports %s exactly once',
+		async (fixture, expected) => {
+			const messages = await lintFixture(fixture)
 
-		expect(messages).toHaveLength(1)
-		expect(messages[0]?.message).toContain(expected)
-		expect(messages[0]?.severity).toBe(2)
-	})
+			expect(messages).toHaveLength(1)
+			expect(messages[0]?.message).toContain(expected)
+			expect(messages[0]?.severity).toBe(2)
+		},
+		30_000
+	)
 
 	it('reports nothing on the per-key shape the session code carries', async () => {
 		expect(await lintFixture('redis-del-compliant')).toStrictEqual([])
-	})
+	}, 30_000)
 })
 
 const SEED_MESSAGE = 'An integration test seeds through the raw driver'
@@ -110,7 +124,7 @@ const UNIT_TEST_PATH = 'test/restrictedImportsFixture.mts'
 
 const lintImports = async (name: string, filePath: string) => {
 	const code = await readFile(new URL(`${name}.mts.fixture`, FIXTURES), 'utf8')
-	const [result] = await new ESLint().lintText(code, { filePath })
+	const [result] = await eslint.lintText(code, { filePath })
 
 	return (result?.messages ?? []).filter((message) => message.ruleId === 'no-restricted-imports')
 }
@@ -122,13 +136,13 @@ describe('an integration test may not seed through a Mongoose model', () => {
 		expect(messages).toHaveLength(1)
 		expect(messages[0]?.message).toContain(SEED_MESSAGE)
 		expect(messages[0]?.severity).toBe(2)
-	})
+	}, 30_000)
 
 	it('stays silent on the same import in a unit test, which mocks the model by name', async () => {
 		expect(await lintImports('integration-seed-via-model', UNIT_TEST_PATH)).toStrictEqual([])
-	})
+	}, 30_000)
 
 	it('stays silent on the raw-driver seed every harness here already carries', async () => {
 		expect(await lintImports('integration-seed-via-raw-driver', ITEST_PATH)).toStrictEqual([])
-	})
+	}, 30_000)
 })
