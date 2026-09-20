@@ -18,6 +18,8 @@ Tier/concern split, port table, terminology, auth model live there. Not here.
 file, never to confirm a survivor is fixed. The threshold stays 100 regardless. To reproduce a survivor,
 apply the mutant by hand in the source and run `yarn test` instead — seconds, and it names the tests that
 should have failed. Full rationale: [`REPO.md`](./REPO.md).
+⚠️ Since ADR-055 the script has a second caller, `.github/workflows/gates.yml`, which runs it on
+every pull request — two callers, both automated, and a hand is neither.
 
 ## Rules
 
