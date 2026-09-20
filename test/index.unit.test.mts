@@ -278,7 +278,7 @@ describe('checkRequiredEnv', () => {
 	 * a variable they have not written yet goes looking for a line that is not in the file.
 	 */
 	it('reports a missing variable before a misshapen one', () => {
-		const env = { ...validEnv(), REDIS_URL: SHAPED.redisUrl, PORT: MISSHAPEN.port }
+		const env: Record<string, string> = { ...validEnv(), REDIS_URL: SHAPED.redisUrl, PORT: MISSHAPEN.port }
 		delete env.MONGODB_URI
 
 		try {

@@ -1,4 +1,5 @@
 import { trusted } from 'mongoose'
+import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { filterOf, mockFindChain } from './tblQueryMocks.mts'
@@ -25,6 +26,22 @@ type Args = Parameters<typeof shopOwnersActiveTblDb>[0]
 /** Every test overrides only what it is about; these are the resolver's own defaults. */
 function args(overrides: Partial<Args> = {}): Args {
 	return { offset: 0, limit: 25, disabled: false, deleted: false, sortBy: 'REGISTERED_AT', sortDir: 'DESC', ...overrides }
+}
+
+/**
+ * The `$or` branch of the filter, typed as `buildFilter` actually builds it — one `{ path: RegExp }`
+ * entry per searchable column. `filterOf` stays untyped on purpose (it serves every table's filter
+ * shape); this narrows the one field these tests read, and the `Array.isArray` check is what earns the
+ * cast rather than assuming it.
+ */
+function orOf(mockFind: Mock): Record<string, RegExp>[] {
+	const { $or } = filterOf(mockFind)
+
+	if (!Array.isArray($or)) {
+		throw new Error('expected the filter to carry an $or array')
+	}
+
+	return $or as Record<string, RegExp>[]
 }
 
 describe('shopOwnersActiveTblDb', () => {
@@ -179,7 +196,7 @@ describe('shopOwnersActiveTblDb', () => {
 				{ 'personalData.address.city': /^ros/i }
 			])
 
-			const [{ 'personalData.firstName': regex }] = filterOf(find).$or
+			const [{ 'personalData.firstName': regex }] = orOf(find)
 
 			// Asserted separately from the deep-equal above, which compares RegExp objects by source
 			// and flags but reads as if it were about the paths.
@@ -195,7 +212,7 @@ describe('shopOwnersActiveTblDb', () => {
 
 			await shopOwnersActiveTblDb(args({ search: 'a.b*c+d?e^f$g{h}i(j)k|l[m]n\\o' }))
 
-			const [{ 'personalData.firstName': regex }] = filterOf(find).$or
+			const [{ 'personalData.firstName': regex }] = orOf(find)
 
 			expect(regex.source).toBe('^a\\.b\\*c\\+d\\?e\\^f\\$g\\{h\\}i\\(j\\)k\\|l\\[m\\]n\\\\o')
 			expect(regex.test('a.b*c+d?e^f$g{h}i(j)k|l[m]n\\o')).toBe(true)
@@ -208,7 +225,7 @@ describe('shopOwnersActiveTblDb', () => {
 
 			await shopOwnersActiveTblDb(args({ search: 'ossi' }))
 
-			const [{ 'personalData.firstName': regex }] = filterOf(find).$or
+			const [{ 'personalData.firstName': regex }] = orOf(find)
 
 			expect(regex.test('Rivers')).toBe(false)
 			expect(regex.test('ossido')).toBe(true)
@@ -219,7 +236,7 @@ describe('shopOwnersActiveTblDb', () => {
 
 			await shopOwnersActiveTblDb(args({ search: '  ros  ' }))
 
-			expect(filterOf(find).$or[0]).toEqual({ 'personalData.firstName': /^ros/i })
+			expect(orOf(find)[0]).toEqual({ 'personalData.firstName': /^ros/i })
 		})
 
 		// A text box that has been cleared sends '' or '   ', and neither means "search for
