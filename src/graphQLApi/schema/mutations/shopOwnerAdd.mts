@@ -3,6 +3,7 @@ import { checkPwdLen } from '@axiumine/koa-utils/lib/checkPwdLen'
 import { tryCatchRethrow } from '@axiumine/koa-utils/lib/tryCatchRethrow'
 import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner'
 import { IShopOwnerSchema } from '@axiumine/marketplace-common/models/MongoDBInterfaces/IShopOwnerSchema'
+import { assertPasswordByteLength } from '@axiumine/marketplace-common/others/assertPasswordByteLength'
 import { GraphQLInputShopOwnerPersonalData } from '@axiumine/marketplace-common/schema/GraphQLInput/GraphQLInputShopOwnerPersonalData'
 import { ILoginInput } from '@axiumine/marketplace-common/schema/interfaces/ILoginInput'
 import { requiredEmail } from '@lib/validate/fields.mjs'
@@ -37,6 +38,11 @@ export const shopOwnerAdd = {
 			const email = requiredEmail(args.login.email.toLowerCase(), 'login.email')
 
 			checkPwdLen(args.login.password)
+			// `checkPwdLen` counts UTF-16 code units; this counts UTF-8 bytes, the unit bcrypt truncates
+			// on. A password heavy in emoji, accents or CJK can clear the check above while still
+			// running past 72 bytes. Same refusal shape as `checkPwdLen`'s own too-long branch — see the
+			// helper's own doc.
+			assertPasswordByteLength(args.login.password)
 
 			// Validated *and normalised* before the write, exactly like `shopOwnerUpdate` — the
 			// returned object is what reaches `create`, trimmed, with a blank landline dropped rather

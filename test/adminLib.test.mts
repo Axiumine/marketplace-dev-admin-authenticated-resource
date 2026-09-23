@@ -179,6 +179,34 @@ describe('funAdminUpdatePwd', () => {
 			expect(findById).not.toHaveBeenCalled()
 		})
 
+		// ⚠️ **B11**: exercises the real `assertPasswordByteLength` — the guard `checkPwdLen`'s UTF-16
+		// `.length` count cannot catch. 71 ASCII bytes plus one precomposed `é` is 72 UTF-16 code units,
+		// the same count a 72-character ASCII password has, but 73 UTF-8 bytes: past what bcrypt hashes.
+		it('rejects a new password that is 72 characters but 73 UTF-8 bytes', async () => {
+			const passwordNew = `${'a'.repeat(71)}é`
+
+			expect(passwordNew).toHaveLength(72)
+			expect(Buffer.byteLength(passwordNew, 'utf8')).toBe(73)
+			await expect(funAdminUpdatePwd(_id, OLD, passwordNew)).rejects.toMatchObject({
+				message: 'Bad Request',
+				extensions: { http: { status: 400 }, description: 'Password is too long' }
+			})
+
+			expect(findById).not.toHaveBeenCalled()
+		})
+
+		// The boundary's accepting side: exactly 72 UTF-8 bytes must clear the guard untouched.
+		it('accepts a new password of exactly 72 UTF-8 bytes', async () => {
+			const passwordNew = 'a'.repeat(72)
+			expect(Buffer.byteLength(passwordNew, 'utf8')).toBe(72)
+			mockAdmin(storedAdmin())
+			mockUpdate(1)
+
+			await expect(funAdminUpdatePwd(_id, OLD, passwordNew)).resolves.toBeUndefined()
+
+			expect(encryptPassword).toHaveBeenCalledExactlyOnceWith(passwordNew)
+		})
+
 		it('rejects a new password identical to the old one', async () => {
 			await expect(funAdminUpdatePwd(_id, OLD, OLD)).rejects.toMatchObject({
 				message: 'Bad Request',

@@ -276,6 +276,38 @@ describe('shopOwnerAdd', () => {
 		expect(create).not.toHaveBeenCalled()
 	})
 
+	// ⚠️ **B11**: exercises the real `assertPasswordByteLength` — the guard `checkPwdLen`'s UTF-16
+	// `.length` count cannot catch. 71 ASCII bytes plus one precomposed `é` is 72 UTF-16 code units, the
+	// same count a 72-character ASCII password has, but 73 UTF-8 bytes: past what bcrypt actually hashes.
+	it('refuses a login.password that is 72 characters but 73 UTF-8 bytes, without touching the database', async () => {
+		const password = `${'a'.repeat(71)}é`
+		expect(password.length).toBe(72)
+		expect(Buffer.byteLength(password, 'utf8')).toBe(73)
+
+		expect(
+			await rejection(shopOwnerAdd.resolve(null, { login: { email: 'shop@marketplace.test', password }, personalData }))
+		).toEqual({
+			message: 'Bad Request',
+			http: { status: 400 },
+			description: 'Password is too long'
+		})
+
+		expect(create).not.toHaveBeenCalled()
+	})
+
+	// The boundary's accepting side: exactly 72 UTF-8 bytes must pass through to the write untouched.
+	it('accepts a login.password of exactly 72 UTF-8 bytes', async () => {
+		const password = 'a'.repeat(72)
+		expect(Buffer.byteLength(password, 'utf8')).toBe(72)
+
+		await expect(
+			shopOwnerAdd.resolve(null, { login: { email: 'shop@marketplace.test', password }, personalData })
+		).resolves.toBe(true)
+
+		const [doc] = create.mock.calls[0]
+		expect(doc.login.password).toBe(password)
+	})
+
 	// Same contract `shopOwnerUpdate` has, and it has to be the same: both mutations take the one
 	// shared input type, so anything the update path normalises can arrive here too. Untrimmed text is
 	// trimmed, a lower-case province is upper-cased, a blank landline is dropped from the object
