@@ -472,7 +472,10 @@ describe('object types', () => {
 		])
 		expect(fieldsOf('GraphQLShopOwnerPersonalDataById')).toEqual(['firstName', 'lastName', 'address', 'birth', 'contacts'])
 		expect(fieldsOf('GraphQLShopOwnerContacts')).toEqual(['email', 'landline', 'mobile'])
-		expect(fieldsOf('GraphQLResetPwd')).toEqual(['resetDateReq', 'resetHash'])
+		// ⚠️ `resetHash` is absent, not merely unselected: it is the live, unencrypted password-reset
+		// bearer token, and exposing it here is what let any admin read one back and take a shop owner's
+		// account over with no audit trail. `resetDateReq` is the whole of the non-secret metadata.
+		expect(fieldsOf('GraphQLResetPwd')).toEqual(['resetDateReq'])
 		expect(fieldsOf('GraphQLBirth')).toEqual(['date'])
 	})
 

@@ -75,11 +75,17 @@ const GraphQLShopOwnerContacts = new GraphQLObjectType({
 		mobile: { type: new GraphQLNonNull(GraphQLString) }
 	})
 })
+/**
+ * ⚠️ **`resetHash` is deliberately absent, not merely unselected.** It is the live, unencrypted
+ * password-reset bearer token — stored in the clear for comparison, and exactly what the public
+ * `updatePwd` mutation accepts back with no other identity proof for 60 minutes. Exposing it here would
+ * let any admin (or a stolen admin token) read a shop owner's live reset token and take the account over
+ * with no audit trail. `resetDateReq` alone is enough to answer "is a reset pending, and since when".
+ */
 const GraphQLResetPwd = new GraphQLObjectType({
 	name: 'GraphQLResetPwd',
 	fields: () => ({
-		resetDateReq: { type: new GraphQLNonNull(GraphQLDateTime) },
-		resetHash: { type: new GraphQLNonNull(GraphQLString) }
+		resetDateReq: { type: new GraphQLNonNull(GraphQLDateTime) }
 	})
 })
 
