@@ -4,10 +4,11 @@ const RedisDisconnect = vi.fn()
 const MongoDBDisconnect = vi.fn()
 const captureMessage = vi.fn()
 const captureException = vi.fn()
+const flush = vi.fn()
 
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ RedisDisconnect }))
 vi.mock('@axiumine/koa-utils/dataSources/MongoDB', () => ({ MongoDBDisconnect }))
-vi.mock('@sentry/node', () => ({ captureMessage, captureException }))
+vi.mock('@sentry/node', () => ({ captureMessage, captureException, flush }))
 
 const { disconnectAllDatabases } = await import('../src/lib/db/disconnectAllDatabases.mts')
 
@@ -21,6 +22,7 @@ describe('disconnectAllDatabases', () => {
 		MongoDBDisconnect.mockReset().mockResolvedValue(undefined)
 		captureMessage.mockReset()
 		captureException.mockReset()
+		flush.mockReset().mockResolvedValue(true)
 		exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
 	})
 
@@ -29,12 +31,16 @@ describe('disconnectAllDatabases', () => {
 		vi.useRealTimers()
 	})
 
-	it('disconnects both datasources and exits with 0 by default', async () => {
+	it('disconnects both datasources, flushes Sentry, and exits with 0 by default', async () => {
 		await disconnectAllDatabases()
 
 		expect(RedisDisconnect).toHaveBeenCalledTimes(1)
 		expect(MongoDBDisconnect).toHaveBeenCalledTimes(1)
 		expect(captureMessage).toHaveBeenCalledWith('All databases disconnected successfully', 'info')
+		// ⚠️ B14: the capture above is worthless if the process exits before the SDK gets to send it —
+		// flush() has to run, and it has to run before exit() does.
+		expect(flush).toHaveBeenCalledExactlyOnceWith(2000)
+		expect(flush.mock.invocationCallOrder[0]).toBeLessThan(exit.mock.invocationCallOrder[0] as number)
 		expect(exit).toHaveBeenCalledExactlyOnceWith(0)
 	})
 
@@ -53,6 +59,8 @@ describe('disconnectAllDatabases', () => {
 		expect(captureException).toHaveBeenCalledWith(expect.any(Error), {
 			extra: { detail: 'Error during database disconnection' }
 		})
+		expect(flush).toHaveBeenCalledExactlyOnceWith(2000)
+		expect(flush.mock.invocationCallOrder[0]).toBeLessThan(exit.mock.invocationCallOrder[0] as number)
 		expect(exit).toHaveBeenCalledExactlyOnceWith(1)
 	})
 

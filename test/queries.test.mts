@@ -71,7 +71,10 @@ function chain(result: unknown, withSelect: boolean) {
 }
 
 describe('shopOwnerById', () => {
-	beforeEach(() => findById.mockReset())
+	beforeEach(() => {
+		findById.mockReset()
+		captureException.mockReset()
+	})
 
 	// The projection is the query's contract with GraphQLShopOwnerById: a field dropped here
 	// surfaces as a null on a NonNull and blows up the whole response, so it is asserted verbatim.
@@ -85,15 +88,15 @@ describe('shopOwnerById', () => {
 		expect(findById).toHaveBeenCalledExactlyOnceWith({ _id })
 		expect(builder.select).toHaveBeenCalledExactlyOnceWith(
 			'_id login.email login.firstLogin login.lastLogin login.onboardingStep login.onboardingDone login.rememberMe ' +
-				'registeredAt personalData waitApprov notes resetPwd disabled disabledBy disabledReason deleted'
+				'registeredAt personalData waitApprov notes resetPwd.resetDateReq disabled disabledBy disabledReason deleted'
 		)
 	})
 
 	// ⚠️ The verbatim assertion above cannot tell a real path from a misspelt one — it only says the
 	// string did not change, and the string was wrong: `note` for `notes`, which Mongoose drops from a
 	// projection without a word, leaving the admin note reading as blank in the admin UI. This test
-	// asks the schema instead. `personalData` and `resetPwd` are sub-documents named as a whole, so
-	// `path()` answers for them too; the `login.*` half is checked by the same call on the nested path.
+	// asks the schema instead. `personalData` is a sub-document named as a whole, so `path()` answers
+	// for it too; the `login.*` and `resetPwd.*` halves are checked by the same call on the nested path.
 	it('names only real paths on ShopOwner, so no field can be projected into silence', async () => {
 		// The model is mocked at the top of this file down to a bare `findById`, so the real schema has
 		// to be pulled in past the mock. This is the only test here that needs the actual shape.
@@ -114,6 +117,32 @@ describe('shopOwnerById', () => {
 		// `undefined` for anything the collection has never heard of — which is the whole check.
 		for (const field of projection.split(' '))
 			expect({ field, isRealPath: ShopOwner.schema.path(field) !== undefined }).toEqual({ field, isRealPath: true })
+	})
+
+	// The type is a NonNull field: a stale or mistyped id must answer the platform's usual 404 rather
+	// than the opaque "Cannot return null for non-nullable field" graphql-js raises when a resolver
+	// hands it a bare null.
+	it('raises a 404 when the id names no shopOwner', async () => {
+		findById.mockReturnValueOnce(chain(null, true))
+
+		expect(await rejection(shopOwnerById.resolve(null, { idShopOwner: _id }))).toEqual({
+			message: 'Oops',
+			http: { status: 404 },
+			description: 'shopOwner not found'
+		})
+		expect(captureException).not.toHaveBeenCalled()
+	})
+
+	// A malformed id throws an uncaught Mongoose CastError today; wrapped in the same try/catch +
+	// tryCatchRethrow every sibling read resolver uses, it becomes a reported, generic 500 instead.
+	it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
+		const error = new Error('Cast to ObjectId failed')
+		const lean = vi.fn().mockRejectedValue(error)
+		const select = vi.fn().mockReturnValue({ lean })
+		findById.mockReturnValueOnce({ select })
+
+		await expect(shopOwnerById.resolve(null, { idShopOwner: _id })).rejects.toThrow('Internal Server Error')
+		expect(captureException).toHaveBeenCalledWith(error)
 	})
 })
 

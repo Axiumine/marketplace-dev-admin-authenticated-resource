@@ -64,7 +64,10 @@ export interface IScrubCandidate {
  */
 export interface IScrubbableAccountModel {
 	find(filter: object, projection: string): { lean(): PromiseLike<IScrubCandidate[]> }
-	updateOne(filter: { _id: Types.ObjectId }, update: IAccountScrub): { exec(): PromiseLike<unknown> }
+	updateOne(
+		filter: { _id: Types.ObjectId } & ReturnType<typeof scrubCandidates>,
+		update: IAccountScrub
+	): { exec(): PromiseLike<unknown> }
 }
 
 /**
@@ -88,13 +91,25 @@ export interface IScrubbableAccountModel {
  * No transaction. Each document is scrubbed independently and the stamp is part of the same update, so a
  * crash mid-sweep leaves some accounts scrubbed and the rest still selected by the next run — which is the
  * behaviour wanted. Wrapping the batch would make one failed document undo everybody else's erasure.
+ *
+ * ⚠️ **The eligibility filter is re-applied on the write, not just the read.** `find` above is a snapshot:
+ * between it and this loop's `updateOne`, ADR-046's undo flow can restore a closed account that is still
+ * sitting in this batch — realistic after any admin-service downtime, which is exactly when a backlog of
+ * candidates piles up. Addressing the write by `_id` alone would still match that just-restored document
+ * and silently overwrite it with scrub placeholders. Carrying `scrubCandidates(cutoff)` into the `updateOne`
+ * filter itself closes that: a restore unsets `deleted` (or bumps it past the cutoff), so the filter no
+ * longer matches and the write becomes a no-op on that one document instead of destroying it.
  */
 export async function sweepTier(model: IScrubbableAccountModel, tier: ScrubbableTier, now: Date, cutoff: Date): Promise<number> {
-	const candidates = await model.find(scrubCandidates(cutoff), '_id disabled').lean()
+	const eligible = scrubCandidates(cutoff)
+	const candidates = await model.find(eligible, '_id disabled').lean()
 
 	for (const candidate of candidates) {
 		await model
-			.updateOne({ _id: candidate._id }, buildAccountScrub(tier, candidate._id.toHexString(), now, candidate.disabled === true))
+			.updateOne(
+				{ _id: candidate._id, ...eligible },
+				buildAccountScrub(tier, candidate._id.toHexString(), now, candidate.disabled === true)
+			)
 			.exec()
 	}
 

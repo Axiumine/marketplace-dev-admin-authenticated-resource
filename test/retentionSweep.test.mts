@@ -102,8 +102,30 @@ describe('sweepTier', () => {
 		await expect(sweepTier(model, 'user', NOW, CUTOFF)).resolves.toBe(2)
 
 		expect(model.updateOne).toHaveBeenCalledTimes(2)
-		expect(model.updateOne.mock.calls[0][0]).toEqual({ _id: _idA })
-		expect(model.updateOne.mock.calls[1][0]).toEqual({ _id: _idB })
+		expect(model.updateOne.mock.calls[0][0]).toEqual({ _id: _idA, ...scrubCandidates(CUTOFF) })
+		expect(model.updateOne.mock.calls[1][0]).toEqual({ _id: _idB, ...scrubCandidates(CUTOFF) })
+	})
+
+	/*
+	 * ⚠️ **The fix for the restore race.** `sweepTier` snapshots its candidates with one `find`, and a
+	 * concurrent `undoDelete` (ADR-046) can restore one of them before its turn in this loop — realistic
+	 * after any admin-service downtime, which is exactly when a backlog piles up. Addressing the write by
+	 * `_id` alone would still match the just-restored document and overwrite it with scrub placeholders;
+	 * carrying the read filter into the write is what makes that write a no-op instead. The `trusted()`
+	 * marker has to survive the trip too, or `sanitizeFilter` rewrites `scrubbedAt` into a filter that
+	 * matches everything — the exact silent-no-op failure `scrubCandidates`'s own tests guard.
+	 */
+	it('re-applies the read filter on the write, so a document restored in the window no longer matches', async () => {
+		const model = fakeModel([{ _id: _idA }])
+
+		await sweepTier(model, 'user', NOW, CUTOFF)
+
+		const [filter] = model.updateOne.mock.calls[0]
+		expect(Object.keys(filter).sort()).toEqual(['_id', 'deleted', 'scrubbedAt'])
+		expect(filter.deleted.$lte).toBe(CUTOFF)
+		expect(filter.scrubbedAt.$exists).toBe(false)
+		expect(symbolsOf(filter.deleted)).toStrictEqual([TRUSTED])
+		expect(symbolsOf(filter.scrubbedAt)).toStrictEqual([TRUSTED])
 	})
 
 	/*

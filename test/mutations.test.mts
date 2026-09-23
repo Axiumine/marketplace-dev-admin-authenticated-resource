@@ -74,7 +74,7 @@ const { userDel } = await import('../src/graphQLApi/schema/mutations/userDel.mts
 const { userUpdateStatus } = await import('../src/graphQLApi/schema/mutations/userUpdateStatus.mts')
 
 const _id = new Types.ObjectId('507f1f77bcf86cd799439011')
-const login = { email: 'shop@marketplace.test', password: 'clear' } as never
+const login = { email: 'shop@marketplace.test', password: 'clearPassword1' } as never
 /**
  * The admin the request is authenticated as — deliberately NOT `_id`, which is the account being acted
  * on. Sharing one id between the two would make every "the actor comes off the session" assertion below
@@ -223,11 +223,89 @@ describe('shopOwnerAdd', () => {
 		await expect(shopOwnerAdd.resolve(null, { login, personalData })).resolves.toBe(true)
 
 		const [doc] = create.mock.calls[0]
-		expect(doc.login).toBe(login)
+		// `toEqual`, not `toBe`: `login` is rebuilt with the normalised email — see the normalisation
+		// test below — so it is a new object even when, as here, normalising the fixture changes nothing.
+		expect(doc.login).toEqual(login)
+		expect(doc.login.password).toBe('clearPassword1')
 		// `toEqual`, not `toBe`: the personalData written is the validator's return value, a new object.
 		// It is deliberately not the argument — see the normalisation test below.
 		expect(doc.personalData).toEqual(personalData)
 		expect(doc.registeredAt).toBeInstanceOf(Date)
+	})
+
+	// ⚠️ Same contract `shopOwnerUpdateEmail`/`funAdminUpdatePwd` hold their own credential paths to:
+	// nothing on this tier writes a login without checking it first. Without `requiredEmail` and
+	// `checkPwdLen` here, `LoginSubDocSchema`'s `pre('save')` bcrypt-hashes whatever it is given —
+	// including a malformed address and an effectively blank password — into a permanent credential.
+	it('normalises login.email before it is written', async () => {
+		await expect(
+			shopOwnerAdd.resolve(null, { login: { email: '  Shop@Marketplace.TEST  ', password: 'clearPassword1' }, personalData })
+		).resolves.toBe(true)
+
+		const [doc] = create.mock.calls[0]
+		expect(doc.login.email).toBe('shop@marketplace.test')
+	})
+
+	it('refuses a malformed login.email without touching the database', async () => {
+		expect(
+			await rejection(shopOwnerAdd.resolve(null, { login: { email: 'not-an-email', password: 'clearPassword1' }, personalData }))
+		).toEqual({
+			message: 'Bad Request',
+			http: { status: 400 },
+			description: 'login.email: invalid email address'
+		})
+
+		expect(create).not.toHaveBeenCalled()
+		expect(captureException).not.toHaveBeenCalled()
+	})
+
+	// The upper bound matters as much as the lower one: bcrypt hashes at most 72 bytes and silently
+	// ignores the rest, so an unbounded password would be stored as its own prefix.
+	it.each([
+		['too short', 'a'.repeat(9), 'Password is too short'],
+		['too long', 'a'.repeat(73), 'Password is too long']
+	])('refuses a login.password that is %s, without touching the database', async (_label, password, description) => {
+		expect(
+			await rejection(shopOwnerAdd.resolve(null, { login: { email: 'shop@marketplace.test', password }, personalData }))
+		).toEqual({
+			message: 'Bad Request',
+			http: { status: 400 },
+			description
+		})
+
+		expect(create).not.toHaveBeenCalled()
+	})
+
+	// ⚠️ **B11**: exercises the real `assertPasswordByteLength` — the guard `checkPwdLen`'s UTF-16
+	// `.length` count cannot catch. 71 ASCII bytes plus one precomposed `é` is 72 UTF-16 code units, the
+	// same count a 72-character ASCII password has, but 73 UTF-8 bytes: past what bcrypt actually hashes.
+	it('refuses a login.password that is 72 characters but 73 UTF-8 bytes, without touching the database', async () => {
+		const password = `${'a'.repeat(71)}é`
+		expect(password.length).toBe(72)
+		expect(Buffer.byteLength(password, 'utf8')).toBe(73)
+
+		expect(
+			await rejection(shopOwnerAdd.resolve(null, { login: { email: 'shop@marketplace.test', password }, personalData }))
+		).toEqual({
+			message: 'Bad Request',
+			http: { status: 400 },
+			description: 'Password is too long'
+		})
+
+		expect(create).not.toHaveBeenCalled()
+	})
+
+	// The boundary's accepting side: exactly 72 UTF-8 bytes must pass through to the write untouched.
+	it('accepts a login.password of exactly 72 UTF-8 bytes', async () => {
+		const password = 'a'.repeat(72)
+		expect(Buffer.byteLength(password, 'utf8')).toBe(72)
+
+		await expect(
+			shopOwnerAdd.resolve(null, { login: { email: 'shop@marketplace.test', password }, personalData })
+		).resolves.toBe(true)
+
+		const [doc] = create.mock.calls[0]
+		expect(doc.login.password).toBe(password)
 	})
 
 	// Same contract `shopOwnerUpdate` has, and it has to be the same: both mutations take the one

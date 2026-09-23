@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const captureException = vi.fn()
 const captureMessage = vi.fn()
+const flush = vi.fn()
 const RedisConnect = vi.fn()
 const MongoDBConnect = vi.fn()
 const initClamScan = vi.fn()
@@ -20,7 +21,7 @@ const startRetentionSweeper = vi.fn()
 /** The NodeClam initClamScan() hands back — identity is all start() does with it, so it needs no behaviour. */
 const clamScanner = { getVersion: vi.fn() }
 
-vi.mock('@sentry/node', () => ({ captureException, captureMessage }))
+vi.mock('@sentry/node', () => ({ captureException, captureMessage, flush }))
 // redisClient.hGetAll backs the auth path every request in the createServer block below travels —
 // everything else here only drives start()'s failure paths, which never reach hGetAll.
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ RedisConnect, redisClient: { hGetAll } }))
@@ -384,6 +385,7 @@ describe('process handlers', () => {
 
 	beforeEach(() => {
 		captureException.mockReset()
+		flush.mockReset().mockResolvedValue(true)
 		exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
 	})
 	afterEach(() => exit.mockRestore())
@@ -396,11 +398,20 @@ describe('process handlers', () => {
 		expect(exit).not.toHaveBeenCalled()
 	})
 
-	it('onUncaughtException reports the error and exits 1', () => {
+	// ⚠️ B14: a synchronous process.exit() right after captureException() would kill the process before
+	// Sentry's own background flush gets a turn, so the report is never delivered. The handler cannot
+	// `await`, so it defers the exit to flush()'s own `.finally()` instead.
+	it('onUncaughtException reports the error, flushes Sentry, then exits 1', async () => {
 		const error = new Error('kaboom')
+
 		onUncaughtException(error)
+
 		expect(captureException).toHaveBeenCalledWith(error)
-		expect(exit).toHaveBeenCalledWith(1)
+		// The exit must not happen synchronously, before flush() has had a chance to run.
+		expect(exit).not.toHaveBeenCalled()
+
+		await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(1))
+		expect(flush).toHaveBeenCalledExactlyOnceWith(2000)
 	})
 })
 
@@ -414,6 +425,7 @@ describe('process handlers', () => {
  */
 function armBootMocks(): void {
 	captureException.mockReset()
+	flush.mockReset().mockResolvedValue(true)
 	RedisConnect.mockReset().mockResolvedValue(undefined)
 	MongoDBConnect.mockReset().mockResolvedValue(undefined)
 	// The scanner start() gets back, and the only member anything downstream of it reads.
@@ -443,7 +455,7 @@ describe('start (failure path)', () => {
 		vi.unstubAllEnvs()
 	})
 
-	it('reports to Sentry and disconnects with code 1 when MongoDB fails to connect', async () => {
+	it('reports to Sentry, flushes, and disconnects with code 1 when MongoDB fails to connect', async () => {
 		const error = new Error('mongo boom')
 		MongoDBConnect.mockRejectedValueOnce(error)
 
@@ -452,6 +464,10 @@ describe('start (failure path)', () => {
 		expect(MongoDBConnect).toHaveBeenCalledTimes(1)
 		expect(errorLog).toHaveBeenCalledExactlyOnceWith('error', error)
 		expect(captureException).toHaveBeenCalledWith(error)
+		// ⚠️ B14: the capture above is only worth reporting if it is actually sent — flush() has to run,
+		// and it has to run before the disconnect-and-exit that follows it.
+		expect(flush).toHaveBeenCalledExactlyOnceWith(2000)
+		expect(flush.mock.invocationCallOrder[0]).toBeLessThan(disconnectAllDatabases.mock.invocationCallOrder[0] as number)
 		expect(disconnectAllDatabases).toHaveBeenCalledWith(1)
 	})
 
