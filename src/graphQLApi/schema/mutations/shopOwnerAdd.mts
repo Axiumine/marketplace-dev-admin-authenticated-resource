@@ -1,9 +1,11 @@
 import { GraphQLInputLogin } from '@axiumine/koa-utils/graphQL/schema/GraphQLInput/GraphQLInputLogin'
+import { checkPwdLen } from '@axiumine/koa-utils/lib/checkPwdLen'
 import { tryCatchRethrow } from '@axiumine/koa-utils/lib/tryCatchRethrow'
 import { ShopOwner } from '@axiumine/marketplace-common/models/MongoDB/ShopOwner'
 import { IShopOwnerSchema } from '@axiumine/marketplace-common/models/MongoDBInterfaces/IShopOwnerSchema'
 import { GraphQLInputShopOwnerPersonalData } from '@axiumine/marketplace-common/schema/GraphQLInput/GraphQLInputShopOwnerPersonalData'
 import { ILoginInput } from '@axiumine/marketplace-common/schema/interfaces/ILoginInput'
+import { requiredEmail } from '@lib/validate/fields.mjs'
 import { IShopOwnerPersonalDataInput, validateShopOwnerPersonalData } from '@lib/validate/validateShopOwnerPersonalData.mjs'
 import { GraphQLBoolean, GraphQLError, GraphQLNonNull } from 'graphql'
 import { Types } from 'mongoose'
@@ -26,6 +28,16 @@ export const shopOwnerAdd = {
 		// the declared Boolean — which GraphQLBoolean refuses to serialize. Now it matches its
 		// siblings (shopOwnerDel / shopOwnerUpdate): do the work, rethrow, return true.
 		try {
+			// `login` gets the same treatment `shopOwnerUpdateEmail`/`funAdminUpdatePwd` give it, and every
+			// sibling on this tier that writes a credential: `requiredEmail` trims and shape-checks, this
+			// mutation lower-cases on top (the platform's own normalisation — see
+			// `shopOwnerRegister`/`userRegister` on the public tier), and `checkPwdLen` enforces the same
+			// bounds `funAdminUpdatePwd` does. Without either, `LoginSubDocSchema`'s `pre('save')` hashes
+			// whatever it is given — including `''` — into a permanent, guessable credential.
+			const email = requiredEmail(args.login.email.toLowerCase(), 'login.email')
+
+			checkPwdLen(args.login.password)
+
 			// Validated *and normalised* before the write, exactly like `shopOwnerUpdate` — the
 			// returned object is what reaches `create`, trimmed, with a blank landline dropped rather
 			// than sent as null, and with the address point given the `type: 'Point'` the client never
@@ -38,7 +50,7 @@ export const shopOwnerAdd = {
 				// document that has none throws "document must have an _id before saving" and never
 				// reaches MongoDB. Same line every other *Add resolver on this tier carries (companyAdd).
 				_id: new Types.ObjectId(),
-				login: args.login,
+				login: { email, password: args.login.password },
 				personalData: validateShopOwnerPersonalData(args.personalData, new Date()),
 				registeredAt: new Date()
 			}
