@@ -1,11 +1,36 @@
-import { Types } from 'mongoose'
+import { trusted, Types } from 'mongoose'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { rejection } from './errors.mts'
 
 const create = vi.fn()
 const updateOne = vi.fn()
-const shopOwnerExists = vi.fn()
+const shopOwnerFindOneAndUpdate = vi.fn()
+
+/*
+ * `vi.hoisted`, unlike a plain top-level const, because this file imports `mongoose` itself: the mock
+ * factory below runs while that import is evaluated, before any ordinary top-level `const` here has been
+ * initialised. Same shape as `catalogueLib.test.mts`. The stand-in `withTransaction` runs the work it is
+ * handed exactly once — a real retry is not needed by anything this file asserts.
+ */
+const { endSession, session, startSession, withTransaction } = vi.hoisted(() => {
+	const endSessionFn = vi.fn()
+	const withTransactionFn = vi.fn(async (work: () => Promise<void>) => await work())
+	const sessionObj = { withTransaction: withTransactionFn, endSession: endSessionFn }
+
+	return {
+		endSession: endSessionFn,
+		session: sessionObj,
+		startSession: vi.fn(async () => sessionObj),
+		withTransaction: withTransactionFn
+	}
+})
+
+vi.mock('mongoose', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('mongoose')>()
+
+	return { ...actual, default: { ...actual.default, startSession } }
+})
 
 // No `deleteOne`: since `company` gained its `deleted` field the delete is a `$set` like every other
 // one on this tier, and leaving the method on the mock would let a rewrite go back to a hard delete
@@ -15,7 +40,7 @@ vi.mock('@axiumine/marketplace-common/models/MongoDB/Company', () => ({
 }))
 
 vi.mock('@axiumine/marketplace-common/models/MongoDB/ShopOwner', () => ({
-	ShopOwner: { exists: shopOwnerExists }
+	ShopOwner: { findOneAndUpdate: shopOwnerFindOneAndUpdate }
 }))
 
 const { duplicateKey } = await import('../src/lib/mongo/duplicateKey.mts')
@@ -74,16 +99,23 @@ describe('duplicateKey', () => {
 	})
 })
 
+/** The `.session(s).lean()` chain every write-based hold in this tier ends in. */
+const sessioned = (tail: object) => ({ session: vi.fn().mockReturnValue(tail) })
+const finding = (doc: unknown) => sessioned({ lean: vi.fn().mockResolvedValue(doc) })
+
 describe('funCompanyAdd', () => {
 	beforeEach(() => {
-		create.mockReset().mockResolvedValue({})
-		shopOwnerExists.mockReset().mockResolvedValue({ _id: idShopOwner })
+		startSession.mockClear()
+		withTransaction.mockClear()
+		endSession.mockClear()
+		create.mockReset().mockResolvedValue(undefined)
+		shopOwnerFindOneAndUpdate.mockReset().mockReturnValue(finding({ _id: idShopOwner }))
 	})
 
-	it('writes the company under the owner, minting the id', async () => {
+	it('writes the company under the owner, minting the id, inside the transaction', async () => {
 		await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
 
-		const [doc] = create.mock.calls[0]
+		const [[doc], options] = create.mock.calls[0]
 		expect(doc._id).toBeInstanceOf(Types.ObjectId)
 		expect(doc.idShopOwner).toBe(idShopOwner)
 		// Sorted, because the assertion sorts: the literal has to be in the same order or the comparison
@@ -102,6 +134,10 @@ describe('funCompanyAdd', () => {
 			'uniqueCode',
 			'vatNumber'
 		])
+		// ⚠️ The array form because it is the only one that carries options, and the session has to be
+		// one of them — a create outside the session commits on its own and outlives an abort of the
+		// transaction that checked the owner.
+		expect(options).toEqual({ session })
 	})
 
 	// ⚠️ Stamped here, never taken from the input: publishing is `companyUpdatePublished`, a second call
@@ -111,7 +147,7 @@ describe('funCompanyAdd', () => {
 	it('stamps the new company as unpublished', async () => {
 		await funCompanyAdd(idShopOwner, data)
 
-		expect(create.mock.calls[0][0].published).toBe(false)
+		expect(create.mock.calls[0][0][0].published).toBe(false)
 	})
 
 	// Every marketplace-common model declares `_id` without a default, which switches auto-generation
@@ -120,13 +156,13 @@ describe('funCompanyAdd', () => {
 		await funCompanyAdd(idShopOwner, data)
 		await funCompanyAdd(idShopOwner, data)
 
-		expect(create.mock.calls[0][0]._id).not.toEqual(create.mock.calls[1][0]._id)
+		expect(create.mock.calls[0][0][0]._id).not.toEqual(create.mock.calls[1][0][0]._id)
 	})
 
 	// ⚠️ The check that stops an orphan: `shopOwnerCompanies` lists by owner, so a company under an
 	// shopOwner that does not exist is reachable only through the same wrong id that created it.
 	it('refuses to create a company under an shopOwner that does not exist', async () => {
-		shopOwnerExists.mockResolvedValueOnce(null)
+		shopOwnerFindOneAndUpdate.mockReturnValueOnce(finding(null))
 
 		expect(await rejection(funCompanyAdd(idShopOwner, data))).toEqual({
 			message: 'Oops',
@@ -136,18 +172,59 @@ describe('funCompanyAdd', () => {
 		expect(create).not.toHaveBeenCalled()
 	})
 
-	// Soft-deleted counts as absent, and `trusted()` is what keeps the `$exists` clause from being
-	// rewritten by mongoose's global sanitizeFilter into a literal comparison that matches nothing.
-	it('looks the owner up by id, excluding the soft-deleted', async () => {
-		await funCompanyAdd(idShopOwner, data)
+	/*
+	 * ⚠️ **The B49 fix.** The read is a write, mirroring `throwIfParentNotTopLevel`: `funShopOwnerDelete`
+	 * writes this exact document (`ShopOwner.updateOne({ _id, deleted: … }, …)`) inside its own
+	 * transaction, so the `$inc` here puts both transactions on one document. Without it, a snapshot-
+	 * isolated read and a concurrent `shopOwnerDel` can each see a consistent snapshot and both commit —
+	 * write skew — leaving a live company under a soft-deleted owner. Projecting `_id` alone, like
+	 * `throwIfParentNotTopLevel`'s one field: this asks one question, and pulling the whole owner
+	 * document to answer it would put personal data on the wire for nothing.
+	 */
+	it('re-checks the owner alive with a write, inside the transaction, excluding the soft-deleted', async () => {
+		await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
 
-		const [filter] = shopOwnerExists.mock.calls[0]
-		expect(filter._id).toBe(idShopOwner)
-		expect(filter.deleted.$exists).toBe(false)
+		expect(shopOwnerFindOneAndUpdate).toHaveBeenCalledExactlyOnceWith(
+			{ _id: idShopOwner, deleted: trusted({ $exists: false }) },
+			{ $inc: { __v: 1 } },
+			{ projection: { _id: 1 } }
+		)
+	})
+
+	// ⚠️ Inside the transaction, not before it — a snapshot taken outside it is a snapshot the create
+	// never shares, which is the window the transaction exists to close.
+	it('holds the owner inside the transaction, before the create', async () => {
+		withTransaction.mockImplementationOnce(async (work) => {
+			expect(shopOwnerFindOneAndUpdate).not.toHaveBeenCalled()
+
+			await work()
+		})
+
+		await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
+
+		expect(shopOwnerFindOneAndUpdate).toHaveBeenCalledOnce()
+		expect(create).toHaveBeenCalledOnce()
+	})
+
+	// ⚠️ The `_id` is minted once, outside the callback, for the same reason `funItemCategoryAdd` mints
+	// its own that way: a retry that re-mints would create a second document for one request the moment
+	// two admins race a create under one owner.
+	it('re-uses one _id when the transaction is retried', async () => {
+		withTransaction.mockImplementationOnce(async (work) => {
+			await work()
+			await work()
+		})
+
+		await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
+
+		const ids = create.mock.calls.map(([[doc]]) => String(doc._id))
+		expect(ids).toHaveLength(2)
+		expect(ids[0]).toBe(ids[1])
 	})
 
 	// Both `vatNumber_unique` and `certifiedEmail_unique` can fire, the driver's error does not say which, and guessing
-	// would send the admin to the wrong box.
+	// would send the admin to the wrong box. Caught outside `withTransaction`: a duplicate key carries no
+	// transient label, so the transaction aborts and the error re-throws to here untouched.
 	it('turns a unique-index violation into a 409 naming both candidates', async () => {
 		create.mockRejectedValueOnce(duplicate())
 
@@ -163,6 +240,21 @@ describe('funCompanyAdd', () => {
 		create.mockRejectedValueOnce(broken)
 
 		await expect(funCompanyAdd(idShopOwner, data)).rejects.toBe(broken)
+	})
+
+	// The session opens once and ends once, on both the success path and the failure path — a session
+	// left open on a thrown duplicate key holds a server-side slot until the server times it out.
+	it('opens one session and ends it, even when the work throws', async () => {
+		await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
+
+		expect(startSession).toHaveBeenCalledOnce()
+		expect(withTransaction).toHaveBeenCalledOnce()
+		expect(endSession).toHaveBeenCalledOnce()
+
+		create.mockRejectedValueOnce(duplicate())
+
+		await expect(rejection(funCompanyAdd(idShopOwner, data))).resolves.toBeDefined()
+		expect(endSession).toHaveBeenCalledTimes(2)
 	})
 })
 
