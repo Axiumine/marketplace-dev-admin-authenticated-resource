@@ -6,6 +6,7 @@ import { encryptPassword } from '@axiumine/koa-utils/lib/encryptPassword'
 import { compareHashAsync } from '@axiumine/koa-utils/lib/hash'
 import { Admin } from '@axiumine/marketplace-common/models/MongoDB/Admin'
 import { checkUserAuthorizationDisDel } from '@axiumine/marketplace-common/others/checkUserAuthorizationDisDel'
+import { guardAdminUpdatePwdWrite } from '@lib/admin/guardAdminUpdatePwdWrite.mjs'
 import { Types } from 'mongoose'
 
 /**
@@ -29,6 +30,12 @@ export async function funAdminUpdatePwd(_id: Types.ObjectId, passwordOld: string
 	if (passwordNew === passwordOld) {
 		throwErrorWrongUserInput('passwordNew must differ from passwordOld')
 	}
+
+	// The platform's only defense against a stolen admin bearer token being upgraded into a permanent
+	// password change, metered before the read below for the same reason `guardKeygripWrite` guards the
+	// read it precedes: a runaway client is refused for the price of one INCR, not a document fetch and a
+	// bcrypt compare.
+	await guardAdminUpdatePwdWrite(_id.toString())
 
 	// `login.password` is read because it has to be compared. The projection is explicit so nothing
 	// else about the account is pulled into memory alongside a value this sensitive.
