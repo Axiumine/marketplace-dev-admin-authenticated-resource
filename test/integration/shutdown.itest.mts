@@ -131,10 +131,12 @@ describe('process-level error handlers', () => {
 		expect(exitSpy).not.toHaveBeenCalled()
 	})
 
-	it('exits 1 on an uncaught exception', () => {
+	// ⚠️ B14: onUncaughtException flushes Sentry before exiting, so the process cannot die before the
+	// crash report is sent — which is also why the exit is no longer synchronous with the call above.
+	it('exits 1 on an uncaught exception, after flushing Sentry', async () => {
 		onUncaughtException(new Error('itest uncaught exception'))
 
-		expect(exitSpy).toHaveBeenCalledWith(1)
+		await vi.waitFor(() => expect(exitSpy).toHaveBeenCalledWith(1))
 	})
 })
 

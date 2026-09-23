@@ -205,7 +205,11 @@ export function onUnhandledRejection(reason: unknown): void {
 
 export function onUncaughtException(error: unknown): void {
 	Sentry.captureException(error)
-	process.exit(1)
+	// A synchronous handler cannot `await`: a bare `process.exit(1)` right after `captureException` kills
+	// the process before the SDK's own background flush gets a turn, and the crash report never reaches
+	// Sentry — the one crash where observability matters most. `flush()` blocks on delivery; `.finally()`
+	// exits once it settles, win or lose, rather than hanging the process on a broken transport.
+	void Sentry.flush(2000).finally(() => process.exit(1))
 }
 
 /**
@@ -385,7 +389,11 @@ export async function start() {
 		return { httpServer, apolloServer }
 	} catch (error) {
 		console.error('error', error)
-		Sentry.captureException(error) // @fixme never fires!
+		Sentry.captureException(error)
+		// Async code, so this awaits rather than reaching for the `.finally()` form
+		// `onUncaughtException` uses — a synchronous `process.exit()` right after `captureException` would
+		// otherwise kill the process before the SDK's background flush gets a turn.
+		await Sentry.flush(2000)
 		await disconnectAllDatabases(1)
 	}
 }
@@ -408,7 +416,7 @@ if (process.env.NODE_ENV !== 'test') {
 				process.on('SIGINT', () => gracefulShutdown('SIGINT', srv.apolloServer, srv.httpServer))
 			}
 		})
-		.catch((e: unknown) => {
+		.catch(async (e: unknown) => {
 			/*
 			 * ⚠️ The exit code is the whole point, and it used to be **0**. `checkRequiredEnv()` throws
 			 * outside `start()`'s own try, so a missing variable lands here rather than in the
@@ -421,6 +429,9 @@ if (process.env.NODE_ENV !== 'test') {
 			 */
 			console.error('fatal: the service could not start', e)
 			Sentry.captureException(e)
+			// Async code, same reasoning as start()'s own catch: flush() before process.exit(), or
+			// the event this whole handler exists to send never leaves the process.
+			await Sentry.flush(2000)
 			process.exit(1)
 		})
 }
