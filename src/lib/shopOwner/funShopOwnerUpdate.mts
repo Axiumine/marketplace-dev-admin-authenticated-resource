@@ -9,13 +9,13 @@ import { Types } from 'mongoose'
  * @param personalData
  */
 export async function funShopOwnerUpdate(_id: Types.ObjectId, personalData: IShopOwnerPersonalData) {
-	const ret = await ShopOwner.updateOne(
-		{ _id: _id },
-		{
-			$set: { personalData }
-		}
-	).exec()
-	if (ret.modifiedCount !== 1) {
-		throwInternalError()
-	}
+  const ret = await ShopOwner.updateOne(
+    { _id: _id },
+    {
+      $set: { personalData }
+    }
+  ).exec()
+  if (ret.modifiedCount !== 1) {
+    throwInternalError()
+  }
 }

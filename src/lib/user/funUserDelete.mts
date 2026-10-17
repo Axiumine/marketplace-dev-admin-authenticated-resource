@@ -42,10 +42,10 @@ import { trusted, Types } from 'mongoose'
  * would not be true.
  */
 export async function funUserDelete(_id: Types.ObjectId, adminId: Types.ObjectId) {
-	const ret = await User.updateOne(
-		{ _id: _id, deleted: trusted({ $exists: false }) },
-		{ $set: { deleted: new Date(), deletedBy: adminId } }
-	).exec()
+  const ret = await User.updateOne(
+    { _id: _id, deleted: trusted({ $exists: false }) },
+    { $set: { deleted: new Date(), deletedBy: adminId } }
+  ).exec()
 
-	if (ret.matchedCount !== 1) throwNotFoundError('user not found')
+  if (ret.matchedCount !== 1) throwNotFoundError('user not found')
 }

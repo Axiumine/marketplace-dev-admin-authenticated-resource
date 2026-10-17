@@ -6,8 +6,8 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull } from 'graphql
 import { Types } from 'mongoose'
 
 interface IArgs {
-	_id: Types.ObjectId
-	company: ICompanyInput
+  _id: Types.ObjectId
+  company: ICompanyInput
 }
 
 /**
@@ -23,19 +23,19 @@ interface IArgs {
  * already stored.
  */
 export const companyUpdate = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'updates a company',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		company: { type: new GraphQLNonNull(GraphQLInputCompany) }
-	},
-	async resolve(_: unknown, args: IArgs) {
-		try {
-			await funCompanyUpdate(args._id, validateCompany(args.company))
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'updates a company',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    company: { type: new GraphQLNonNull(GraphQLInputCompany) }
+  },
+  async resolve(_: unknown, args: IArgs) {
+    try {
+      await funCompanyUpdate(args._id, validateCompany(args.company))
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

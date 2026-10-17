@@ -35,15 +35,15 @@ import { Types } from 'mongoose'
  * behaviour, which is the floor here and never the result of a failed read.
  */
 export async function funRevokeSession(_id: Types.ObjectId, tier: Tier, accountId: string, sessionId: string): Promise<boolean> {
-	await guardSessionWrite('revoke', _id.toString())
+  await guardSessionWrite('revoke', _id.toString())
 
-	const sessionKey = sessionKeyFromIndexField(sessionId)
+  const sessionKey = sessionKeyFromIndexField(sessionId)
 
-	await retireAccessSession(redisClient, sessionKey)
+  await retireAccessSession(redisClient, sessionKey)
 
-	const deleted = await redisClient.del(sessionKey)
+  const deleted = await redisClient.del(sessionKey)
 
-	await redisClient.hDel(sessionIndexKey(tier, accountId), sessionId)
+  await redisClient.hDel(sessionIndexKey(tier, accountId), sessionId)
 
-	return deleted === 1
+  return deleted === 1
 }

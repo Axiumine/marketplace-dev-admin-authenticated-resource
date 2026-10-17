@@ -33,18 +33,18 @@ export type IItemCategoryValidated = IItemCategoryInput
  * *shape*: nothing here invents an `idParent` that was not sent.
  */
 export const validateItemCategory = (itemCategory: IItemCategoryInput): IItemCategoryValidated => {
-	if (!Number.isInteger(itemCategory.position)) {
-		throwErrorWrongUserInput('itemCategory.position: whole number required')
-	}
+  if (!Number.isInteger(itemCategory.position)) {
+    throwErrorWrongUserInput('itemCategory.position: whole number required')
+  }
 
-	if (itemCategory.position < 0) throwErrorWrongUserInput('itemCategory.position: cannot be negative')
+  if (itemCategory.position < 0) throwErrorWrongUserInput('itemCategory.position: cannot be negative')
 
-	return {
-		name: requiredText(itemCategory.name, 'itemCategory.name', MAX_NAME),
-		slug: requiredSlug(itemCategory.slug, 'itemCategory.slug', MAX_SLUG),
-		...(itemCategory.idParent === undefined || itemCategory.idParent === null
-			? {}
-			: { idParent: itemCategory.idParent as Types.ObjectId }),
-		position: itemCategory.position
-	}
+  return {
+    name: requiredText(itemCategory.name, 'itemCategory.name', MAX_NAME),
+    slug: requiredSlug(itemCategory.slug, 'itemCategory.slug', MAX_SLUG),
+    ...(itemCategory.idParent === undefined || itemCategory.idParent === null
+      ? {}
+      : { idParent: itemCategory.idParent as Types.ObjectId }),
+    position: itemCategory.position
+  }
 }

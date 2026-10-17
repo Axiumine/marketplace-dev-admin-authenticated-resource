@@ -1,16 +1,16 @@
 import {
-	IShopOwnerAddress,
-	IShopOwnerPersonalData
+  IShopOwnerAddress,
+  IShopOwnerPersonalData
 } from '@axiumine/marketplace-common/models/MongoDBInterfaces/IShopOwnerPersonalData'
 import {
-	birthDate,
-	coordinate,
-	optionalText,
-	requiredEmail,
-	requiredText,
-	SHAPE_POSTAL_CODE,
-	SHAPE_PROVINCE,
-	textWithFormat
+  birthDate,
+  coordinate,
+  optionalText,
+  requiredEmail,
+  requiredText,
+  SHAPE_POSTAL_CODE,
+  SHAPE_PROVINCE,
+  textWithFormat
 } from '@lib/validate/fields.mjs'
 
 /*
@@ -40,7 +40,7 @@ const POSITION_TYPE = 'Point'
  * reasoning `validateAddress.mts` applies to the company address.
  */
 export type IShopOwnerPersonalDataInput = Omit<IShopOwnerPersonalData, 'address'> & {
-	address: Omit<IShopOwnerAddress, 'position'> & { position?: { coordinates: number[] } | null }
+  address: Omit<IShopOwnerAddress, 'position'> & { position?: { coordinates: number[] } | null }
 }
 
 /**
@@ -56,57 +56,57 @@ export type IShopOwnerPersonalDataInput = Omit<IShopOwnerPersonalData, 'address'
  * both sides without freezing time.
  */
 export const validateShopOwnerPersonalData = (
-	personalData: IShopOwnerPersonalDataInput,
-	today: Date
+  personalData: IShopOwnerPersonalDataInput,
+  today: Date
 ): IShopOwnerPersonalData => {
-	const landline = optionalText(personalData.contacts.landline, 'contacts.landline', MAX_PHONE)
+  const landline = optionalText(personalData.contacts.landline, 'contacts.landline', MAX_PHONE)
 
-	// `== null` on purpose: absent and explicitly null both mean "this address has no point", and the
-	// GraphQL input makes the field nullable, so the client can send either.
-	const position = personalData.address.position == null ? undefined : personalData.address.position
+  // `== null` on purpose: absent and explicitly null both mean "this address has no point", and the
+  // GraphQL input makes the field nullable, so the client can send either.
+  const position = personalData.address.position == null ? undefined : personalData.address.position
 
-	return {
-		firstName: requiredText(personalData.firstName, 'firstName', MAX_FIRST_NAME),
-		lastName: requiredText(personalData.lastName, 'lastName', MAX_LAST_NAME),
-		birth: { date: birthDate(personalData.birth.date, 'birth.date', today) },
-		address: {
-			street: requiredText(personalData.address.street, 'address.street', MAX_ADDRESS),
-			postalCode: textWithFormat(
-				personalData.address.postalCode,
-				'address.postalCode',
-				SHAPE_POSTAL_CODE,
-				'the postal code is 5 digits'
-			),
-			city: requiredText(personalData.address.city, 'address.city', MAX_CITY),
-			// Upper-cased on the way in, so `mi` and `MI` are one value in the database rather than two
-			// that sort apart and compare unequal. The pattern accepts either case on purpose — refusing
-			// a lower-case province code would be a validation error over something the server can simply fix.
-			province: textWithFormat(
-				personalData.address.province,
-				'address.province',
-				SHAPE_PROVINCE,
-				'the province is the 2-letter code'
-			).toUpperCase(),
-			// Spread rather than `position: undefined`, for the same reason `landline` is spread below:
-			// `$set: { personalData }` replaces the whole sub-document and the BSON serialiser encodes an
-			// explicit `undefined` as `null`, which `bsonType: 'object'` rejects. An address saved
-			// without a point therefore stores no `position` key at all.
-			...(position === undefined
-				? {}
-				: {
-						position: {
-							type: POSITION_TYPE,
-							coordinates: coordinate(position.coordinates, 'address.position.coordinates')
-						}
-					})
-		},
-		contacts: {
-			mobile: requiredText(personalData.contacts.mobile, 'contacts.mobile', MAX_PHONE),
-			// Spread, not `landline: undefined`. The key has to be absent from the object, not present
-			// holding nothing: the BSON serialiser encodes an explicit `undefined` as `null` unless
-			// `ignoreUndefined` is set, and `null` is what the collection validator rejects.
-			...(landline === undefined ? {} : { landline }),
-			email: requiredEmail(personalData.contacts.email, 'contacts.email')
-		}
-	}
+  return {
+    firstName: requiredText(personalData.firstName, 'firstName', MAX_FIRST_NAME),
+    lastName: requiredText(personalData.lastName, 'lastName', MAX_LAST_NAME),
+    birth: { date: birthDate(personalData.birth.date, 'birth.date', today) },
+    address: {
+      street: requiredText(personalData.address.street, 'address.street', MAX_ADDRESS),
+      postalCode: textWithFormat(
+        personalData.address.postalCode,
+        'address.postalCode',
+        SHAPE_POSTAL_CODE,
+        'the postal code is 5 digits'
+      ),
+      city: requiredText(personalData.address.city, 'address.city', MAX_CITY),
+      // Upper-cased on the way in, so `mi` and `MI` are one value in the database rather than two
+      // that sort apart and compare unequal. The pattern accepts either case on purpose — refusing
+      // a lower-case province code would be a validation error over something the server can simply fix.
+      province: textWithFormat(
+        personalData.address.province,
+        'address.province',
+        SHAPE_PROVINCE,
+        'the province is the 2-letter code'
+      ).toUpperCase(),
+      // Spread rather than `position: undefined`, for the same reason `landline` is spread below:
+      // `$set: { personalData }` replaces the whole sub-document and the BSON serialiser encodes an
+      // explicit `undefined` as `null`, which `bsonType: 'object'` rejects. An address saved
+      // without a point therefore stores no `position` key at all.
+      ...(position === undefined
+        ? {}
+        : {
+            position: {
+              type: POSITION_TYPE,
+              coordinates: coordinate(position.coordinates, 'address.position.coordinates')
+            }
+          })
+    },
+    contacts: {
+      mobile: requiredText(personalData.contacts.mobile, 'contacts.mobile', MAX_PHONE),
+      // Spread, not `landline: undefined`. The key has to be absent from the object, not present
+      // holding nothing: the BSON serialiser encodes an explicit `undefined` as `null` unless
+      // `ignoreUndefined` is set, and `null` is what the collection validator rejects.
+      ...(landline === undefined ? {} : { landline }),
+      email: requiredEmail(personalData.contacts.email, 'contacts.email')
+    }
+  }
 }

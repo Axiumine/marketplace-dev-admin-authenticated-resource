@@ -23,7 +23,7 @@ import { Types } from 'mongoose'
  * holding the caller's session can aim at — the same reasoning `endEverySession` records.
  */
 export async function funRevokeAllSessions(_id: Types.ObjectId, tier: Tier, accountId: string): Promise<number> {
-	await guardSessionWrite('revokeAll', _id.toString())
+  await guardSessionWrite('revokeAll', _id.toString())
 
-	return revokeAllSessionsForAccount({ store: redisClient, tier, accountId })
+  return revokeAllSessionsForAccount({ store: redisClient, tier, accountId })
 }

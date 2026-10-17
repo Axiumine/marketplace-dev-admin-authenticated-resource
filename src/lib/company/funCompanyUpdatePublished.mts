@@ -24,7 +24,7 @@ import { Types } from 'mongoose'
  * admin asked for, and a no-op is not an error.
  */
 export async function funCompanyUpdatePublished(_id: Types.ObjectId, published: boolean) {
-	const ret = await Company.updateOne({ _id: _id }, { $set: { published } }).exec()
+  const ret = await Company.updateOne({ _id: _id }, { $set: { published } }).exec()
 
-	if (ret.matchedCount !== 1) throwNotFoundError('company not found')
+  if (ret.matchedCount !== 1) throwNotFoundError('company not found')
 }

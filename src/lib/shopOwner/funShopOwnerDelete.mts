@@ -38,25 +38,25 @@ import mongoose, { trusted, Types } from 'mongoose'
  * true.
  */
 export async function funShopOwnerDelete(_id: Types.ObjectId, adminId: Types.ObjectId) {
-	const session = await mongoose.startSession()
+  const session = await mongoose.startSession()
 
-	try {
-		await session.withTransaction(async () => {
-			const ret = await ShopOwner.updateOne(
-				{ _id: _id, deleted: trusted({ $exists: false }) },
-				{
-					$set: { deleted: new Date(), deletedBy: adminId },
-					$unset: { waitApprov: 1 }
-				}
-			)
-				.session(session)
-				.exec()
+  try {
+    await session.withTransaction(async () => {
+      const ret = await ShopOwner.updateOne(
+        { _id: _id, deleted: trusted({ $exists: false }) },
+        {
+          $set: { deleted: new Date(), deletedBy: adminId },
+          $unset: { waitApprov: 1 }
+        }
+      )
+        .session(session)
+        .exec()
 
-			if (ret.matchedCount !== 1) throwNotFoundError('shopOwner not found')
+      if (ret.matchedCount !== 1) throwNotFoundError('shopOwner not found')
 
-			await unpublishOwnerStorefront(_id, session)
-		})
-	} finally {
-		await session.endSession()
-	}
+      await unpublishOwnerStorefront(_id, session)
+    })
+  } finally {
+    await session.endSession()
+  }
 }

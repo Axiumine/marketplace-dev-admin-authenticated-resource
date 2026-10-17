@@ -20,5 +20,5 @@ export type UsersPeriod = StatsPeriod
 export type IUsersPerPeriod = IPerPeriod
 
 export default async function usersPerPeriodDb(period: UsersPeriod): Promise<IUsersPerPeriod> {
-	return await registeredAtSeriesDb(User, period)
+  return await registeredAtSeriesDb(User, period)
 }

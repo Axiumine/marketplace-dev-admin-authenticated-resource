@@ -33,124 +33,124 @@ const FIELD = 'a'.repeat(64)
 
 const ROW = { id: FIELD, tier: 'shopOwner', mintedAt: '1754784000000', familyId: 'fam-1' }
 const EVENT = {
-	familyId: 'fam-1',
-	tier: 'shopOwner',
-	accountId: ACCOUNT,
-	action: 'refreshTokenReplayed',
-	at: '1754784000000'
+  familyId: 'fam-1',
+  tier: 'shopOwner',
+  accountId: ACCOUNT,
+  action: 'refreshTokenReplayed',
+  at: '1754784000000'
 }
 
 beforeEach(() => {
-	funSessions.mockReset().mockResolvedValue([ROW])
-	funReuseEvents.mockReset().mockResolvedValue([EVENT])
-	funRevokeSession.mockReset().mockResolvedValue(true)
-	funRevokeAllSessions.mockReset().mockResolvedValue(2)
-	captureException.mockReset()
+  funSessions.mockReset().mockResolvedValue([ROW])
+  funReuseEvents.mockReset().mockResolvedValue([EVENT])
+  funRevokeSession.mockReset().mockResolvedValue(true)
+  funRevokeAllSessions.mockReset().mockResolvedValue(2)
+  captureException.mockReset()
 })
 
 describe('sessions', () => {
-	it('lists the account the arguments name, both halves', async () => {
-		await expect(sessions.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT })).resolves.toStrictEqual([ROW])
+  it('lists the account the arguments name, both halves', async () => {
+    await expect(sessions.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT })).resolves.toStrictEqual([ROW])
 
-		expect(funSessions).toHaveBeenCalledExactlyOnceWith('shopOwner', ACCOUNT)
-	})
+    expect(funSessions).toHaveBeenCalledExactlyOnceWith('shopOwner', ACCOUNT)
+  })
 
-	it('preserves the status of a GraphQLError raised downstream', async () => {
-		const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
-		funSessions.mockImplementationOnce(() => throwNotFoundError('no such account'))
+  it('preserves the status of a GraphQLError raised downstream', async () => {
+    const { throwNotFoundError } = await import('@axiumine/koa-utils/graphQL/throw/throwNotFoundError')
+    funSessions.mockImplementationOnce(() => throwNotFoundError('no such account'))
 
-		expect(await rejection(sessions.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT }))).toEqual({
-			message: 'Oops',
-			http: { status: 404 },
-			description: 'no such account'
-		})
-		expect(captureException).not.toHaveBeenCalled()
-	})
+    expect(await rejection(sessions.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT }))).toEqual({
+      message: 'Oops',
+      http: { status: 404 },
+      description: 'no such account'
+    })
+    expect(captureException).not.toHaveBeenCalled()
+  })
 
-	it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
-		const error = new Error('redis down')
-		funSessions.mockRejectedValueOnce(error)
+  it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
+    const error = new Error('redis down')
+    funSessions.mockRejectedValueOnce(error)
 
-		await expect(sessions.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT })).rejects.toThrow('Internal Server Error')
-		expect(captureException).toHaveBeenCalledWith(error)
-	})
+    await expect(sessions.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT })).rejects.toThrow('Internal Server Error')
+    expect(captureException).toHaveBeenCalledWith(error)
+  })
 })
 
 describe('reuseEvents', () => {
-	it('reads the trail of the account the arguments name', async () => {
-		await expect(reuseEvents.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT })).resolves.toStrictEqual([EVENT])
+  it('reads the trail of the account the arguments name', async () => {
+    await expect(reuseEvents.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT })).resolves.toStrictEqual([EVENT])
 
-		expect(funReuseEvents).toHaveBeenCalledExactlyOnceWith('shopOwner', ACCOUNT)
-	})
+    expect(funReuseEvents).toHaveBeenCalledExactlyOnceWith('shopOwner', ACCOUNT)
+  })
 
-	it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
-		const error = new Error('redis down')
-		funReuseEvents.mockRejectedValueOnce(error)
+  it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
+    const error = new Error('redis down')
+    funReuseEvents.mockRejectedValueOnce(error)
 
-		await expect(reuseEvents.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT })).rejects.toThrow('Internal Server Error')
-		expect(captureException).toHaveBeenCalledWith(error)
-	})
+    await expect(reuseEvents.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT })).rejects.toThrow('Internal Server Error')
+    expect(captureException).toHaveBeenCalledWith(error)
+  })
 })
 
 describe('revokeSession', () => {
-	/*
-	 * ⚠️ The admin's id comes off the Redis session and meters the rate limit; it is not an argument, so
-	 * nobody can revoke on somebody else's allowance. It travels no further than the limiter: the event
-	 * trail is deliberately not attributable, so the id never reaches it.
-	 */
-	it('revokes on behalf of the session account and answers whether a live session went', async () => {
-		await expect(revokeSession.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT, id: FIELD }, ctx)).resolves.toBe(true)
+  /*
+   * ⚠️ The admin's id comes off the Redis session and meters the rate limit; it is not an argument, so
+   * nobody can revoke on somebody else's allowance. It travels no further than the limiter: the event
+   * trail is deliberately not attributable, so the id never reaches it.
+   */
+  it('revokes on behalf of the session account and answers whether a live session went', async () => {
+    await expect(revokeSession.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT, id: FIELD }, ctx)).resolves.toBe(true)
 
-		expect(funRevokeSession).toHaveBeenCalledExactlyOnceWith(_id, 'shopOwner', ACCOUNT, FIELD)
-	})
+    expect(funRevokeSession).toHaveBeenCalledExactlyOnceWith(_id, 'shopOwner', ACCOUNT, FIELD)
+  })
 
-	// `false` is the already-ended case, and it must reach the console intact: reporting it as an error
-	// would train an admin to retry a call that has already done everything it can.
-	it('passes an already-ended session through as false rather than as a failure', async () => {
-		funRevokeSession.mockResolvedValueOnce(false)
+  // `false` is the already-ended case, and it must reach the console intact: reporting it as an error
+  // would train an admin to retry a call that has already done everything it can.
+  it('passes an already-ended session through as false rather than as a failure', async () => {
+    funRevokeSession.mockResolvedValueOnce(false)
 
-		await expect(revokeSession.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT, id: FIELD }, ctx)).resolves.toBe(false)
-	})
+    await expect(revokeSession.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT, id: FIELD }, ctx)).resolves.toBe(false)
+  })
 
-	it('preserves the status of a rate-limit refusal raised downstream', async () => {
-		const { throwTooManyRequestsError } = await import('@axiumine/koa-utils/graphQL/throw/throwTooManyRequestsError')
-		funRevokeSession.mockImplementationOnce(() => throwTooManyRequestsError('slow down'))
+  it('preserves the status of a rate-limit refusal raised downstream', async () => {
+    const { throwTooManyRequestsError } = await import('@axiumine/koa-utils/graphQL/throw/throwTooManyRequestsError')
+    funRevokeSession.mockImplementationOnce(() => throwTooManyRequestsError('slow down'))
 
-		expect(await rejection(revokeSession.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT, id: FIELD }, ctx))).toEqual({
-			message: 'Too Many Requests',
-			http: { status: 429 },
-			description: 'slow down'
-		})
-		expect(captureException).not.toHaveBeenCalled()
-	})
+    expect(await rejection(revokeSession.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT, id: FIELD }, ctx))).toEqual({
+      message: 'Too Many Requests',
+      http: { status: 429 },
+      description: 'slow down'
+    })
+    expect(captureException).not.toHaveBeenCalled()
+  })
 
-	it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
-		const error = new Error('redis down')
-		funRevokeSession.mockRejectedValueOnce(error)
+  it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
+    const error = new Error('redis down')
+    funRevokeSession.mockRejectedValueOnce(error)
 
-		await expect(revokeSession.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT, id: FIELD }, ctx)).rejects.toThrow(
-			'Internal Server Error'
-		)
-		expect(captureException).toHaveBeenCalledWith(error)
-	})
+    await expect(revokeSession.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT, id: FIELD }, ctx)).rejects.toThrow(
+      'Internal Server Error'
+    )
+    expect(captureException).toHaveBeenCalledWith(error)
+  })
 })
 
 describe('revokeAllSessions', () => {
-	it('revokes on behalf of the session account and answers the count', async () => {
-		await expect(revokeAllSessions.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT }, ctx)).resolves.toBe(2)
+  it('revokes on behalf of the session account and answers the count', async () => {
+    await expect(revokeAllSessions.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT }, ctx)).resolves.toBe(2)
 
-		expect(funRevokeAllSessions).toHaveBeenCalledExactlyOnceWith(_id, 'shopOwner', ACCOUNT)
-	})
+    expect(funRevokeAllSessions).toHaveBeenCalledExactlyOnceWith(_id, 'shopOwner', ACCOUNT)
+  })
 
-	it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
-		const error = new Error('redis down')
-		funRevokeAllSessions.mockRejectedValueOnce(error)
+  it('reports an unexpected failure to Sentry and answers a generic 500', async () => {
+    const error = new Error('redis down')
+    funRevokeAllSessions.mockRejectedValueOnce(error)
 
-		await expect(revokeAllSessions.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT }, ctx)).rejects.toThrow(
-			'Internal Server Error'
-		)
-		expect(captureException).toHaveBeenCalledWith(error)
-	})
+    await expect(revokeAllSessions.resolve(null, { tier: 'shopOwner', accountId: ACCOUNT }, ctx)).rejects.toThrow(
+      'Internal Server Error'
+    )
+    expect(captureException).toHaveBeenCalledWith(error)
+  })
 })
 
 /*

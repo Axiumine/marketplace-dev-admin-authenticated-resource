@@ -5,7 +5,7 @@ import { IItemCategoryInput, validateItemCategory } from '@lib/validate/validate
 import { GraphQLBoolean, GraphQLError, GraphQLNonNull } from 'graphql'
 
 interface IArgs {
-	itemCategory: IItemCategoryInput
+  itemCategory: IItemCategoryInput
 }
 
 /**
@@ -20,18 +20,18 @@ interface IArgs {
  * save and has no use for the new id.
  */
 export const itemCategoryAdd = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'adds an item category',
-	args: {
-		itemCategory: { type: new GraphQLNonNull(GraphQLInputItemCategory) }
-	},
-	async resolve(_: unknown, args: IArgs) {
-		try {
-			await funItemCategoryAdd(validateItemCategory(args.itemCategory))
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'adds an item category',
+  args: {
+    itemCategory: { type: new GraphQLNonNull(GraphQLInputItemCategory) }
+  },
+  async resolve(_: unknown, args: IArgs) {
+    try {
+      await funItemCategoryAdd(validateItemCategory(args.itemCategory))
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

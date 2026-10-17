@@ -41,162 +41,162 @@ const ACCESS_DIGEST = '19195cd4fbcc945be28c2decfc4a2fb1bf34f4ec333f3973d3e2522bd
 // ⚠️ The header is passed as the whole object, never as `ctx(undefined)`: an explicit `undefined`
 // argument takes the default parameter, so the no-header case would have quietly tested the header one.
 const ctx = (header: Record<string, string> = { authorization: `Bearer ${ACCESS_TOKEN}` }) =>
-	({
-		state: { user: { _id: new Types.ObjectId(ACCOUNT_ID) } },
-		request: { header }
-	}) as unknown as IContextAdminAuthenticatedResource
+  ({
+    state: { user: { _id: new Types.ObjectId(ACCOUNT_ID) } },
+    request: { header }
+  }) as unknown as IContextAdminAuthenticatedResource
 
 // `request.header` is optional on the context type and genuinely absent on some requests, which is a
 // different shape from a header object with no `authorization` in it and has to be built separately —
 // passing `undefined` to the factory above takes the default parameter instead.
 const ctxWithoutHeaders = () =>
-	({ state: { user: { _id: new Types.ObjectId(ACCOUNT_ID) } }, request: {} }) as unknown as IContextAdminAuthenticatedResource
+  ({ state: { user: { _id: new Types.ObjectId(ACCOUNT_ID) } }, request: {} }) as unknown as IContextAdminAuthenticatedResource
 
 beforeEach(() => {
-	armSessionIndex({ hKeys, hGet, del, hDel }, REDIS_KEY, FIELDS)
+  armSessionIndex({ hKeys, hGet, del, hDel }, REDIS_KEY, FIELDS)
 })
 
 afterEach(() => {
-	vi.unstubAllEnvs()
+  vi.unstubAllEnvs()
 })
 
 describe('endEverySession', () => {
-	/*
-	 * ⚠️ **The caller's session is revoked with the rest, and the assertion says so rather than leaving it
-	 * emergent** (decided 2026-08-10). Exempting the caller is friendlier and was rejected: the person
-	 * changing their password because someone else is in the account cannot tell which session is theirs,
-	 * and neither can the server — the exemption would be granted to whichever session sent the mutation,
-	 * which is one an attacker holding the password can send.
-	 */
-	it('revokes every session the account holds, the caller’s included', async () => {
-		await endEverySession(ctx())
+  /*
+   * ⚠️ **The caller's session is revoked with the rest, and the assertion says so rather than leaving it
+   * emergent** (decided 2026-08-10). Exempting the caller is friendlier and was rejected: the person
+   * changing their password because someone else is in the account cannot tell which session is theirs,
+   * and neither can the server — the exemption would be granted to whichever session sent the mutation,
+   * which is one an attacker holding the password can send.
+   */
+  it('revokes every session the account holds, the caller’s included', async () => {
+    await endEverySession(ctx())
 
-		expect(hKeys.mock.calls).toEqual([[`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`], [`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`]])
-		expect(del.mock.calls.map(([key]) => key)).toContain(`${REDIS_KEY}${CALLER_REFRESH_FIELD}`)
-		// The session `del`s follow the access-key ones the same round issued, so the slice starts where those end.
-		expect(del.mock.calls.slice(FIELDS.length, FIELDS.length * 2).flat()).toEqual(FIELDS.map((field) => `${REDIS_KEY}${field}`))
-	})
+    expect(hKeys.mock.calls).toEqual([[`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`], [`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`]])
+    expect(del.mock.calls.map(([key]) => key)).toContain(`${REDIS_KEY}${CALLER_REFRESH_FIELD}`)
+    // The session `del`s follow the access-key ones the same round issued, so the slice starts where those end.
+    expect(del.mock.calls.slice(FIELDS.length, FIELDS.length * 2).flat()).toEqual(FIELDS.map((field) => `${REDIS_KEY}${field}`))
+  })
 
-	/*
-	 * ⚠️ **The index read is the admin one.** All nine services share one `REDIS_KEY` prefix and the tier
-	 * is the only thing separating one account's index from another's, so a wrong constant here reads an
-	 * index that is empty — or another tier's — and revokes nothing while answering as if it had.
-	 */
-	it('reads the admin index, not another tier’s', async () => {
-		await endEverySession(ctx())
+  /*
+   * ⚠️ **The index read is the admin one.** All nine services share one `REDIS_KEY` prefix and the tier
+   * is the only thing separating one account's index from another's, so a wrong constant here reads an
+   * index that is empty — or another tier's — and revokes nothing while answering as if it had.
+   */
+  it('reads the admin index, not another tier’s', async () => {
+    await endEverySession(ctx())
 
-		// Two reads, both of the admin index: the second is the routine's re-read, which licenses the
-		// delete of the index key. Every key `hKeys` is given is asserted, so a second read of some other
-		// tier's index would fail here rather than pass as "at least one right key".
-		expect(hKeys.mock.calls.flat()).toEqual([`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`, `${REDIS_KEY}idx:admin:${ACCOUNT_ID}`])
-	})
+    // Two reads, both of the admin index: the second is the routine's re-read, which licenses the
+    // delete of the index key. Every key `hKeys` is given is asserted, so a second read of some other
+    // tier's index would fail here rather than pass as "at least one right key".
+    expect(hKeys.mock.calls.flat()).toEqual([`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`, `${REDIS_KEY}idx:admin:${ACCOUNT_ID}`])
+  })
 
-	/*
-	 * ⚠️ **Both of the caller's keys, not only the refresh one.** A revoke that dropped the refresh session
-	 * alone would leave the caller — and therefore an attacker who has just been handed the new password —
-	 * working until the access token expired on its own, which is exactly the window the change was made to
-	 * close. One key shape: the raw-token shape this used to delete alongside the digest is
-	 * unwritable and unreadable, so deleting it would be a round trip against a key that cannot exist.
-	 */
-	it('deletes the caller’s access session, under the digest and not under the token', async () => {
-		await endEverySession(ctx())
+  /*
+   * ⚠️ **Both of the caller's keys, not only the refresh one.** A revoke that dropped the refresh session
+   * alone would leave the caller — and therefore an attacker who has just been handed the new password —
+   * working until the access token expired on its own, which is exactly the window the change was made to
+   * close. One key shape: the raw-token shape this used to delete alongside the digest is
+   * unwritable and unreadable, so deleting it would be a round trip against a key that cannot exist.
+   */
+  it('deletes the caller’s access session, under the digest and not under the token', async () => {
+    await endEverySession(ctx())
 
-		const keys = del.mock.calls.map(([key]) => key)
+    const keys = del.mock.calls.map(([key]) => key)
 
-		expect(keys).toContain(`${REDIS_KEY}${ACCESS_DIGEST}`)
-		expect(keys).not.toContain(`${REDIS_KEY}${ACCESS_TOKEN}`)
-		expect(del.mock.calls.every((call) => call.length === 1)).toBe(true)
-	})
+    expect(keys).toContain(`${REDIS_KEY}${ACCESS_DIGEST}`)
+    expect(keys).not.toContain(`${REDIS_KEY}${ACCESS_TOKEN}`)
+    expect(del.mock.calls.every((call) => call.length === 1)).toBe(true)
+  })
 
-	/*
-	 * ⚠️ **Refresh sessions first, the access key second.** A failure between the two must leave the smaller
-	 * residue: the caller's access token alive for the minutes it has left, which every other device already
-	 * carries anyway. Reversed, the refresh sessions survive — and refreshing one is how the intruder gets
-	 * another access token.
-	 */
-	it('ends the refresh sessions before the caller’s access key', async () => {
-		await endEverySession(ctx())
+  /*
+   * ⚠️ **Refresh sessions first, the access key second.** A failure between the two must leave the smaller
+   * residue: the caller's access token alive for the minutes it has left, which every other device already
+   * carries anyway. Reversed, the refresh sessions survive — and refreshing one is how the intruder gets
+   * another access token.
+   */
+  it('ends the refresh sessions before the caller’s access key', async () => {
+    await endEverySession(ctx())
 
-		const accessDeletes = del.mock.calls
-			.map(([key], index) => ({ key, index }))
-			.filter(({ key }) => key === `${REDIS_KEY}${ACCESS_DIGEST}` || key === `${REDIS_KEY}${ACCESS_TOKEN}`)
+    const accessDeletes = del.mock.calls
+      .map(([key], index) => ({ key, index }))
+      .filter(({ key }) => key === `${REDIS_KEY}${ACCESS_DIGEST}` || key === `${REDIS_KEY}${ACCESS_TOKEN}`)
 
-		expect(Math.min(...accessDeletes.map(({ index }) => index))).toBeGreaterThan(FIELDS.length * 2 - 1)
-	})
+    expect(Math.min(...accessDeletes.map(({ index }) => index))).toBeGreaterThan(FIELDS.length * 2 - 1)
+  })
 
-	// The index key is deleted last of the account's own keys, which is what makes an interrupted revocation
-	// safe to run again — the routine's own contract, asserted here because this tier calls it too.
-	it('deletes the account index after the sessions it names', async () => {
-		await endEverySession(ctx())
+  // The index key is deleted last of the account's own keys, which is what makes an interrupted revocation
+  // safe to run again — the routine's own contract, asserted here because this tier calls it too.
+  it('deletes the account index after the sessions it names', async () => {
+    await endEverySession(ctx())
 
-		expect(del.mock.calls[FIELDS.length * 2]).toEqual([`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`])
-	})
+    expect(del.mock.calls[FIELDS.length * 2]).toEqual([`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`])
+  })
 
-	/*
-	 * ⚠️ **A login landing mid-revoke does not survive the teardown**, asserted at the call site rather than
-	 * left to the shared routine's own suite — this is the scenario the mutation exists for. An admin
-	 * changes their password because someone else is in the account, and that someone logs in again between
-	 * the index read and its delete. The re-read is what ends the second session too, and what keeps
-	 * the index key alive until it has: deleting it there would leave a live session nothing could name.
-	 */
-	it('revokes a session that appeared during the revoke, and keeps the index until it has', async () => {
-		const NEWCOMER = 'd'.repeat(64)
+  /*
+   * ⚠️ **A login landing mid-revoke does not survive the teardown**, asserted at the call site rather than
+   * left to the shared routine's own suite — this is the scenario the mutation exists for. An admin
+   * changes their password because someone else is in the account, and that someone logs in again between
+   * the index read and its delete. The re-read is what ends the second session too, and what keeps
+   * the index key alive until it has: deleting it there would leave a live session nothing could name.
+   */
+  it('revokes a session that appeared during the revoke, and keeps the index until it has', async () => {
+    const NEWCOMER = 'd'.repeat(64)
 
-		hKeys
-			.mockResolvedValueOnce(FIELDS)
-			.mockResolvedValueOnce([...FIELDS, NEWCOMER])
-			.mockResolvedValueOnce([...FIELDS, NEWCOMER])
+    hKeys
+      .mockResolvedValueOnce(FIELDS)
+      .mockResolvedValueOnce([...FIELDS, NEWCOMER])
+      .mockResolvedValueOnce([...FIELDS, NEWCOMER])
 
-		await endEverySession(ctx())
+    await endEverySession(ctx())
 
-		expect(del.mock.calls.slice(0, FIELDS.length * 2 + 3)).toEqual([
-			...FIELDS.map((field) => [accessKeyOf(field)]),
-			...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
-			[accessKeyOf(NEWCOMER)],
-			[`${REDIS_KEY}${NEWCOMER}`],
-			[`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`]
-		])
-		expect(hDel.mock.calls).toEqual(FIELDS.map((field) => [`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`, field]))
-	})
+    expect(del.mock.calls.slice(0, FIELDS.length * 2 + 3)).toEqual([
+      ...FIELDS.map((field) => [accessKeyOf(field)]),
+      ...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
+      [accessKeyOf(NEWCOMER)],
+      [`${REDIS_KEY}${NEWCOMER}`],
+      [`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`]
+    ])
+    expect(hDel.mock.calls).toEqual(FIELDS.map((field) => [`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`, field]))
+  })
 
-	/*
-	 * A resolver only runs once the authorization handler has seen an `Authorization` header, so this is
-	 * the defensive branch rather than a reachable one — and it earns its place: deriving a key from a
-	 * missing header would delete the digest of the empty string, a key belonging to nobody, and report
-	 * the delete as a success.
-	 */
-	it('deletes no access key when the request carried no Authorization header', async () => {
-		await endEverySession(ctx({}))
+  /*
+   * A resolver only runs once the authorization handler has seen an `Authorization` header, so this is
+   * the defensive branch rather than a reachable one — and it earns its place: deriving a key from a
+   * missing header would delete the digest of the empty string, a key belonging to nobody, and report
+   * the delete as a success.
+   */
+  it('deletes no access key when the request carried no Authorization header', async () => {
+    await endEverySession(ctx({}))
 
-		expect(del).toHaveBeenCalledTimes(FIELDS.length * 2 + 1)
-		expect(del.mock.calls.map(([key]) => key)).not.toContain(`${REDIS_KEY}${ACCESS_DIGEST}`)
-	})
+    expect(del).toHaveBeenCalledTimes(FIELDS.length * 2 + 1)
+    expect(del.mock.calls.map(([key]) => key)).not.toContain(`${REDIS_KEY}${ACCESS_DIGEST}`)
+  })
 
-	/*
-	 * ⚠️ **`request.header` missing entirely, not merely empty.** The optional access is load-bearing: a
-	 * context built without headers at all reaches here — the type says so and the auth middleware guards
-	 * the same property the same way — and reading `.authorization` straight off `undefined` throws a
-	 * `TypeError` out of a resolver that has already written the new password, turning a completed change
-	 * into a 500 and skipping the revocation entirely.
-	 */
-	it('revokes the account’s sessions when the request carried no headers at all', async () => {
-		await expect(endEverySession(ctxWithoutHeaders())).resolves.toBeUndefined()
+  /*
+   * ⚠️ **`request.header` missing entirely, not merely empty.** The optional access is load-bearing: a
+   * context built without headers at all reaches here — the type says so and the auth middleware guards
+   * the same property the same way — and reading `.authorization` straight off `undefined` throws a
+   * `TypeError` out of a resolver that has already written the new password, turning a completed change
+   * into a 500 and skipping the revocation entirely.
+   */
+  it('revokes the account’s sessions when the request carried no headers at all', async () => {
+    await expect(endEverySession(ctxWithoutHeaders())).resolves.toBeUndefined()
 
-		expect(del.mock.calls).toEqual([
-			...FIELDS.map((field) => [accessKeyOf(field)]),
-			...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
-			[`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`]
-		])
-	})
+    expect(del.mock.calls).toEqual([
+      ...FIELDS.map((field) => [accessKeyOf(field)]),
+      ...FIELDS.map((field) => [`${REDIS_KEY}${field}`]),
+      [`${REDIS_KEY}idx:admin:${ACCOUNT_ID}`]
+    ])
+  })
 
-	// An account whose sessions have all expired revokes quietly: `hKeys` on a missing key answers an empty
-	// array, and there is then nothing to delete but the caller's own access key — one key, under its digest,
-	// since the second delete that named the raw token was dropped.
-	it('still ends the caller’s access session when the index is empty', async () => {
-		hKeys.mockResolvedValueOnce([])
+  // An account whose sessions have all expired revokes quietly: `hKeys` on a missing key answers an empty
+  // array, and there is then nothing to delete but the caller's own access key — one key, under its digest,
+  // since the second delete that named the raw token was dropped.
+  it('still ends the caller’s access session when the index is empty', async () => {
+    hKeys.mockResolvedValueOnce([])
 
-		await endEverySession(ctx())
+    await endEverySession(ctx())
 
-		expect(del).toHaveBeenCalledExactlyOnceWith(`${REDIS_KEY}${ACCESS_DIGEST}`)
-	})
+    expect(del).toHaveBeenCalledExactlyOnceWith(`${REDIS_KEY}${ACCESS_DIGEST}`)
+  })
 })

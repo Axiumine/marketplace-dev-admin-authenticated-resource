@@ -11,11 +11,11 @@ import { GraphQLEnumType } from 'graphql'
 // would let a caller ask for a hundred years of day buckets — one group per day, gap-filled into an
 // array the browser then has to draw.
 export const GraphQLShopOwnersPeriod = new GraphQLEnumType({
-	name: 'GraphQLShopOwnersPeriod',
-	description: 'Time range of the shopOwners chart',
-	values: {
-		ALL: { description: 'From the first registered shopOwner to today' },
-		THREE_MONTHS: { description: 'The last three months' },
-		ONE_MONTH: { description: 'The last month' }
-	}
+  name: 'GraphQLShopOwnersPeriod',
+  description: 'Time range of the shopOwners chart',
+  values: {
+    ALL: { description: 'From the first registered shopOwner to today' },
+    THREE_MONTHS: { description: 'The last three months' },
+    ONE_MONTH: { description: 'The last month' }
+  }
 })

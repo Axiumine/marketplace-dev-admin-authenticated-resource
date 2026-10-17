@@ -7,10 +7,10 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull, GraphQLString 
 import { Types } from 'mongoose'
 
 interface IArgs {
-	_id: Types.ObjectId
-	disabled: boolean
-	waitApprov: boolean
-	disabledReason?: string | null
+  _id: Types.ObjectId
+  disabled: boolean
+  waitApprov: boolean
+  disabledReason?: string | null
 }
 
 /**
@@ -40,35 +40,35 @@ interface IArgs {
  * between the read and the write in which a login could slip through.
  */
 export const shopOwnerUpdateStatus = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'updates the status of the shopOwner account',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		disabled: { type: new GraphQLNonNull(GraphQLBoolean) },
-		waitApprov: { type: new GraphQLNonNull(GraphQLBoolean) },
-		disabledReason: { type: GraphQLString }
-	},
-	async resolve(_: unknown, args: IArgs, ctx: IContextAdminAuthenticatedResource) {
-		try {
-			await funShopOwnerUpdateStatus({
-				_id: args._id,
-				disabled: args.disabled,
-				waitApprov: args.waitApprov,
-				adminId: ctx.state.user._id,
-				disabledReason: validateDisabledReason(args.disabled, args.disabledReason)
-			})
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'updates the status of the shopOwner account',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    disabled: { type: new GraphQLNonNull(GraphQLBoolean) },
+    waitApprov: { type: new GraphQLNonNull(GraphQLBoolean) },
+    disabledReason: { type: GraphQLString }
+  },
+  async resolve(_: unknown, args: IArgs, ctx: IContextAdminAuthenticatedResource) {
+    try {
+      await funShopOwnerUpdateStatus({
+        _id: args._id,
+        disabled: args.disabled,
+        waitApprov: args.waitApprov,
+        adminId: ctx.state.user._id,
+        disabledReason: validateDisabledReason(args.disabled, args.disabledReason)
+      })
 
-			// ⚠️ **Parking an account ends its sessions; releasing one does not.** Either flag
-			// standing is a shop owner the platform has decided must not be signed in, and until this line
-			// the status change was a label: `checkUserAuthorizationDisDel` and `checkShopOwnerApproval`
-			// only bite at the next rotation, so a parked owner kept working for a whole refresh window.
-			// The approve-and-enable transition deliberately revokes nothing — nobody's credentials
-			// changed, and logging out an owner as a *reward* for being approved is not a control.
-			if (args.disabled || args.waitApprov) await endEveryShopOwnerSession(args._id)
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+      // ⚠️ **Parking an account ends its sessions; releasing one does not.** Either flag
+      // standing is a shop owner the platform has decided must not be signed in, and until this line
+      // the status change was a label: `checkUserAuthorizationDisDel` and `checkShopOwnerApproval`
+      // only bite at the next rotation, so a parked owner kept working for a whole refresh window.
+      // The approve-and-enable transition deliberately revokes nothing — nobody's credentials
+      // changed, and logging out an owner as a *reward* for being approved is not a control.
+      if (args.disabled || args.waitApprov) await endEveryShopOwnerSession(args._id)
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

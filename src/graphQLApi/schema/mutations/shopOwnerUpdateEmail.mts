@@ -6,8 +6,8 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull, GraphQLString 
 import { Types } from 'mongoose'
 
 interface IArgs {
-	_id: Types.ObjectId
-	email: string
+  _id: Types.ObjectId
+  email: string
 }
 
 /**
@@ -23,25 +23,25 @@ interface IArgs {
  * old password does. The admin's own session is untouched — theirs is not the account that changed.
  */
 export const shopOwnerUpdateEmail = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'updates the login email of the shopOwner',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		email: { type: new GraphQLNonNull(GraphQLString) }
-	},
-	async resolve(_: unknown, args: IArgs) {
-		try {
-			await funShopOwnerUpdateEmail(args._id, requiredEmail(args.email, 'email'))
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'updates the login email of the shopOwner',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    email: { type: new GraphQLNonNull(GraphQLString) }
+  },
+  async resolve(_: unknown, args: IArgs) {
+    try {
+      await funShopOwnerUpdateEmail(args._id, requiredEmail(args.email, 'email'))
 
-			// ⚠️ **After the write and inside the try, both deliberately** — the rule `adminUpdatePwd` sets.
-			// Before it, an address that then collided with another account's would have logged a shop owner
-			// out for a change that never happened. Outside it, a Redis that refused would leave this
-			// answering `true` with sessions still live on an address that no longer signs in.
-			await endEveryShopOwnerSession(args._id)
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+      // ⚠️ **After the write and inside the try, both deliberately** — the rule `adminUpdatePwd` sets.
+      // Before it, an address that then collided with another account's would have logged a shop owner
+      // out for a change that never happened. Outside it, a Redis that refused would leave this
+      // answering `true` with sessions still live on an address that no longer signs in.
+      await endEveryShopOwnerSession(args._id)
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

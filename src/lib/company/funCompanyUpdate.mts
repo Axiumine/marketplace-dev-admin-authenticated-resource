@@ -26,15 +26,15 @@ import { Types } from 'mongoose'
  * with a deleted id, and `deleted` is not in `ICompanyValidata`, so a save cannot revive one either.
  */
 export async function funCompanyUpdate(_id: Types.ObjectId, data: ICompanyValidated) {
-	let ret
+  let ret
 
-	try {
-		ret = await Company.updateOne({ _id: _id }, { $set: data }).exec()
-	} catch (e) {
-		if (duplicateKey(e)) throwAlreadyTakenError('VAT number or certified email already registered by another company')
+  try {
+    ret = await Company.updateOne({ _id: _id }, { $set: data }).exec()
+  } catch (e) {
+    if (duplicateKey(e)) throwAlreadyTakenError('VAT number or certified email already registered by another company')
 
-		throw e
-	}
+    throw e
+  }
 
-	if (ret.matchedCount !== 1) throwNotFoundError('company not found')
+  if (ret.matchedCount !== 1) throwNotFoundError('company not found')
 }

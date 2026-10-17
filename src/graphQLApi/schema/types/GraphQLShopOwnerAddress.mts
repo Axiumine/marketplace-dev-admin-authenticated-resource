@@ -10,16 +10,16 @@ import { GraphQLObjectType } from 'graphql'
  * accounts into a query that errors instead of a map that is simply not drawn yet.
  */
 export const GraphQLShopOwnerAddress = new GraphQLObjectType({
-	name: 'GraphQLShopOwnerAddress',
-	fields: () => ({
-		...GraphQLBaseAddressFrag,
-		position: { type: GraphQLPositionShopOwner }
-	})
+  name: 'GraphQLShopOwnerAddress',
+  fields: () => ({
+    ...GraphQLBaseAddressFrag,
+    position: { type: GraphQLPositionShopOwner }
+  })
 })
 
 const GraphQLPositionShopOwner = new GraphQLObjectType({
-	name: 'GraphQLPositionShopOwner',
-	fields: () => ({
-		...GraphQLPositionFrag
-	})
+  name: 'GraphQLPositionShopOwner',
+  fields: () => ({
+    ...GraphQLPositionFrag
+  })
 })

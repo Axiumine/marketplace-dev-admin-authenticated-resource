@@ -6,7 +6,7 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull } from 'graphql
 import { Types } from 'mongoose'
 
 interface IArgs {
-	_id: Types.ObjectId
+  _id: Types.ObjectId
 }
 
 /**
@@ -37,19 +37,19 @@ interface IArgs {
  * admin who closed a suspended customer has not handed them a way back in.
  */
 export const userDel = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'deletes a user',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) }
-	},
-	async resolve(_: unknown, args: IArgs, ctx: IContextAdminAuthenticatedResource) {
-		try {
-			await funUserDelete(args._id, ctx.state.user._id)
-			await endEveryUserSession(args._id)
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'deletes a user',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) }
+  },
+  async resolve(_: unknown, args: IArgs, ctx: IContextAdminAuthenticatedResource) {
+    try {
+      await funUserDelete(args._id, ctx.state.user._id)
+      await endEveryUserSession(args._id)
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

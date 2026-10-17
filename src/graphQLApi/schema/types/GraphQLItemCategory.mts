@@ -14,10 +14,10 @@ import { GraphQLID, GraphQLNonNull, GraphQLObjectType } from 'graphql'
  * the obligation.
  */
 export const GraphQLItemCategory = new GraphQLObjectType({
-	name: 'GraphQLItemCategory',
-	fields: () => ({
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		idParent: { type: GraphQLID },
-		...GraphQLItemCategoryFrag
-	})
+  name: 'GraphQLItemCategory',
+  fields: () => ({
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    idParent: { type: GraphQLID },
+    ...GraphQLItemCategoryFrag
+  })
 })

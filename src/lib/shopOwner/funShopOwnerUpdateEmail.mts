@@ -25,17 +25,17 @@ import { Types } from 'mongoose'
  * `matchedCount`, not `modifiedCount` — see `funShopOwnerUpdateStatus` for why.
  */
 export async function funShopOwnerUpdateEmail(_id: Types.ObjectId, email: string) {
-	let ret
+  let ret
 
-	try {
-		ret = await ShopOwner.updateOne({ _id: _id }, { $set: { 'login.email': email } }).exec()
-	} catch (e) {
-		// Only the `login.email_unique` index can raise 11000 on this update, so the message can name
-		// the field without inspecting `keyPattern`.
-		if (duplicateKey(e)) throwAlreadyTakenError('email: address already registered by another shopOwner')
+  try {
+    ret = await ShopOwner.updateOne({ _id: _id }, { $set: { 'login.email': email } }).exec()
+  } catch (e) {
+    // Only the `login.email_unique` index can raise 11000 on this update, so the message can name
+    // the field without inspecting `keyPattern`.
+    if (duplicateKey(e)) throwAlreadyTakenError('email: address already registered by another shopOwner')
 
-		throw e
-	}
+    throw e
+  }
 
-	if (ret.matchedCount !== 1) throwNotFoundError('shopOwner not found')
+  if (ret.matchedCount !== 1) throwNotFoundError('shopOwner not found')
 }

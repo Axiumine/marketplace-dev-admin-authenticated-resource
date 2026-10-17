@@ -16,7 +16,7 @@ import { Types } from 'mongoose'
  * `[Symbol.toStringTag]`.
  */
 export interface IAccountIdModel {
-	find(filter: object, projection: string): { lean(): PromiseLike<{ _id: Types.ObjectId }[]> }
+  find(filter: object, projection: string): { lean(): PromiseLike<{ _id: Types.ObjectId }[]> }
 }
 
 /**
@@ -32,9 +32,9 @@ export interface IAccountIdModel {
  * one. Empty when nothing failed, so a caller reads `failed` and never the string.
  */
 export interface ISweepOutcome {
-	ended: number
-	failed: number
-	reason: string
+  ended: number
+  failed: number
+  reason: string
 }
 
 /**
@@ -64,22 +64,22 @@ export interface ISweepOutcome {
  * interrupted account is at worst an index naming keys that are already gone, and re-running it is safe.
  */
 export async function endEveryTierSession(model: IAccountIdModel, tier: Tier): Promise<ISweepOutcome> {
-	const accounts = await model.find({}, '_id').lean()
+  const accounts = await model.find({}, '_id').lean()
 
-	let ended = 0
-	let failed = 0
-	let reason = ''
+  let ended = 0
+  let failed = 0
+  let reason = ''
 
-	for (const account of accounts)
-		try {
-			ended += await revokeAllSessionsForAccount({ store: redisClient, tier, accountId: account._id.toHexString() })
-		} catch (e) {
-			failed++
+  for (const account of accounts)
+    try {
+      ended += await revokeAllSessionsForAccount({ store: redisClient, tier, accountId: account._id.toHexString() })
+    } catch (e) {
+      failed++
 
-			if (!reason) reason = (e as Error).message
-		}
+      if (!reason) reason = (e as Error).message
+    }
 
-	return { ended, failed, reason }
+  return { ended, failed, reason }
 }
 
 /**
@@ -116,13 +116,13 @@ export async function endEveryTierSession(model: IAccountIdModel, tier: Tier): P
  * to win by bursting this service's connection pools, and an incident response is not a latency budget.
  */
 export async function endEveryPlatformSession(): Promise<ISweepOutcome> {
-	const admins = await endEveryTierSession(Admin, TIER.admin)
-	const shopOwners = await endEveryTierSession(ShopOwner, TIER.shopOwner)
-	const users = await endEveryTierSession(User, TIER.user)
+  const admins = await endEveryTierSession(Admin, TIER.admin)
+  const shopOwners = await endEveryTierSession(ShopOwner, TIER.shopOwner)
+  const users = await endEveryTierSession(User, TIER.user)
 
-	return {
-		ended: admins.ended + shopOwners.ended + users.ended,
-		failed: admins.failed + shopOwners.failed + users.failed,
-		reason: admins.reason || shopOwners.reason || users.reason
-	}
+  return {
+    ended: admins.ended + shopOwners.ended + users.ended,
+    failed: admins.failed + shopOwners.failed + users.failed,
+    reason: admins.reason || shopOwners.reason || users.reason
+  }
 }

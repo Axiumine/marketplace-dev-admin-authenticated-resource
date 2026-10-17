@@ -30,39 +30,39 @@ const BODY_MESSAGE = 'the request body is never captured.'
 const HOOKS_MESSAGE = '`beforeSend` and `beforeSendTransaction` are wired together or not at all.'
 
 const lintFixture = async (name: string) => {
-	const code = await readFile(new URL(`${name}.mts.fixture`, FIXTURES), 'utf8')
-	const [result] = await eslint.lintText(code, { filePath: 'test/restrictedSyntaxFixture.mts' })
+  const code = await readFile(new URL(`${name}.mts.fixture`, FIXTURES), 'utf8')
+  const [result] = await eslint.lintText(code, { filePath: 'test/restrictedSyntaxFixture.mts' })
 
-	return (result?.messages ?? []).filter((message) => message.ruleId === 'no-restricted-syntax')
+  return (result?.messages ?? []).filter((message) => message.ruleId === 'no-restricted-syntax')
 }
 
 describe('the no-restricted-syntax block fires on every shape it names', () => {
-	it.each([
-		['assignment-reject-unauthorized', TLS_MESSAGE],
-		['property-reject-unauthorized', TLS_MESSAGE],
-		['computed-property-reject-unauthorized', TLS_MESSAGE],
-		['send-default-pii', PII_MESSAGE],
-		['member-node-tls-reject-unauthorized', TLS_MESSAGE],
-		['literal-node-tls-reject-unauthorized', TLS_MESSAGE],
-		['max-incoming-request-body-size', BODY_MESSAGE],
-		['before-send-without-transaction', HOOKS_MESSAGE]
-	])(
-		'reports %s exactly once',
-		async (fixture, expected) => {
-			const messages = await lintFixture(fixture)
+  it.each([
+    ['assignment-reject-unauthorized', TLS_MESSAGE],
+    ['property-reject-unauthorized', TLS_MESSAGE],
+    ['computed-property-reject-unauthorized', TLS_MESSAGE],
+    ['send-default-pii', PII_MESSAGE],
+    ['member-node-tls-reject-unauthorized', TLS_MESSAGE],
+    ['literal-node-tls-reject-unauthorized', TLS_MESSAGE],
+    ['max-incoming-request-body-size', BODY_MESSAGE],
+    ['before-send-without-transaction', HOOKS_MESSAGE]
+  ])(
+    'reports %s exactly once',
+    async (fixture, expected) => {
+      const messages = await lintFixture(fixture)
 
-			expect(messages).toHaveLength(1)
-			expect(messages[0]?.message).toContain(expected)
-			expect(messages[0]?.severity).toBe(2)
-		},
-		30_000
-	)
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.message).toContain(expected)
+      expect(messages[0]?.severity).toBe(2)
+    },
+    30_000
+  )
 })
 
 describe('the block stays silent on the shape the services carry', () => {
-	it('reports nothing on the compliant init options', async () => {
-		expect(await lintFixture('compliant')).toStrictEqual([])
-	}, 30_000)
+  it('reports nothing on the compliant init options', async () => {
+    expect(await lintFixture('compliant')).toStrictEqual([])
+  }, 30_000)
 })
 
 const REDIS_DEL_MESSAGE = 'BCON-08: one Redis key per `del`.'
@@ -82,25 +82,25 @@ const REDIS_DEL_MESSAGE = 'BCON-08: one Redis key per `del`.'
  * test never catches.
  */
 describe('the one-key-per-del rule fires on every batched shape', () => {
-	it.each([
-		['redis-del-two-arguments', REDIS_DEL_MESSAGE],
-		['redis-del-array-argument', REDIS_DEL_MESSAGE],
-		['redis-del-spread-argument', REDIS_DEL_MESSAGE]
-	])(
-		'reports %s exactly once',
-		async (fixture, expected) => {
-			const messages = await lintFixture(fixture)
+  it.each([
+    ['redis-del-two-arguments', REDIS_DEL_MESSAGE],
+    ['redis-del-array-argument', REDIS_DEL_MESSAGE],
+    ['redis-del-spread-argument', REDIS_DEL_MESSAGE]
+  ])(
+    'reports %s exactly once',
+    async (fixture, expected) => {
+      const messages = await lintFixture(fixture)
 
-			expect(messages).toHaveLength(1)
-			expect(messages[0]?.message).toContain(expected)
-			expect(messages[0]?.severity).toBe(2)
-		},
-		30_000
-	)
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.message).toContain(expected)
+      expect(messages[0]?.severity).toBe(2)
+    },
+    30_000
+  )
 
-	it('reports nothing on the per-key shape the session code carries', async () => {
-		expect(await lintFixture('redis-del-compliant')).toStrictEqual([])
-	}, 30_000)
+  it('reports nothing on the per-key shape the session code carries', async () => {
+    expect(await lintFixture('redis-del-compliant')).toStrictEqual([])
+  }, 30_000)
 })
 
 const SEED_MESSAGE = 'An integration test seeds through the raw driver'
@@ -123,26 +123,26 @@ const ITEST_PATH = 'test/integration/restrictedImportsFixture.itest.mts'
 const UNIT_TEST_PATH = 'test/restrictedImportsFixture.mts'
 
 const lintImports = async (name: string, filePath: string) => {
-	const code = await readFile(new URL(`${name}.mts.fixture`, FIXTURES), 'utf8')
-	const [result] = await eslint.lintText(code, { filePath })
+  const code = await readFile(new URL(`${name}.mts.fixture`, FIXTURES), 'utf8')
+  const [result] = await eslint.lintText(code, { filePath })
 
-	return (result?.messages ?? []).filter((message) => message.ruleId === 'no-restricted-imports')
+  return (result?.messages ?? []).filter((message) => message.ruleId === 'no-restricted-imports')
 }
 
 describe('an integration test may not seed through a Mongoose model', () => {
-	it('reports the model import exactly once under test/integration/', async () => {
-		const messages = await lintImports('integration-seed-via-model', ITEST_PATH)
+  it('reports the model import exactly once under test/integration/', async () => {
+    const messages = await lintImports('integration-seed-via-model', ITEST_PATH)
 
-		expect(messages).toHaveLength(1)
-		expect(messages[0]?.message).toContain(SEED_MESSAGE)
-		expect(messages[0]?.severity).toBe(2)
-	}, 30_000)
+    expect(messages).toHaveLength(1)
+    expect(messages[0]?.message).toContain(SEED_MESSAGE)
+    expect(messages[0]?.severity).toBe(2)
+  }, 30_000)
 
-	it('stays silent on the same import in a unit test, which mocks the model by name', async () => {
-		expect(await lintImports('integration-seed-via-model', UNIT_TEST_PATH)).toStrictEqual([])
-	}, 30_000)
+  it('stays silent on the same import in a unit test, which mocks the model by name', async () => {
+    expect(await lintImports('integration-seed-via-model', UNIT_TEST_PATH)).toStrictEqual([])
+  }, 30_000)
 
-	it('stays silent on the raw-driver seed every harness here already carries', async () => {
-		expect(await lintImports('integration-seed-via-raw-driver', ITEST_PATH)).toStrictEqual([])
-	}, 30_000)
+  it('stays silent on the raw-driver seed every harness here already carries', async () => {
+    expect(await lintImports('integration-seed-via-raw-driver', ITEST_PATH)).toStrictEqual([])
+  }, 30_000)
 })

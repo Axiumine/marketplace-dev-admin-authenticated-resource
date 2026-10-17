@@ -25,5 +25,5 @@ import { Types } from 'mongoose'
  * live. The wrong constant here fails silently and in the safe-looking direction.
  */
 export async function endEveryUserSession(idUser: Types.ObjectId | string) {
-	await revokeAllSessionsForAccount({ store: redisClient, tier: TIER.user, accountId: `${idUser}` })
+  await revokeAllSessionsForAccount({ store: redisClient, tier: TIER.user, accountId: `${idUser}` })
 }

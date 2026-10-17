@@ -3,11 +3,11 @@ import { vi } from 'vitest'
 
 /** The links of the chain a paged table query walks: find → select → sort → skip → limit → lean. */
 export interface ITblQueryChain {
-	select: Mock
-	sort: Mock
-	skip: Mock
-	limit: Mock
-	lean: Mock
+  select: Mock
+  sort: Mock
+  skip: Mock
+  limit: Mock
+  lean: Mock
 }
 
 /**
@@ -28,18 +28,18 @@ export interface ITblQueryChain {
  * suites without becoming one.
  */
 export function mockFindChain(find: Mock, items: unknown[]): ITblQueryChain {
-	const lean = vi.fn().mockResolvedValue(items)
-	const limit = vi.fn().mockReturnValue({ lean })
-	const skip = vi.fn().mockReturnValue({ limit })
-	const sort = vi.fn().mockReturnValue({ skip })
-	const select = vi.fn().mockReturnValue({ sort })
+  const lean = vi.fn().mockResolvedValue(items)
+  const limit = vi.fn().mockReturnValue({ lean })
+  const skip = vi.fn().mockReturnValue({ limit })
+  const sort = vi.fn().mockReturnValue({ skip })
+  const select = vi.fn().mockReturnValue({ sort })
 
-	find.mockReturnValueOnce({ select })
+  find.mockReturnValueOnce({ select })
 
-	return { select, sort, skip, limit, lean }
+  return { select, sort, skip, limit, lean }
 }
 
 /** The filter the resolver handed `find` — the first argument of its first call. */
 export function filterOf(find: Mock): Record<string, unknown> {
-	return find.mock.calls[0][0]
+  return find.mock.calls[0][0]
 }

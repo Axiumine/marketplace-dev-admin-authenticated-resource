@@ -23,7 +23,7 @@ export const SWEEP_INTERVAL_MS = 60 * 60 * 1000
  * does with Redis — one conditional write, on one key — more honestly than a cast to either client would.
  */
 export interface IRetentionLockStore {
-	set(key: string, value: string, options: { NX: true; PX: number }): Promise<string | null>
+  set(key: string, value: string, options: { NX: true; PX: number }): Promise<string | null>
 }
 
 /**
@@ -42,19 +42,19 @@ export interface IRetentionLockStore {
  * rejection would reach `process.on('unhandledRejection')` at best and be invisible at worst.
  */
 export async function runLockedSweep(now: Date = new Date()): Promise<void> {
-	try {
-		const store = redisClient as unknown as IRetentionLockStore
+  try {
+    const store = redisClient as unknown as IRetentionLockStore
 
-		const held = await store.set(retentionLockKey(), now.toISOString(), { NX: true, PX: SWEEP_INTERVAL_MS })
+    const held = await store.set(retentionLockKey(), now.toISOString(), { NX: true, PX: SWEEP_INTERVAL_MS })
 
-		if (held === null) return
+    if (held === null) return
 
-		const { shopOwner, user } = await retentionSweep(now)
+    const { shopOwner, user } = await retentionSweep(now)
 
-		console.info(`retention sweep: scrubbed ${shopOwner} shopOwner and ${user} user account(s)`)
-	} catch (error) {
-		Sentry.captureException(error)
-	}
+    console.info(`retention sweep: scrubbed ${shopOwner} shopOwner and ${user} user account(s)`)
+  } catch (error) {
+    Sentry.captureException(error)
+  }
 }
 
 /**
@@ -70,7 +70,7 @@ export async function runLockedSweep(now: Date = new Date()): Promise<void> {
  * the container runtime's kill timeout.
  */
 export function startRetentionSweeper(): NodeJS.Timeout {
-	void runLockedSweep()
+  void runLockedSweep()
 
-	return setInterval(() => void runLockedSweep(), SWEEP_INTERVAL_MS).unref()
+  return setInterval(() => void runLockedSweep(), SWEEP_INTERVAL_MS).unref()
 }

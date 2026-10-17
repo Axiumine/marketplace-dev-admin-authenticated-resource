@@ -8,10 +8,10 @@ import { Types } from 'mongoose'
 const MAX_ONBOARDING_STEP = 4
 
 interface IArgs {
-	_id: Types.ObjectId
-	rememberMe: boolean
-	onboardingDone: boolean
-	onboardingStep?: string | null
+  _id: Types.ObjectId
+  rememberMe: boolean
+  onboardingDone: boolean
+  onboardingStep?: string | null
 }
 
 /**
@@ -22,26 +22,26 @@ interface IArgs {
  * booleans are required for the reason spelled out in `shopOwnerUpdateStatus`.
  */
 export const shopOwnerUpdatePreferences = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'updates the login preferences of the shopOwner',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		rememberMe: { type: new GraphQLNonNull(GraphQLBoolean) },
-		onboardingDone: { type: new GraphQLNonNull(GraphQLBoolean) },
-		onboardingStep: { type: GraphQLString }
-	},
-	async resolve(_: unknown, args: IArgs) {
-		try {
-			await funShopOwnerUpdatePreferences(
-				args._id,
-				args.rememberMe,
-				args.onboardingDone,
-				optionalText(args.onboardingStep, 'onboardingStep', MAX_ONBOARDING_STEP)
-			)
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'updates the login preferences of the shopOwner',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    rememberMe: { type: new GraphQLNonNull(GraphQLBoolean) },
+    onboardingDone: { type: new GraphQLNonNull(GraphQLBoolean) },
+    onboardingStep: { type: GraphQLString }
+  },
+  async resolve(_: unknown, args: IArgs) {
+    try {
+      await funShopOwnerUpdatePreferences(
+        args._id,
+        args.rememberMe,
+        args.onboardingDone,
+        optionalText(args.onboardingStep, 'onboardingStep', MAX_ONBOARDING_STEP)
+      )
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

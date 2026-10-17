@@ -33,4 +33,4 @@ export const MAX_DISABLED_REASON = 1000
  * alternative was letting `''` through to a `dependencies` rule that would happily accept it.
  */
 export const validateDisabledReason = (disabled: boolean, reason: string | null | undefined): string | undefined =>
-	disabled ? requiredText(reason ?? '', 'disabledReason', MAX_DISABLED_REASON) : undefined
+  disabled ? requiredText(reason ?? '', 'disabledReason', MAX_DISABLED_REASON) : undefined

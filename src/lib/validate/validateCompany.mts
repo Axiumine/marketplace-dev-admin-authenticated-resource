@@ -1,14 +1,14 @@
 import { ICompanySchema } from '@axiumine/marketplace-common/models/MongoDBInterfaces/ICompanySchema'
 import {
-	optionalSlug,
-	optionalText,
-	optionalTextExactLength,
-	optionalTextWithFormat,
-	requiredEmail,
-	requiredText,
-	SHAPE_UNIQUE_CODE,
-	SHAPE_VAT_NUMBER,
-	textWithFormat
+  optionalSlug,
+  optionalText,
+  optionalTextExactLength,
+  optionalTextWithFormat,
+  requiredEmail,
+  requiredText,
+  SHAPE_UNIQUE_CODE,
+  SHAPE_VAT_NUMBER,
+  textWithFormat
 } from '@lib/validate/fields.mjs'
 import { IAddressInput, validateAddress } from '@lib/validate/validateAddress.mjs'
 
@@ -40,7 +40,7 @@ const MAX_DESCRIPTION = 2000
 
 /** What the `GraphQLInputCompany` argument carries: the stored document minus the fields nobody sends. */
 export type ICompanyInput = Omit<ICompanySchema, '_id' | 'idShopOwner' | 'address' | '__v' | 'published'> & {
-	address: IAddressInput
+  address: IAddressInput
 }
 
 /**
@@ -73,29 +73,29 @@ export type ICompanyValidated = Omit<ICompanySchema, '_id' | 'idShopOwner' | '__
  * the database is the one that cannot be bypassed.
  */
 export const validateCompany = (company: ICompanyInput): ICompanyValidated => {
-	const taxCode = optionalTextExactLength(company.taxCode, 'company.taxCode', TAX_CODE_LENGTH)
-	const publicName = optionalText(company.publicName, 'company.publicName', MAX_PUBLIC_NAME)
-	const slug = optionalSlug(company.slug, 'company.slug', MAX_SLUG)
-	const description = optionalText(company.description, 'company.description', MAX_DESCRIPTION)
-	const uniqueCode = optionalTextWithFormat(
-		company.uniqueCode,
-		'company.uniqueCode',
-		SHAPE_UNIQUE_CODE,
-		'the unique code is 7 alphanumeric characters'
-	)
+  const taxCode = optionalTextExactLength(company.taxCode, 'company.taxCode', TAX_CODE_LENGTH)
+  const publicName = optionalText(company.publicName, 'company.publicName', MAX_PUBLIC_NAME)
+  const slug = optionalSlug(company.slug, 'company.slug', MAX_SLUG)
+  const description = optionalText(company.description, 'company.description', MAX_DESCRIPTION)
+  const uniqueCode = optionalTextWithFormat(
+    company.uniqueCode,
+    'company.uniqueCode',
+    SHAPE_UNIQUE_CODE,
+    'the unique code is 7 alphanumeric characters'
+  )
 
-	return {
-		legalName: requiredText(company.legalName, 'company.legalName', MAX_LEGAL_NAME),
-		vatNumber: textWithFormat(company.vatNumber, 'company.vatNumber', SHAPE_VAT_NUMBER, 'the VAT number is 11 digits'),
-		...(taxCode === undefined ? {} : { taxCode }),
-		contactPerson: requiredText(company.contactPerson, 'company.contactPerson', MAX_CONTACT_PERSON),
-		administrator: requiredText(company.administrator, 'company.administrator', MAX_ADMINISTRATOR),
-		...(uniqueCode === undefined ? {} : { uniqueCode }),
-		certifiedEmail: requiredEmail(company.certifiedEmail, 'company.certifiedEmail'),
-		address: validateAddress(company.address, 'company.address'),
-		registryExtract: requiredText(company.registryExtract, 'company.registryExtract', MAX_REGISTRY_EXTRACT),
-		...(publicName === undefined ? {} : { publicName }),
-		...(slug === undefined ? {} : { slug }),
-		...(description === undefined ? {} : { description })
-	}
+  return {
+    legalName: requiredText(company.legalName, 'company.legalName', MAX_LEGAL_NAME),
+    vatNumber: textWithFormat(company.vatNumber, 'company.vatNumber', SHAPE_VAT_NUMBER, 'the VAT number is 11 digits'),
+    ...(taxCode === undefined ? {} : { taxCode }),
+    contactPerson: requiredText(company.contactPerson, 'company.contactPerson', MAX_CONTACT_PERSON),
+    administrator: requiredText(company.administrator, 'company.administrator', MAX_ADMINISTRATOR),
+    ...(uniqueCode === undefined ? {} : { uniqueCode }),
+    certifiedEmail: requiredEmail(company.certifiedEmail, 'company.certifiedEmail'),
+    address: validateAddress(company.address, 'company.address'),
+    registryExtract: requiredText(company.registryExtract, 'company.registryExtract', MAX_REGISTRY_EXTRACT),
+    ...(publicName === undefined ? {} : { publicName }),
+    ...(slug === undefined ? {} : { slug }),
+    ...(description === undefined ? {} : { description })
+  }
 }

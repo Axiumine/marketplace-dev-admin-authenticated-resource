@@ -13,21 +13,21 @@ import { GraphQLEnumType } from 'graphql'
 // these four are offered, and each one has a matching index (see the shopOwner tbl migration in
 // marketplace-db-setup).
 export const GraphQLShopOwnersTblSortField = new GraphQLEnumType({
-	name: 'GraphQLShopOwnersTblSortField',
-	description: 'Sort column of the shopOwners table',
-	values: {
-		REGISTERED_AT: { description: 'Registration date' },
-		FIRST_NAME: { description: 'FirstName' },
-		LAST_NAME: { description: 'LastName, then firstName' },
-		CITY: { description: 'City of residence' }
-	}
+  name: 'GraphQLShopOwnersTblSortField',
+  description: 'Sort column of the shopOwners table',
+  values: {
+    REGISTERED_AT: { description: 'Registration date' },
+    FIRST_NAME: { description: 'FirstName' },
+    LAST_NAME: { description: 'LastName, then firstName' },
+    CITY: { description: 'City of residence' }
+  }
 })
 
 export const GraphQLSortDirection = new GraphQLEnumType({
-	name: 'GraphQLSortDirection',
-	description: 'Sort direction',
-	values: {
-		ASC: { description: 'Ascending' },
-		DESC: { description: 'Descending' }
-	}
+  name: 'GraphQLSortDirection',
+  description: 'Sort direction',
+  values: {
+    ASC: { description: 'Ascending' },
+    DESC: { description: 'Descending' }
+  }
 })

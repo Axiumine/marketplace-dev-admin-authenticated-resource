@@ -14,6 +14,6 @@ import { GraphQLEnumType } from 'graphql'
  * adding a case would answer it by accident and would need its own retention decision.
  */
 export const GraphQLReuseEventAction = new GraphQLEnumType({
-	name: 'GraphQLReuseEventAction',
-	values: Object.fromEntries(REUSE_EVENT_ACTIONS.map((action) => [action, { value: action }]))
+  name: 'GraphQLReuseEventAction',
+  values: Object.fromEntries(REUSE_EVENT_ACTIONS.map((action) => [action, { value: action }]))
 })

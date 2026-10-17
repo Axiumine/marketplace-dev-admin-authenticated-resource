@@ -29,5 +29,5 @@ export const KEYGRIP_WRITES_PER_HOUR = 10
  * the one write that has to go through.
  */
 export async function guardKeygripWrite(operation: string, admin: string) {
-	await assertUnderRateLimit(redisClient, `keygrip:${operation}`, admin, KEYGRIP_WRITES_PER_HOUR, KEYGRIP_WRITE_WINDOW_SECONDS)
+  await assertUnderRateLimit(redisClient, `keygrip:${operation}`, admin, KEYGRIP_WRITES_PER_HOUR, KEYGRIP_WRITE_WINDOW_SECONDS)
 }

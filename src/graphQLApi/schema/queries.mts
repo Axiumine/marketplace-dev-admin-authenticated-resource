@@ -16,23 +16,23 @@ import { usersPerPeriod } from './queries/usersPerPeriod.mjs'
 import { usersStats } from './queries/usersStats.mjs'
 
 const QueriesApi = new GraphQLObjectType({
-	name: 'QueriesApi',
-	fields: {
-		infoAdminAfterLogin,
-		shopOwnersActiveTbl,
-		shopOwnersStats,
-		shopOwnersPerPeriod,
-		shopOwnerById,
-		shopOwnerCompanies,
-		usersActiveTbl,
-		usersStats,
-		usersPerPeriod,
-		companyItems,
-		itemCategories,
-		keygripStatus,
-		sessions,
-		reuseEvents
-	}
+  name: 'QueriesApi',
+  fields: {
+    infoAdminAfterLogin,
+    shopOwnersActiveTbl,
+    shopOwnersStats,
+    shopOwnersPerPeriod,
+    shopOwnerById,
+    shopOwnerCompanies,
+    usersActiveTbl,
+    usersStats,
+    usersPerPeriod,
+    companyItems,
+    itemCategories,
+    keygripStatus,
+    sessions,
+    reuseEvents
+  }
 })
 
 export default QueriesApi

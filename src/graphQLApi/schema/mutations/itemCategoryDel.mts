@@ -4,7 +4,7 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull } from 'graphql
 import { Types } from 'mongoose'
 
 interface IArgs {
-	_id: Types.ObjectId
+  _id: Types.ObjectId
 }
 
 /**
@@ -15,18 +15,18 @@ interface IArgs {
  * reason other than "no such category".
  */
 export const itemCategoryDel = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'deletes an item category',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) }
-	},
-	async resolve(_: unknown, args: IArgs) {
-		try {
-			await funItemCategoryDelete(args._id)
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'deletes an item category',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) }
+  },
+  async resolve(_: unknown, args: IArgs) {
+    try {
+      await funItemCategoryDelete(args._id)
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

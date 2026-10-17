@@ -5,25 +5,25 @@ import { keygripHoldersKey } from '@axiumine/marketplace-common/others/sessionKe
 
 /** One key of the record, with the material left where it is. */
 export interface IKeygripKeyInfo {
-	id: string
-	createdAt: string
-	ageDays: number
+  id: string
+  createdAt: string
+  ageDays: number
 }
 
 /** One service that has read the record and is signing with what it read. */
 export interface IKeygripHolder {
-	service: string
-	fingerprint: string
-	lastSeen: string
-	current: boolean
+  service: string
+  fingerprint: string
+  lastSeen: string
+  current: boolean
 }
 
 /** What the admin's screen renders. */
 export interface IKeygripStatus {
-	version: number
-	fingerprint: string
-	keys: IKeygripKeyInfo[]
-	holders: IKeygripHolder[]
+  version: number
+  fingerprint: string
+  keys: IKeygripKeyInfo[]
+  holders: IKeygripHolder[]
 }
 
 const DAY_MS = 86_400_000
@@ -37,9 +37,9 @@ const DAY_MS = 86_400_000
  * not be the reason an admin cannot see the other five.
  */
 function splitHolderRow(row: string) {
-	const at = row.indexOf('@')
+  const at = row.indexOf('@')
 
-	return at === -1 ? { fingerprint: row, lastSeen: '' } : { fingerprint: row.slice(0, at), lastSeen: row.slice(at + 1) }
+  return at === -1 ? { fingerprint: row, lastSeen: '' } : { fingerprint: row.slice(0, at), lastSeen: row.slice(at + 1) }
 }
 
 /**
@@ -60,37 +60,37 @@ function splitHolderRow(row: string) {
  * renders as an empty table — not as an error, and not as "everything is current".
  */
 export async function funKeygripStatus(): Promise<IKeygripStatus> {
-	let record: IKeygripRecord
-	try {
-		record = await readKeygrip(redisClient)
-	} catch (e) {
-		// Names a version and a fingerprint at most — see `readKeygrip`. It is also the only thing that
-		// tells an admin whether to fix this service's env or to re-seed the fleet.
-		throwInternalError((e as Error).message)
-	}
+  let record: IKeygripRecord
+  try {
+    record = await readKeygrip(redisClient)
+  } catch (e) {
+    // Names a version and a fingerprint at most — see `readKeygrip`. It is also the only thing that
+    // tells an admin whether to fix this service's env or to re-seed the fleet.
+    throwInternalError((e as Error).message)
+  }
 
-	const rows = (await redisClient.hGetAll(keygripHoldersKey())) as Record<string, string>
-	const now = Date.now()
+  const rows = (await redisClient.hGetAll(keygripHoldersKey())) as Record<string, string>
+  const now = Date.now()
 
-	return {
-		version: record.version,
-		fingerprint: record.fp,
-		keys: record.keys.map((key) => ({
-			id: key.id,
-			createdAt: key.createdAt,
-			// The key's own age, floored — "29" means it has not finished its thirtieth day, and rounding
-			// would show 30 for a key the server considers 29 days old. ⚠️ Not what the rotation retires
-			// on: that measures from the demotion instant, see `isTailRetirable`.
-			ageDays: Math.floor((now - new Date(key.createdAt).getTime()) / DAY_MS)
-		})),
-		// Sorted by service name so the table does not reshuffle between polls — Redis hash fields come
-		// back in whatever order the keyspace holds them, which is stable for nobody.
-		holders: Object.keys(rows)
-			.sort()
-			.map((service) => {
-				const { fingerprint, lastSeen } = splitHolderRow(rows[service])
+  return {
+    version: record.version,
+    fingerprint: record.fp,
+    keys: record.keys.map((key) => ({
+      id: key.id,
+      createdAt: key.createdAt,
+      // The key's own age, floored — "29" means it has not finished its thirtieth day, and rounding
+      // would show 30 for a key the server considers 29 days old. ⚠️ Not what the rotation retires
+      // on: that measures from the demotion instant, see `isTailRetirable`.
+      ageDays: Math.floor((now - new Date(key.createdAt).getTime()) / DAY_MS)
+    })),
+    // Sorted by service name so the table does not reshuffle between polls — Redis hash fields come
+    // back in whatever order the keyspace holds them, which is stable for nobody.
+    holders: Object.keys(rows)
+      .sort()
+      .map((service) => {
+        const { fingerprint, lastSeen } = splitHolderRow(rows[service])
 
-				return { service, fingerprint, lastSeen, current: fingerprint === record.fp }
-			})
-	}
+        return { service, fingerprint, lastSeen, current: fingerprint === record.fp }
+      })
+  }
 }

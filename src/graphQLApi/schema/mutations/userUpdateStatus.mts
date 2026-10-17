@@ -7,9 +7,9 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull, GraphQLString 
 import { Types } from 'mongoose'
 
 interface IArgs {
-	_id: Types.ObjectId
-	disabled: boolean
-	disabledReason?: string | null
+  _id: Types.ObjectId
+  disabled: boolean
+  disabledReason?: string | null
 }
 
 /**
@@ -38,33 +38,33 @@ interface IArgs {
  * save and open a window between the read and the write in which a login could slip through.
  */
 export const userUpdateStatus = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'updates the status of the user account',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		disabled: { type: new GraphQLNonNull(GraphQLBoolean) },
-		disabledReason: { type: GraphQLString }
-	},
-	async resolve(_: unknown, args: IArgs, ctx: IContextAdminAuthenticatedResource) {
-		try {
-			await funUserUpdateStatus({
-				_id: args._id,
-				disabled: args.disabled,
-				adminId: ctx.state.user._id,
-				disabledReason: validateDisabledReason(args.disabled, args.disabledReason)
-			})
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'updates the status of the user account',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    disabled: { type: new GraphQLNonNull(GraphQLBoolean) },
+    disabledReason: { type: GraphQLString }
+  },
+  async resolve(_: unknown, args: IArgs, ctx: IContextAdminAuthenticatedResource) {
+    try {
+      await funUserUpdateStatus({
+        _id: args._id,
+        disabled: args.disabled,
+        adminId: ctx.state.user._id,
+        disabledReason: validateDisabledReason(args.disabled, args.disabledReason)
+      })
 
-			// ⚠️ **Disabling ends the customer's sessions; re-enabling ends nothing** — the same rule
-			// `shopOwnerUpdateStatus` follows. Until this line the flag was a label: the three gates that read
-			// it only bite at the next rotation, so a suspended customer kept shopping for a whole refresh
-			// window. Re-enabling revokes deliberately
-			// nothing — nobody's credentials changed, and signing a customer out as the consequence of being
-			// re-enabled is not a control.
-			if (args.disabled) await endEveryUserSession(args._id)
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+      // ⚠️ **Disabling ends the customer's sessions; re-enabling ends nothing** — the same rule
+      // `shopOwnerUpdateStatus` follows. Until this line the flag was a label: the three gates that read
+      // it only bite at the next rotation, so a suspended customer kept shopping for a whole refresh
+      // window. Re-enabling revokes deliberately
+      // nothing — nobody's credentials changed, and signing a customer out as the consequence of being
+      // re-enabled is not a control.
+      if (args.disabled) await endEveryUserSession(args._id)
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

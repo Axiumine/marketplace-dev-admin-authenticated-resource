@@ -28,5 +28,5 @@ import { Types } from 'mongoose'
  * nothing and report success.
  */
 export async function endEveryShopOwnerSession(idShopOwner: Types.ObjectId | string) {
-	await revokeAllSessionsForAccount({ store: redisClient, tier: TIER.shopOwner, accountId: `${idShopOwner}` })
+  await revokeAllSessionsForAccount({ store: redisClient, tier: TIER.shopOwner, accountId: `${idShopOwner}` })
 }

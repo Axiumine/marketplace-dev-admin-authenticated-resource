@@ -15,11 +15,11 @@ import { trusted } from 'mongoose'
  * reorders itself for no reason.
  */
 export const itemCategories = {
-	type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLItemCategory))),
-	description: 'Get all the item categories',
-	async resolve() {
-		return ItemCategory.find({ deleted: trusted({ $exists: false }) })
-			.sort({ position: 1, _id: 1 })
-			.lean()
-	}
+  type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLItemCategory))),
+  description: 'Get all the item categories',
+  async resolve() {
+    return ItemCategory.find({ deleted: trusted({ $exists: false }) })
+      .sort({ position: 1, _id: 1 })
+      .lean()
+  }
 }

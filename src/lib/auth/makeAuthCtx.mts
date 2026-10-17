@@ -3,8 +3,8 @@ import { IRedisDataAdminForNode } from '@axiumine/marketplace-common/others/Redi
 import { Types } from 'mongoose'
 
 export function makeAuthCtx(redData: IRedisDataAdmin): IRedisDataAdminForNode {
-	return {
-		_id: new Types.ObjectId(redData._id),
-		email: redData.email
-	}
+  return {
+    _id: new Types.ObjectId(redData._id),
+    email: redData.email
+  }
 }

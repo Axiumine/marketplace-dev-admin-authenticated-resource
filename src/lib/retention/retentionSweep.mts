@@ -44,14 +44,14 @@ export const retentionCutoff = (now: Date): Date => new Date(now.getTime() - RET
  * a deterministic ciphertext answers equality only — never `$lte` — while a random one answers nothing.
  */
 export const scrubCandidates = (cutoff: Date) => ({
-	deleted: trusted({ $lte: cutoff }),
-	scrubbedAt: trusted({ $exists: false })
+  deleted: trusted({ $lte: cutoff }),
+  scrubbedAt: trusted({ $exists: false })
 })
 
 /** What the sweep reads back per candidate: who to scrub, and which half of the reason rule applies. */
 export interface IScrubCandidate {
-	_id: Types.ObjectId
-	disabled?: boolean
+  _id: Types.ObjectId
+  disabled?: boolean
 }
 
 /**
@@ -63,11 +63,11 @@ export interface IScrubCandidate {
  * mongoose hands back a `Query`, a thenable with no `[Symbol.toStringTag]`.
  */
 export interface IScrubbableAccountModel {
-	find(filter: object, projection: string): { lean(): PromiseLike<IScrubCandidate[]> }
-	updateOne(
-		filter: { _id: Types.ObjectId } & ReturnType<typeof scrubCandidates>,
-		update: IAccountScrub
-	): { exec(): PromiseLike<unknown> }
+  find(filter: object, projection: string): { lean(): PromiseLike<IScrubCandidate[]> }
+  updateOne(
+    filter: { _id: Types.ObjectId } & ReturnType<typeof scrubCandidates>,
+    update: IAccountScrub
+  ): { exec(): PromiseLike<unknown> }
 }
 
 /**
@@ -101,19 +101,19 @@ export interface IScrubbableAccountModel {
  * longer matches and the write becomes a no-op on that one document instead of destroying it.
  */
 export async function sweepTier(model: IScrubbableAccountModel, tier: ScrubbableTier, now: Date, cutoff: Date): Promise<number> {
-	const eligible = scrubCandidates(cutoff)
-	const candidates = await model.find(eligible, '_id disabled').lean()
+  const eligible = scrubCandidates(cutoff)
+  const candidates = await model.find(eligible, '_id disabled').lean()
 
-	for (const candidate of candidates) {
-		await model
-			.updateOne(
-				{ _id: candidate._id, ...eligible },
-				buildAccountScrub(tier, candidate._id.toHexString(), now, candidate.disabled === true)
-			)
-			.exec()
-	}
+  for (const candidate of candidates) {
+    await model
+      .updateOne(
+        { _id: candidate._id, ...eligible },
+        buildAccountScrub(tier, candidate._id.toHexString(), now, candidate.disabled === true)
+      )
+      .exec()
+  }
 
-	return candidates.length
+  return candidates.length
 }
 
 /**
@@ -126,10 +126,10 @@ export async function sweepTier(model: IScrubbableAccountModel, tier: Scrubbable
  * admin service's own connection pool, and there is nothing to win by making it burst.
  */
 export async function retentionSweep(now: Date): Promise<{ shopOwner: number; user: number }> {
-	const cutoff = retentionCutoff(now)
+  const cutoff = retentionCutoff(now)
 
-	return {
-		shopOwner: await sweepTier(ShopOwner, TIER.shopOwner, now, cutoff),
-		user: await sweepTier(User, TIER.user, now, cutoff)
-	}
+  return {
+    shopOwner: await sweepTier(ShopOwner, TIER.shopOwner, now, cutoff),
+    user: await sweepTier(User, TIER.user, now, cutoff)
+  }
 }

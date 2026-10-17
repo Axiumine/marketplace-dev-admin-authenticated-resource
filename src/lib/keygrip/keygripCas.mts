@@ -40,7 +40,7 @@ return 1`
  * honestly than a cast to either client type would.
  */
 interface IKeygripCasStore {
-	eval(script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown>
+  eval(script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown>
 }
 
 /**
@@ -56,24 +56,24 @@ interface IKeygripCasStore {
  * that could pass them separately could seal a blob nothing can ever open.
  */
 export async function keygripCasWrite(
-	expected: number,
-	keys: readonly IKeygripKeyMaterial[],
-	kek: Buffer
+  expected: number,
+  keys: readonly IKeygripKeyMaterial[],
+  kek: Buffer
 ): Promise<{ written: boolean; version: number }> {
-	const version = expected + 1
+  const version = expected + 1
 
-	const store = redisClient as unknown as IKeygripCasStore
+  const store = redisClient as unknown as IKeygripCasStore
 
-	const written = await store.eval(KEYGRIP_CAS, {
-		keys: [keygripKey()],
-		arguments: [
-			String(expected),
-			String(version),
-			wrapKeygripKeys(keys, version, kek),
-			keygripFingerprint(keys),
-			keygripChannel()
-		]
-	})
+  const written = await store.eval(KEYGRIP_CAS, {
+    keys: [keygripKey()],
+    arguments: [
+      String(expected),
+      String(version),
+      wrapKeygripKeys(keys, version, kek),
+      keygripFingerprint(keys),
+      keygripChannel()
+    ]
+  })
 
-	return { written: written === 1, version }
+  return { written: written === 1, version }
 }

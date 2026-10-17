@@ -59,7 +59,7 @@ export const USERS_TBL_SELECTION = '_id registeredAt login.email disabled disabl
  * sort until somebody checks it against the data.
  */
 const SORT_PATHS = {
-	REGISTERED_AT: ['registeredAt']
+  REGISTERED_AT: ['registeredAt']
 } as const
 
 const SORT_ORDERS = { ASC: 1, DESC: -1 } as const
@@ -68,18 +68,18 @@ export type UsersTblSortField = keyof typeof SORT_PATHS
 export type UsersTblSortDirection = keyof typeof SORT_ORDERS
 
 export interface IUsersActiveTblArgs {
-	offset: number
-	limit: number
-	disabled: boolean
-	deleted: boolean
-	emailVerified?: boolean | null
-	sortBy: UsersTblSortField
-	sortDir: UsersTblSortDirection
+  offset: number
+  limit: number
+  disabled: boolean
+  deleted: boolean
+  emailVerified?: boolean | null
+  sortBy: UsersTblSortField
+  sortDir: UsersTblSortDirection
 }
 
 export interface IUsersActiveTblPage {
-	items: unknown[]
-	total: number
+  items: unknown[]
+  total: number
 }
 
 /**
@@ -94,17 +94,17 @@ export interface IUsersActiveTblPage {
  * raising it for the other.
  */
 function assertPaging(offset: number, limit: number): void {
-	if (offset < 0) {
-		throwErrorWrongUserInput('offset must be 0 or greater')
-	}
+  if (offset < 0) {
+    throwErrorWrongUserInput('offset must be 0 or greater')
+  }
 
-	if (limit < 1) {
-		throwErrorWrongUserInput('limit must be 1 or greater')
-	}
+  if (limit < 1) {
+    throwErrorWrongUserInput('limit must be 1 or greater')
+  }
 
-	if (limit > USERS_TBL_MAX_LIMIT) {
-		throwErrorWrongUserInput(`limit must be at most ${USERS_TBL_MAX_LIMIT}`)
-	}
+  if (limit > USERS_TBL_MAX_LIMIT) {
+    throwErrorWrongUserInput(`limit must be at most ${USERS_TBL_MAX_LIMIT}`)
+  }
 }
 
 /**
@@ -117,16 +117,16 @@ function assertPaging(offset: number, limit: number): void {
  * on two pages while another is skipped.
  */
 function buildSort(sortBy: UsersTblSortField, sortDir: UsersTblSortDirection): Record<string, 1 | -1> {
-	const order = SORT_ORDERS[sortDir]
-	const sort: Record<string, 1 | -1> = {}
+  const order = SORT_ORDERS[sortDir]
+  const sort: Record<string, 1 | -1> = {}
 
-	for (const path of SORT_PATHS[sortBy]) {
-		sort[path] = order
-	}
+  for (const path of SORT_PATHS[sortBy]) {
+    sort[path] = order
+  }
 
-	sort._id = order
+  sort._id = order
 
-	return sort
+  return sort
 }
 
 /**
@@ -154,13 +154,13 @@ function buildSort(sortBy: UsersTblSortField, sortDir: UsersTblSortDirection): R
  * what the index already bounded rather than choosing the scan.
  */
 function buildFilter(args: IUsersActiveTblArgs): QueryFilter<IUserModel> {
-	const verified = args.emailVerified
+  const verified = args.emailVerified
 
-	return {
-		deleted: args.deleted ? trusted({ $exists: true }) : trusted({ $exists: false }),
-		disabled: args.disabled ? true : trusted({ $exists: false }),
-		...(verified === undefined || verified === null ? {} : { 'emailVerify.valid': verified ? true : trusted({ $ne: true }) })
-	}
+  return {
+    deleted: args.deleted ? trusted({ $exists: true }) : trusted({ $exists: false }),
+    disabled: args.disabled ? true : trusted({ $exists: false }),
+    ...(verified === undefined || verified === null ? {} : { 'emailVerify.valid': verified ? true : trusted({ $ne: true }) })
+  }
 }
 
 /**
@@ -172,19 +172,19 @@ function buildFilter(args: IUsersActiveTblArgs): QueryFilter<IUserModel> {
  * than `items`, and the page count the admin sees would be wrong in a way no single page can show.
  */
 export default async function usersActiveTblDb(args: IUsersActiveTblArgs): Promise<IUsersActiveTblPage> {
-	assertPaging(args.offset, args.limit)
+  assertPaging(args.offset, args.limit)
 
-	const filter = buildFilter(args)
+  const filter = buildFilter(args)
 
-	const [items, total] = await Promise.all([
-		User.find(filter)
-			.select(USERS_TBL_SELECTION)
-			.sort(buildSort(args.sortBy, args.sortDir))
-			.skip(args.offset)
-			.limit(args.limit)
-			.lean(),
-		User.countDocuments(filter)
-	])
+  const [items, total] = await Promise.all([
+    User.find(filter)
+      .select(USERS_TBL_SELECTION)
+      .sort(buildSort(args.sortBy, args.sortDir))
+      .skip(args.offset)
+      .limit(args.limit)
+      .lean(),
+    User.countDocuments(filter)
+  ])
 
-	return { items, total }
+  return { items, total }
 }

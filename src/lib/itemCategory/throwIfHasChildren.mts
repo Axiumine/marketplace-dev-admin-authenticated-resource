@@ -23,11 +23,11 @@ import { ClientSession, trusted, Types } from 'mongoose'
  * child that appeared. Reading in the caller's session is all this has to do.
  */
 export async function throwIfHasChildren(_id: Types.ObjectId, session: ClientSession) {
-	const children = await ItemCategory.countDocuments({ idParent: _id, deleted: trusted({ $exists: false }) })
-		.session(session)
-		.lean()
+  const children = await ItemCategory.countDocuments({ idParent: _id, deleted: trusted({ $exists: false }) })
+    .session(session)
+    .lean()
 
-	if (children > 0) {
-		throwErrorWrongUserInput('itemCategory.idParent: this category has subcategories — move or remove them first')
-	}
+  if (children > 0) {
+    throwErrorWrongUserInput('itemCategory.idParent: this category has subcategories — move or remove them first')
+  }
 }

@@ -10,13 +10,13 @@ import mongoose, { Types } from 'mongoose'
  * tier already takes its arguments this way for the same reason.
  */
 export interface IShopOwnerStatus {
-	_id: Types.ObjectId
-	disabled: boolean
-	waitApprov: boolean
-	/** The admin making the change — `ctx.state.user._id`, never anything from the request body. */
-	adminId: Types.ObjectId
-	/** Present exactly when `disabled` is true; `validateDisabledReason` is what guarantees that. */
-	disabledReason?: string
+  _id: Types.ObjectId
+  disabled: boolean
+  waitApprov: boolean
+  /** The admin making the change — `ctx.state.user._id`, never anything from the request body. */
+  adminId: Types.ObjectId
+  /** Present exactly when `disabled` is true; `validateDisabledReason` is what guarantees that. */
+  disabledReason?: string
 }
 
 /**
@@ -56,36 +56,36 @@ export interface IShopOwnerStatus {
  * 404 *inside* the transaction is what stops a cascade running over an id that matched nothing.
  */
 export async function funShopOwnerUpdateStatus({ _id, disabled, waitApprov, adminId, disabledReason }: IShopOwnerStatus) {
-	const set: Record<string, unknown> = {}
-	const unset: Record<string, 1> = {}
+  const set: Record<string, unknown> = {}
+  const unset: Record<string, 1> = {}
 
-	if (disabled) {
-		set.disabled = true
-		set.disabledBy = adminId
-		set.disabledReason = disabledReason
-	} else {
-		unset.disabled = 1
-		unset.disabledBy = 1
-		unset.disabledReason = 1
-	}
+  if (disabled) {
+    set.disabled = true
+    set.disabledBy = adminId
+    set.disabledReason = disabledReason
+  } else {
+    unset.disabled = 1
+    unset.disabledBy = 1
+    unset.disabledReason = 1
+  }
 
-	if (waitApprov) set.waitApprov = true
-	else unset.waitApprov = 1
+  if (waitApprov) set.waitApprov = true
+  else unset.waitApprov = 1
 
-	const session = await mongoose.startSession()
+  const session = await mongoose.startSession()
 
-	try {
-		await session.withTransaction(async () => {
-			// `$set` and `$unset` are always both present but never both non-empty for the same path, so no
-			// "Updating the path 'x' would create a conflict" is possible. An empty admin object is accepted
-			// by the driver and does nothing.
-			const ret = await ShopOwner.updateOne({ _id: _id }, { $set: set, $unset: unset }).session(session).exec()
+  try {
+    await session.withTransaction(async () => {
+      // `$set` and `$unset` are always both present but never both non-empty for the same path, so no
+      // "Updating the path 'x' would create a conflict" is possible. An empty admin object is accepted
+      // by the driver and does nothing.
+      const ret = await ShopOwner.updateOne({ _id: _id }, { $set: set, $unset: unset }).session(session).exec()
 
-			if (ret.matchedCount !== 1) throwNotFoundError('shopOwner not found')
+      if (ret.matchedCount !== 1) throwNotFoundError('shopOwner not found')
 
-			if (disabled) await unpublishOwnerStorefront(_id, session)
-		})
-	} finally {
-		await session.endSession()
-	}
+      if (disabled) await unpublishOwnerStorefront(_id, session)
+    })
+  } finally {
+    await session.endSession()
+  }
 }

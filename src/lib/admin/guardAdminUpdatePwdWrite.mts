@@ -29,11 +29,11 @@ export const ADMIN_UPDATE_PWD_ATTEMPTS_PER_HOUR = 5
  * this tier that re-authenticates against a password, so there is nothing else to keep it separate from.
  */
 export async function guardAdminUpdatePwdWrite(admin: string) {
-	await assertUnderRateLimit(
-		redisClient,
-		'admin:updatePwd',
-		admin,
-		ADMIN_UPDATE_PWD_ATTEMPTS_PER_HOUR,
-		ADMIN_UPDATE_PWD_WRITE_WINDOW_SECONDS
-	)
+  await assertUnderRateLimit(
+    redisClient,
+    'admin:updatePwd',
+    admin,
+    ADMIN_UPDATE_PWD_ATTEMPTS_PER_HOUR,
+    ADMIN_UPDATE_PWD_WRITE_WINDOW_SECONDS
+  )
 }

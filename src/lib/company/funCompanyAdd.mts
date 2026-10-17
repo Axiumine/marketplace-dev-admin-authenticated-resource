@@ -51,28 +51,28 @@ import mongoose, { trusted, Types } from 'mongoose'
  * a deleted company were restored, and there is no restore flow to make that safe.
  */
 export async function funCompanyAdd(idShopOwner: Types.ObjectId, data: ICompanyValidated) {
-	const _id = new Types.ObjectId()
-	const session = await mongoose.startSession()
+  const _id = new Types.ObjectId()
+  const session = await mongoose.startSession()
 
-	try {
-		await session.withTransaction(async () => {
-			const owner = await ShopOwner.findOneAndUpdate(
-				{ _id: idShopOwner, deleted: trusted({ $exists: false }) },
-				{ $inc: { __v: 1 } },
-				{ projection: { _id: 1 } }
-			)
-				.session(session)
-				.lean()
+  try {
+    await session.withTransaction(async () => {
+      const owner = await ShopOwner.findOneAndUpdate(
+        { _id: idShopOwner, deleted: trusted({ $exists: false }) },
+        { $inc: { __v: 1 } },
+        { projection: { _id: 1 } }
+      )
+        .session(session)
+        .lean()
 
-			if (owner === null) throwNotFoundError('shopOwner not found')
+      if (owner === null) throwNotFoundError('shopOwner not found')
 
-			await Company.create([{ _id, idShopOwner, ...data, published: false }], { session })
-		})
-	} catch (e) {
-		if (duplicateKey(e)) throwAlreadyTakenError('VAT number or certified email already registered by another company')
+      await Company.create([{ _id, idShopOwner, ...data, published: false }], { session })
+    })
+  } catch (e) {
+    if (duplicateKey(e)) throwAlreadyTakenError('VAT number or certified email already registered by another company')
 
-		throw e
-	} finally {
-		await session.endSession()
-	}
+    throw e
+  } finally {
+    await session.endSession()
+  }
 }

@@ -16,11 +16,11 @@ import { GraphQLID, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLS
  * whose order changes between two reads of the same documents.
  */
 export const GraphQLInputItemCategory = new GraphQLInputObjectType({
-	name: 'GraphQLInputItemCategory',
-	fields: () => ({
-		name: { type: new GraphQLNonNull(GraphQLString) },
-		slug: { type: new GraphQLNonNull(GraphQLString) },
-		idParent: { type: GraphQLID },
-		position: { type: new GraphQLNonNull(GraphQLInt) }
-	})
+  name: 'GraphQLInputItemCategory',
+  fields: () => ({
+    name: { type: new GraphQLNonNull(GraphQLString) },
+    slug: { type: new GraphQLNonNull(GraphQLString) },
+    idParent: { type: GraphQLID },
+    position: { type: new GraphQLNonNull(GraphQLInt) }
+  })
 })

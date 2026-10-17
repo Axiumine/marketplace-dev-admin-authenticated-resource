@@ -33,33 +33,33 @@ import { Types } from 'mongoose'
  * Both say run it again, because both are finished by exactly that.
  */
 export async function funKeygripResweep(_id: Types.ObjectId): Promise<void> {
-	await guardKeygripWrite('resweep', _id.toString())
+  await guardKeygripWrite('resweep', _id.toString())
 
-	let sweep: ISweepOutcome
+  let sweep: ISweepOutcome
 
-	try {
-		sweep = await endEveryPlatformSession()
-	} catch (e) {
-		throwInternalError(
-			`The session sweep could not start: ${(e as Error).message}. No session was ended. Run keygripResweep again once the platform's data stores answer.`
-		)
-	}
+  try {
+    sweep = await endEveryPlatformSession()
+  } catch (e) {
+    throwInternalError(
+      `The session sweep could not start: ${(e as Error).message}. No session was ended. Run keygripResweep again once the platform's data stores answer.`
+    )
+  }
 
-	/*
-	 * The audit trail, written before the partial-failure refusal for `funKeygripRetire`'s reason: sessions
-	 * were ended and that is worth a line whether or not the rest of the walk got through.
-	 *
-	 * ⚠️ **The admin is named by digest and the accounts are not named at all.** This becomes an
-	 * `event.message`, which `sentryBeforeSend` does not walk, so anything written here reaches the vendor
-	 * verbatim — the same decision `funKeygripRotate` and `funKeygripRetire` record on their own audit lines.
-	 */
-	Sentry.captureMessage(
-		`keygrip session resweep by admin ${sha256Hex(_id.toString())}, ending ${sweep.ended} sessions across ${sweep.failed} unreached accounts`,
-		'info'
-	)
+  /*
+   * The audit trail, written before the partial-failure refusal for `funKeygripRetire`'s reason: sessions
+   * were ended and that is worth a line whether or not the rest of the walk got through.
+   *
+   * ⚠️ **The admin is named by digest and the accounts are not named at all.** This becomes an
+   * `event.message`, which `sentryBeforeSend` does not walk, so anything written here reaches the vendor
+   * verbatim — the same decision `funKeygripRotate` and `funKeygripRetire` record on their own audit lines.
+   */
+  Sentry.captureMessage(
+    `keygrip session resweep by admin ${sha256Hex(_id.toString())}, ending ${sweep.ended} sessions across ${sweep.failed} unreached accounts`,
+    'info'
+  )
 
-	if (sweep.failed > 0)
-		throwInternalError(
-			`The resweep ended ${sweep.ended} sessions, but ${sweep.failed} accounts could not be reached and may still hold live ones: ${sweep.reason}. Run keygripResweep again — it walks every account and is safe to repeat.`
-		)
+  if (sweep.failed > 0)
+    throwInternalError(
+      `The resweep ended ${sweep.ended} sessions, but ${sweep.failed} accounts could not be reached and may still hold live ones: ${sweep.reason}. Run keygripResweep again — it walks every account and is safe to repeat.`
+    )
 }

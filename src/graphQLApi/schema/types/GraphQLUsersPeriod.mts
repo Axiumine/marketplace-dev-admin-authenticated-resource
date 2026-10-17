@@ -11,11 +11,11 @@ import { GraphQLEnumType } from 'graphql'
 // to either collection. The schema test asserts both member lists, so a range added to one and not the
 // other is caught there.
 export const GraphQLUsersPeriod = new GraphQLEnumType({
-	name: 'GraphQLUsersPeriod',
-	description: 'Time range of the customers chart',
-	values: {
-		ALL: { description: 'From the first registered customer to today' },
-		THREE_MONTHS: { description: 'The last three months' },
-		ONE_MONTH: { description: 'The last month' }
-	}
+  name: 'GraphQLUsersPeriod',
+  description: 'Time range of the customers chart',
+  values: {
+    ALL: { description: 'From the first registered customer to today' },
+    THREE_MONTHS: { description: 'The last three months' },
+    ONE_MONTH: { description: 'The last month' }
+  }
 })

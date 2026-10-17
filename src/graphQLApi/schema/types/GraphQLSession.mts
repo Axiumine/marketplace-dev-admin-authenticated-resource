@@ -26,11 +26,11 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
  * the one thing that explains a duplicate an admin would otherwise read as a second device.
  */
 export const GraphQLSession = new GraphQLObjectType({
-	name: 'GraphQLSession',
-	fields: () => ({
-		id: { type: new GraphQLNonNull(GraphQLString) },
-		tier: { type: new GraphQLNonNull(GraphQLTier) },
-		mintedAt: { type: new GraphQLNonNull(GraphQLString) },
-		familyId: { type: new GraphQLNonNull(GraphQLString) }
-	})
+  name: 'GraphQLSession',
+  fields: () => ({
+    id: { type: new GraphQLNonNull(GraphQLString) },
+    tier: { type: new GraphQLNonNull(GraphQLTier) },
+    mintedAt: { type: new GraphQLNonNull(GraphQLString) },
+    familyId: { type: new GraphQLNonNull(GraphQLString) }
+  })
 })

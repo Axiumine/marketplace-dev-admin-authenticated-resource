@@ -44,9 +44,9 @@ import { PipelineStage } from 'mongoose'
  * from drifting apart — they describe the same decision and there is one place to change it.
  */
 const RANGES = {
-	ALL: { months: null, granularity: 'MONTH', format: '%Y-%m-01' },
-	THREE_MONTHS: { months: 3, granularity: 'DAY', format: '%Y-%m-%d' },
-	ONE_MONTH: { months: 1, granularity: 'DAY', format: '%Y-%m-%d' }
+  ALL: { months: null, granularity: 'MONTH', format: '%Y-%m-01' },
+  THREE_MONTHS: { months: 3, granularity: 'DAY', format: '%Y-%m-%d' },
+  ONE_MONTH: { months: 1, granularity: 'DAY', format: '%Y-%m-%d' }
 } as const
 
 export type StatsPeriod = keyof typeof RANGES
@@ -60,13 +60,13 @@ export type PeriodGranularity = (typeof RANGES)[StatsPeriod]['granularity']
  * its length, invites exactly the off-by-one nobody notices until December.
  */
 export interface IPerPeriodPoint {
-	date: string
-	total: number
+  date: string
+  total: number
 }
 
 export interface IPerPeriod {
-	granularity: PeriodGranularity
-	points: IPerPeriodPoint[]
+  granularity: PeriodGranularity
+  points: IPerPeriodPoint[]
 }
 
 /**
@@ -76,7 +76,7 @@ export interface IPerPeriod {
  * because mongoose answers an `Aggregate`, which is thenable and not a `Promise`.
  */
 export interface ISeriesModel {
-	aggregate<T>(pipeline: PipelineStage[]): PromiseLike<T[]>
+  aggregate<T>(pipeline: PipelineStage[]): PromiseLike<T[]>
 }
 
 /**
@@ -91,7 +91,7 @@ const MS_PER_DAY = 86_400_000
 
 /** `YYYY-MM-DD` from a UTC timestamp. `toISOString` is UTC by definition, so no zone maths here. */
 function toBucketKey(ms: number): string {
-	return new Date(ms).toISOString().slice(0, 10)
+  return new Date(ms).toISOString().slice(0, 10)
 }
 
 /**
@@ -100,19 +100,19 @@ function toBucketKey(ms: number): string {
  * Adding `T00:00:00` and forgetting the `Z` is the one way to get this wrong, so nothing is added.
  */
 function fromBucketKey(key: string): number {
-	return Date.parse(key)
+  return Date.parse(key)
 }
 
 /** Midnight UTC of the day `date` falls on. The upper end of every range, and the day step's base. */
 function startOfDayUTC(date: Date): number {
-	return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
 }
 
 /** Midnight UTC of the first of the month `ms` falls in. The month step's base. */
 function startOfMonthUTC(ms: number): number {
-	const d = new Date(ms)
+  const d = new Date(ms)
 
-	return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)
 }
 
 /**
@@ -124,24 +124,24 @@ function startOfMonthUTC(ms: number): number {
  * ago" a calendar supports.
  */
 function subMonthsUTC(ms: number, months: number): number {
-	const d = new Date(ms)
-	const year = d.getUTCFullYear()
-	const month = d.getUTCMonth() - months
-	// Day 0 of the following month is the last day of the one we landed in.
-	const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+  const d = new Date(ms)
+  const year = d.getUTCFullYear()
+  const month = d.getUTCMonth() - months
+  // Day 0 of the following month is the last day of the one we landed in.
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
 
-	return Date.UTC(year, month, Math.min(d.getUTCDate(), lastDay))
+  return Date.UTC(year, month, Math.min(d.getUTCDate(), lastDay))
 }
 
 /** Every bucket start from `from` to `to` inclusive, one day apart. */
 function dayBuckets(from: number, to: number): number[] {
-	const out: number[] = []
+  const out: number[] = []
 
-	for (let ms = from; ms <= to; ms += MS_PER_DAY) {
-		out.push(ms)
-	}
+  for (let ms = from; ms <= to; ms += MS_PER_DAY) {
+    out.push(ms)
+  }
 
-	return out
+  return out
 }
 
 /**
@@ -164,20 +164,20 @@ function dayBuckets(from: number, to: number): number[] {
  * are 28 to 31 days long, so a millisecond step drifts and eventually skips or repeats one.
  */
 function monthBuckets(counts: Map<string, number>, to: number): number[] {
-	const out: number[] = []
-	const last = startOfMonthUTC(to)
+  const out: number[] = []
+  const last = startOfMonthUTC(to)
 
-	for (const first of [...counts.keys()].sort().slice(0, 1)) {
-		let ms = startOfMonthUTC(fromBucketKey(first))
+  for (const first of [...counts.keys()].sort().slice(0, 1)) {
+    let ms = startOfMonthUTC(fromBucketKey(first))
 
-		while (ms <= last) {
-			out.push(ms)
-			const d = new Date(ms)
-			ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)
-		}
-	}
+    while (ms <= last) {
+      out.push(ms)
+      const d = new Date(ms)
+      ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)
+    }
+  }
 
-	return out
+  return out
 }
 
 /**
@@ -185,32 +185,32 @@ function monthBuckets(counts: Map<string, number>, to: number): number[] {
  * produces no group at all — and are filled in by `series`.
  */
 async function countsByBucket(model: ISeriesModel, from: number | null, format: string): Promise<Map<string, number>> {
-	const pipeline: PipelineStage[] = []
+  const pipeline: PipelineStage[] = []
 
-	// Only the bounded ranges get a `$match`, and it is what the single-field `{ registeredAt: 1 }`
-	// index serves — `registeredAt_series`, built by `20260301000100` on `shopOwner` and by
-	// `20260829000200` on `user` in marketplace-db-setup. `ALL` reads the whole collection by
-	// definition, so a stage matching everything would only add work.
-	if (from !== null) {
-		pipeline.push({ $match: { registeredAt: { $gte: new Date(from) } } })
-	}
+  // Only the bounded ranges get a `$match`, and it is what the single-field `{ registeredAt: 1 }`
+  // index serves — `registeredAt_series`, built by `20260301000100` on `shopOwner` and by
+  // `20260829000200` on `user` in marketplace-db-setup. `ALL` reads the whole collection by
+  // definition, so a stage matching everything would only add work.
+  if (from !== null) {
+    pipeline.push({ $match: { registeredAt: { $gte: new Date(from) } } })
+  }
 
-	pipeline.push({
-		$group: { _id: { $dateToString: { format, date: '$registeredAt', timezone: 'UTC' } }, total: { $sum: 1 } }
-	})
+  pipeline.push({
+    $group: { _id: { $dateToString: { format, date: '$registeredAt', timezone: 'UTC' } }, total: { $sum: 1 } }
+  })
 
-	const groups = await model.aggregate<{ _id: string; total: number }>(pipeline)
+  const groups = await model.aggregate<{ _id: string; total: number }>(pipeline)
 
-	return new Map(groups.map((r) => [r._id, r.total]))
+  return new Map(groups.map((r) => [r._id, r.total]))
 }
 
 /** Gap filling: every bucket in the range gets a point, and a bucket nobody registered in gets 0. */
 function series(buckets: number[], counts: Map<string, number>): IPerPeriodPoint[] {
-	return buckets.map((ms) => {
-		const date = toBucketKey(ms)
+  return buckets.map((ms) => {
+    const date = toBucketKey(ms)
 
-		return { date, total: counts.get(date) ?? 0 }
-	})
+    return { date, total: counts.get(date) ?? 0 }
+  })
 }
 
 /**
@@ -222,17 +222,17 @@ function series(buckets: number[], counts: Map<string, number>): IPerPeriodPoint
  * `monthBuckets`.
  */
 export default async function registeredAtSeriesDb(model: ISeriesModel, period: StatsPeriod): Promise<IPerPeriod> {
-	const { months, granularity, format } = RANGES[period]
-	const today = startOfDayUTC(new Date())
+  const { months, granularity, format } = RANGES[period]
+  const today = startOfDayUTC(new Date())
 
-	if (months === null) {
-		const counts = await countsByBucket(model, null, format)
+  if (months === null) {
+    const counts = await countsByBucket(model, null, format)
 
-		return { granularity, points: series(monthBuckets(counts, today), counts) }
-	}
+    return { granularity, points: series(monthBuckets(counts, today), counts) }
+  }
 
-	const from = subMonthsUTC(today, months)
-	const counts = await countsByBucket(model, from, format)
+  const from = subMonthsUTC(today, months)
+  const counts = await countsByBucket(model, from, format)
 
-	return { granularity, points: series(dayBuckets(from, today), counts) }
+  return { granularity, points: series(dayBuckets(from, today), counts) }
 }

@@ -16,10 +16,10 @@ import { Types } from 'mongoose'
  * and clearing a note that was already absent is still the state the admin asked for.
  */
 export async function funShopOwnerUpdateNote(_id: Types.ObjectId, notes: string) {
-	const ret = await ShopOwner.updateOne(
-		{ _id: _id },
-		notes === '' ? { $unset: { notes: 1 } } : { $set: { notes: notes } }
-	).exec()
+  const ret = await ShopOwner.updateOne(
+    { _id: _id },
+    notes === '' ? { $unset: { notes: 1 } } : { $set: { notes: notes } }
+  ).exec()
 
-	if (ret.matchedCount !== 1) throwNotFoundError('shopOwner not found')
+  if (ret.matchedCount !== 1) throwNotFoundError('shopOwner not found')
 }
