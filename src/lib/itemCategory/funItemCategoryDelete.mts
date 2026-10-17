@@ -41,29 +41,29 @@ import mongoose, { trusted, Types } from 'mongoose'
  * not `modifiedCount`, and a 404 when nothing matched — same convention as the rest of this tier.
  */
 export async function funItemCategoryDelete(_id: Types.ObjectId) {
-	const session = await mongoose.startSession()
+  const session = await mongoose.startSession()
 
-	try {
-		await session.withTransaction(async () => {
-			const children = await ItemCategory.countDocuments({ idParent: _id, deleted: trusted({ $exists: false }) })
-				.session(session)
-				.lean()
+  try {
+    await session.withTransaction(async () => {
+      const children = await ItemCategory.countDocuments({ idParent: _id, deleted: trusted({ $exists: false }) })
+        .session(session)
+        .lean()
 
-			if (children > 0) throwErrorWrongUserInput('the category still has subcategories')
+      if (children > 0) throwErrorWrongUserInput('the category still has subcategories')
 
-			const items = await Item.countDocuments({ idCategory: _id, deleted: trusted({ $exists: false }) })
-				.session(session)
-				.lean()
+      const items = await Item.countDocuments({ idCategory: _id, deleted: trusted({ $exists: false }) })
+        .session(session)
+        .lean()
 
-			if (items > 0) throwErrorWrongUserInput('the category still holds items')
+      if (items > 0) throwErrorWrongUserInput('the category still holds items')
 
-			const ret = await ItemCategory.updateOne({ _id: _id }, { $set: { deleted: Date.now() } })
-				.session(session)
-				.exec()
+      const ret = await ItemCategory.updateOne({ _id: _id }, { $set: { deleted: Date.now() } })
+        .session(session)
+        .exec()
 
-			if (ret.matchedCount !== 1) throwNotFoundError('category not found')
-		})
-	} finally {
-		await session.endSession()
-	}
+      if (ret.matchedCount !== 1) throwNotFoundError('category not found')
+    })
+  } finally {
+    await session.endSession()
+  }
 }

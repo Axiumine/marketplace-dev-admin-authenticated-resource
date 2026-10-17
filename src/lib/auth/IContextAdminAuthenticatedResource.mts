@@ -3,12 +3,12 @@ import { IRedisDataAdminForNode } from '@axiumine/marketplace-common/others/Redi
 import { IncomingHttpHeaders } from 'http'
 
 type IStateApi = {
-	user: IRedisDataAdminForNode
+  user: IRedisDataAdminForNode
 }
 export type IContextAdminAuthenticatedResource = {
-	state: IStateApi
-	request: {
-		header?: TCommonHeaders & IncomingHttpHeaders
-	}
+  state: IStateApi
+  request: {
+    header?: TCommonHeaders & IncomingHttpHeaders
+  }
 }
 export {}

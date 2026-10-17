@@ -10,18 +10,18 @@ import { GraphQLFloat, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, Grap
  * saw. `validateAddress` writes the literal.
  */
 const GraphQLInputCompanyPosition = new GraphQLInputObjectType({
-	name: 'GraphQLInputCompanyPosition',
-	fields: () => ({
-		coordinates: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLFloat))) }
-	})
+  name: 'GraphQLInputCompanyPosition',
+  fields: () => ({
+    coordinates: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLFloat))) }
+  })
 })
 
 const GraphQLInputCompanyAddress = new GraphQLInputObjectType({
-	name: 'GraphQLInputCompanyAddress',
-	fields: () => ({
-		...GraphQLAddressFrag,
-		position: { type: new GraphQLNonNull(GraphQLInputCompanyPosition) }
-	})
+  name: 'GraphQLInputCompanyAddress',
+  fields: () => ({
+    ...GraphQLAddressFrag,
+    position: { type: new GraphQLNonNull(GraphQLInputCompanyPosition) }
+  })
 })
 
 /**
@@ -44,22 +44,22 @@ const GraphQLInputCompanyAddress = new GraphQLInputObjectType({
  * and the shop stays unpublished until someone publishes it on purpose.
  */
 export const GraphQLInputCompany = new GraphQLInputObjectType({
-	name: 'GraphQLInputCompany',
-	fields: () => ({
-		legalName: { type: new GraphQLNonNull(GraphQLString) },
-		vatNumber: { type: new GraphQLNonNull(GraphQLString) },
-		taxCode: { type: GraphQLString },
-		contactPerson: { type: new GraphQLNonNull(GraphQLString) },
-		administrator: { type: new GraphQLNonNull(GraphQLString) },
-		uniqueCode: { type: GraphQLString },
-		certifiedEmail: { type: new GraphQLNonNull(GraphQLString) },
-		address: { type: new GraphQLNonNull(GraphQLInputCompanyAddress) },
-		registryExtract: { type: new GraphQLNonNull(GraphQLString) },
-		// These three are what makes a shop publishable: the database refuses `published: true` unless
-		// `slug` and `publicName` are both stored on the document. So the card is saved here first and
-		// `companyUpdatePublished` comes second — which is the order the split already imposes.
-		publicName: { type: GraphQLString },
-		slug: { type: GraphQLString },
-		description: { type: GraphQLString }
-	})
+  name: 'GraphQLInputCompany',
+  fields: () => ({
+    legalName: { type: new GraphQLNonNull(GraphQLString) },
+    vatNumber: { type: new GraphQLNonNull(GraphQLString) },
+    taxCode: { type: GraphQLString },
+    contactPerson: { type: new GraphQLNonNull(GraphQLString) },
+    administrator: { type: new GraphQLNonNull(GraphQLString) },
+    uniqueCode: { type: GraphQLString },
+    certifiedEmail: { type: new GraphQLNonNull(GraphQLString) },
+    address: { type: new GraphQLNonNull(GraphQLInputCompanyAddress) },
+    registryExtract: { type: new GraphQLNonNull(GraphQLString) },
+    // These three are what makes a shop publishable: the database refuses `published: true` unless
+    // `slug` and `publicName` are both stored on the document. So the card is saved here first and
+    // `companyUpdatePublished` comes second — which is the order the split already imposes.
+    publicName: { type: GraphQLString },
+    slug: { type: GraphQLString },
+    description: { type: GraphQLString }
+  })
 })

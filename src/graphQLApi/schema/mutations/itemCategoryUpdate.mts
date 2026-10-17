@@ -6,8 +6,8 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull } from 'graphql
 import { Types } from 'mongoose'
 
 interface IArgs {
-	_id: Types.ObjectId
-	itemCategory: IItemCategoryInput
+  _id: Types.ObjectId
+  itemCategory: IItemCategoryInput
 }
 
 /**
@@ -23,19 +23,19 @@ interface IArgs {
  * that check is the one nothing else on the platform performs.
  */
 export const itemCategoryUpdate = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'updates an item category',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		itemCategory: { type: new GraphQLNonNull(GraphQLInputItemCategory) }
-	},
-	async resolve(_: unknown, args: IArgs) {
-		try {
-			await funItemCategoryUpdate(args._id, validateItemCategory(args.itemCategory))
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'updates an item category',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    itemCategory: { type: new GraphQLNonNull(GraphQLInputItemCategory) }
+  },
+  async resolve(_: unknown, args: IArgs) {
+    try {
+      await funItemCategoryUpdate(args._id, validateItemCategory(args.itemCategory))
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

@@ -8,5 +8,5 @@ import { User } from '@axiumine/marketplace-common/models/MongoDB/User'
  * number. Since ADR-041 a closed account keeps its document for ever, so this total never goes down.
  */
 export default async function usersStatsDb() {
-	return User.countDocuments()
+  return User.countDocuments()
 }

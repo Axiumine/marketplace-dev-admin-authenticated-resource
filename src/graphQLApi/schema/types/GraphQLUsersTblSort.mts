@@ -17,9 +17,9 @@ import { GraphQLEnumType } from 'graphql'
 // `GraphQLSortDirection` is not redeclared here: it is one type in one schema, and it lives in
 // `GraphQLShopOwnersTblSort.mts` because that table needed it first.
 export const GraphQLUsersTblSortField = new GraphQLEnumType({
-	name: 'GraphQLUsersTblSortField',
-	description: 'Sort column of the users table',
-	values: {
-		REGISTERED_AT: { description: 'Registration date' }
-	}
+  name: 'GraphQLUsersTblSortField',
+  description: 'Sort column of the users table',
+  values: {
+    REGISTERED_AT: { description: 'Registration date' }
+  }
 })

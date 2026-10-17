@@ -17,12 +17,12 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql'
  * string in the next one, and the console formats it against the admin's own locale either way.
  */
 export const GraphQLReuseEvent = new GraphQLObjectType({
-	name: 'GraphQLReuseEvent',
-	fields: () => ({
-		familyId: { type: new GraphQLNonNull(GraphQLString) },
-		tier: { type: new GraphQLNonNull(GraphQLTier) },
-		accountId: { type: new GraphQLNonNull(GraphQLString) },
-		action: { type: new GraphQLNonNull(GraphQLReuseEventAction) },
-		at: { type: new GraphQLNonNull(GraphQLString) }
-	})
+  name: 'GraphQLReuseEvent',
+  fields: () => ({
+    familyId: { type: new GraphQLNonNull(GraphQLString) },
+    tier: { type: new GraphQLNonNull(GraphQLTier) },
+    accountId: { type: new GraphQLNonNull(GraphQLString) },
+    action: { type: new GraphQLNonNull(GraphQLReuseEventAction) },
+    at: { type: new GraphQLNonNull(GraphQLString) }
+  })
 })

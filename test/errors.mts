@@ -19,31 +19,31 @@ type Outcome = { message: string; http: { status: number }; description: string 
  * the suites without becoming one.
  */
 function unpack(e: unknown): Outcome {
-	const { message, extensions } = e as GraphQLError
+  const { message, extensions } = e as GraphQLError
 
-	return { message, ...(extensions as Omit<Outcome, 'message'>) }
+  return { message, ...(extensions as Omit<Outcome, 'message'>) }
 }
 
 /** The rejection of an async call. */
 export async function rejection(promise: Promise<unknown>): Promise<Outcome> {
-	try {
-		await promise
-	} catch (e) {
-		return unpack(e)
-	}
+  try {
+    await promise
+  } catch (e) {
+    return unpack(e)
+  }
 
-	throw new Error('expected the call to reject, it resolved')
+  throw new Error('expected the call to reject, it resolved')
 }
 
 /** As above, for the validators, which throw synchronously. */
 export function failure(fn: () => unknown): Outcome {
-	try {
-		fn()
-	} catch (e) {
-		return unpack(e)
-	}
+  try {
+    fn()
+  } catch (e) {
+    return unpack(e)
+  }
 
-	throw new Error('expected the call to throw, it returned')
+  throw new Error('expected the call to throw, it returned')
 }
 
 /**
@@ -55,10 +55,10 @@ export function failure(fn: () => unknown): Outcome {
  * value that varies.
  */
 export function reason(fn: () => unknown): string {
-	const outcome = failure(fn)
+  const outcome = failure(fn)
 
-	expect(outcome.message).toBe('Bad Request')
-	expect(outcome.http).toEqual({ status: 400 })
+  expect(outcome.message).toBe('Bad Request')
+  expect(outcome.http).toEqual({ status: 400 })
 
-	return outcome.description
+  return outcome.description
 }

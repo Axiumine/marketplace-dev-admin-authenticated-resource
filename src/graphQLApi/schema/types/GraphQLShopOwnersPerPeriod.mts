@@ -6,11 +6,11 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 // String rather than a date scalar because the platform has none, and because the value is already
 // a bucket KEY: it is not a moment in time, it is the name of an interval.
 export const GraphQLShopOwnersPerPeriodPoint = new GraphQLObjectType({
-	name: 'GraphQLShopOwnersPerPeriodPoint',
-	fields: () => ({
-		date: { type: new GraphQLNonNull(GraphQLString) },
-		total: { type: new GraphQLNonNull(GraphQLInt) }
-	})
+  name: 'GraphQLShopOwnersPerPeriodPoint',
+  fields: () => ({
+    date: { type: new GraphQLNonNull(GraphQLString) },
+    total: { type: new GraphQLNonNull(GraphQLInt) }
+  })
 })
 
 // The series, plus the bucket width it was built at. `granularity` is a field rather than something
@@ -18,9 +18,9 @@ export const GraphQLShopOwnersPerPeriodPoint = new GraphQLObjectType({
 // in which every month happens to hold one registration is indistinguishable from a daily series
 // with a lot of gaps.
 export const GraphQLShopOwnersPerPeriod = new GraphQLObjectType({
-	name: 'GraphQLShopOwnersPerPeriod',
-	fields: () => ({
-		granularity: { type: new GraphQLNonNull(GraphQLPeriodGranularity) },
-		points: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLShopOwnersPerPeriodPoint))) }
-	})
+  name: 'GraphQLShopOwnersPerPeriod',
+  fields: () => ({
+    granularity: { type: new GraphQLNonNull(GraphQLPeriodGranularity) },
+    points: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLShopOwnersPerPeriodPoint))) }
+  })
 })

@@ -52,29 +52,29 @@ const hashAt = (key: string) => (store.get(key) as Record<string, string> | unde
  * assertion below would see it.
  */
 const redisClient = {
-	hGetAll: (key: string) => Promise.resolve({ ...hashAt(key) }),
-	hGet: (key: string, field: string) => Promise.resolve(hashAt(key)[field] ?? null),
-	hKeys: (key: string) => Promise.resolve(Object.keys(hashAt(key))),
-	hDel: (key: string, field: string) => {
-		const hash = store.get(key) as Record<string, string> | undefined
-		const existed = typeof hash?.[field] !== 'undefined'
+  hGetAll: (key: string) => Promise.resolve({ ...hashAt(key) }),
+  hGet: (key: string, field: string) => Promise.resolve(hashAt(key)[field] ?? null),
+  hKeys: (key: string) => Promise.resolve(Object.keys(hashAt(key))),
+  hDel: (key: string, field: string) => {
+    const hash = store.get(key) as Record<string, string> | undefined
+    const existed = typeof hash?.[field] !== 'undefined'
 
-		if (hash) delete hash[field]
+    if (hash) delete hash[field]
 
-		return Promise.resolve(existed ? 1 : 0)
-	},
-	del: (key: string) => Promise.resolve(store.delete(key) ? 1 : 0),
-	lRange: (key: string, start: number, stop: number) =>
-		Promise.resolve(((store.get(key) as string[] | undefined) ?? []).slice(start, stop + 1)),
-	incr: (key: string) => {
-		const next = Number((store.get(key) as string | undefined) ?? '0') + 1
+    return Promise.resolve(existed ? 1 : 0)
+  },
+  del: (key: string) => Promise.resolve(store.delete(key) ? 1 : 0),
+  lRange: (key: string, start: number, stop: number) =>
+    Promise.resolve(((store.get(key) as string[] | undefined) ?? []).slice(start, stop + 1)),
+  incr: (key: string) => {
+    const next = Number((store.get(key) as string | undefined) ?? '0') + 1
 
-		store.set(key, `${next}`)
+    store.set(key, `${next}`)
 
-		return Promise.resolve(next)
-	},
-	ttl: () => Promise.resolve(60),
-	expire: () => Promise.resolve(true)
+    return Promise.resolve(next)
+  },
+  ttl: () => Promise.resolve(60),
+  expire: () => Promise.resolve(true)
 }
 
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient }))
@@ -88,100 +88,100 @@ const ctx = { state: { user: { _id: ADMIN, email: 'admin@marketplace.test' } } }
 const prefix = process.env.REDIS_KEY
 
 beforeEach(() => {
-	store.clear()
+  store.clear()
 
-	// The account's index: one live session, filed under the digest of the seeded token.
-	store.set(`${prefix}idx:shopOwner:${ACCOUNT}`, { [FIELD]: JSON.stringify({ tier: 'shopOwner', mintedAt: MINTED_AT }) })
+  // The account's index: one live session, filed under the digest of the seeded token.
+  store.set(`${prefix}idx:shopOwner:${ACCOUNT}`, { [FIELD]: JSON.stringify({ tier: 'shopOwner', mintedAt: MINTED_AT }) })
 
-	/*
-	 * The session hash itself, at the key the digest names, with more in it than the console renders —
-	 * `email` and `originalLogin` and the rest are there precisely so that a lib forwarding the hash
-	 * wholesale would be visible. The token is not a field of it: the key *is* the token's digest, which
-	 * is the whole point of the digest and the reason the seeded value can only leak through a mistake.
-	 */
-	store.set(`${prefix}${FIELD}`, {
-		_id: ACCOUNT,
-		tier: 'shopOwner',
-		familyId: FAMILY,
-		originalLogin: MINTED_AT,
-		accessKey: ACCESS_KEY,
-		email: 'owner@marketplace.test',
-		disabled: 'false'
-	})
+  /*
+   * The session hash itself, at the key the digest names, with more in it than the console renders —
+   * `email` and `originalLogin` and the rest are there precisely so that a lib forwarding the hash
+   * wholesale would be visible. The token is not a field of it: the key *is* the token's digest, which
+   * is the whole point of the digest and the reason the seeded value can only leak through a mistake.
+   */
+  store.set(`${prefix}${FIELD}`, {
+    _id: ACCOUNT,
+    tier: 'shopOwner',
+    familyId: FAMILY,
+    originalLogin: MINTED_AT,
+    accessKey: ACCESS_KEY,
+    email: 'owner@marketplace.test',
+    disabled: 'false'
+  })
 
-	// The access half the session names, seeded so that a revocation reaching it is visible in the store —
-	// and so that anything forwarding a session hash wholesale would put a *key name* on the wire.
-	store.set(ACCESS_KEY, { _id: ACCOUNT, tier: 'shopOwner', email: 'owner@marketplace.test' })
+  // The access half the session names, seeded so that a revocation reaching it is visible in the store —
+  // and so that anything forwarding a session hash wholesale would put a *key name* on the wire.
+  store.set(ACCESS_KEY, { _id: ACCOUNT, tier: 'shopOwner', email: 'owner@marketplace.test' })
 
-	store.set(`${prefix}reuse:shopOwner:${ACCOUNT}`, [
-		JSON.stringify({ familyId: FAMILY, tier: 'shopOwner', accountId: ACCOUNT, action: 'refreshTokenReplayed', at: MINTED_AT })
-	])
+  store.set(`${prefix}reuse:shopOwner:${ACCOUNT}`, [
+    JSON.stringify({ familyId: FAMILY, tier: 'shopOwner', accountId: ACCOUNT, action: 'refreshTokenReplayed', at: MINTED_AT })
+  ])
 
-	/*
-	 * The signing keys, in the same database the console's own client is pointed at. No operation this
-	 * console adds has any business reading this key — seeding it is how "has any business" stops being an
-	 * assumption and becomes an assertion.
-	 */
-	store.set(`${prefix}keygrip`, { version: '3', wrapped: KEY, fp: 'fp-4a1c' })
+  /*
+   * The signing keys, in the same database the console's own client is pointed at. No operation this
+   * console adds has any business reading this key — seeding it is how "has any business" stops being an
+   * assumption and becomes an assertion.
+   */
+  store.set(`${prefix}keygrip`, { version: '3', wrapped: KEY, fp: 'fp-4a1c' })
 })
 
 const OPERATIONS: Array<[string, string]> = [
-	['sessions', `{ sessions(tier: shopOwner, accountId: "${ACCOUNT}") { id tier mintedAt familyId } }`],
-	['reuseEvents', `{ reuseEvents(tier: shopOwner, accountId: "${ACCOUNT}") { familyId tier accountId action at } }`],
-	['revokeSession', `mutation { revokeSession(tier: shopOwner, accountId: "${ACCOUNT}", id: "${FIELD}") }`],
-	['revokeAllSessions', `mutation { revokeAllSessions(tier: shopOwner, accountId: "${ACCOUNT}") }`]
+  ['sessions', `{ sessions(tier: shopOwner, accountId: "${ACCOUNT}") { id tier mintedAt familyId } }`],
+  ['reuseEvents', `{ reuseEvents(tier: shopOwner, accountId: "${ACCOUNT}") { familyId tier accountId action at } }`],
+  ['revokeSession', `mutation { revokeSession(tier: shopOwner, accountId: "${ACCOUNT}", id: "${FIELD}") }`],
+  ['revokeAllSessions', `mutation { revokeAllSessions(tier: shopOwner, accountId: "${ACCOUNT}") }`]
 ]
 
 describe('no operation the session console adds can put a credential on the wire', () => {
-	it.each(OPERATIONS)('%s answers without the seeded token or the seeded key anywhere in it', async (_name, source) => {
-		const result = await graphql({ schema, source, contextValue: ctx as never })
+  it.each(OPERATIONS)('%s answers without the seeded token or the seeded key anywhere in it', async (_name, source) => {
+    const result = await graphql({ schema, source, contextValue: ctx as never })
 
-		// The operation really ran. Asserting the cleanliness of an error response would pass on an
-		// operation that never touched the store, which is the one way this test could lie.
-		expect(result.errors).toBeUndefined()
+    // The operation really ran. Asserting the cleanliness of an error response would pass on an
+    // operation that never touched the store, which is the one way this test could lie.
+    expect(result.errors).toBeUndefined()
 
-		const serialised = JSON.stringify(result)
+    const serialised = JSON.stringify(result)
 
-		expect(serialised).not.toContain(TOKEN)
-		expect(serialised).not.toContain(TOKEN_BODY)
-		expect(serialised).not.toContain(KEY)
-	})
+    expect(serialised).not.toContain(TOKEN)
+    expect(serialised).not.toContain(TOKEN_BODY)
+    expect(serialised).not.toContain(KEY)
+  })
 
-	/*
-	 * ⚠️ The check above passes trivially on a response with nothing in it, so what the seeds actually
-	 * reach has to be pinned down or the loop is worth nothing. The two halves are not symmetric, and the
-	 * difference is the point:
-	 *
-	 * **The key is there.** Reachable from the same client the console's libs hold, one `hGetAll` away.
-	 * Nothing stops an operation reading it except an operation not doing so, which is what the loop
-	 * asserts.
-	 *
-	 * **The token is not there, anywhere, and cannot be.** Raw-token keys were replaced with digests:
-	 * the platform stores `sha256(prefixedRefreshToken)` and never the token, so a console operation
-	 * cannot leak it by forwarding something — only by reconstructing it, which sha256 does not permit.
-	 * The loop's token assertion is therefore a *regression* guard rather than a live check: it is the
-	 * test that fails if raw-token storage ever comes back — the last reader of the raw shape is gone, so
-	 * the only way back in now is a new field written in the clear.
-	 */
-	it('is checking a store that holds the key in the clear and the token nowhere at all', () => {
-		const serialisedStore = JSON.stringify([...store.entries()])
+  /*
+   * ⚠️ The check above passes trivially on a response with nothing in it, so what the seeds actually
+   * reach has to be pinned down or the loop is worth nothing. The two halves are not symmetric, and the
+   * difference is the point:
+   *
+   * **The key is there.** Reachable from the same client the console's libs hold, one `hGetAll` away.
+   * Nothing stops an operation reading it except an operation not doing so, which is what the loop
+   * asserts.
+   *
+   * **The token is not there, anywhere, and cannot be.** Raw-token keys were replaced with digests:
+   * the platform stores `sha256(prefixedRefreshToken)` and never the token, so a console operation
+   * cannot leak it by forwarding something — only by reconstructing it, which sha256 does not permit.
+   * The loop's token assertion is therefore a *regression* guard rather than a live check: it is the
+   * test that fails if raw-token storage ever comes back — the last reader of the raw shape is gone, so
+   * the only way back in now is a new field written in the clear.
+   */
+  it('is checking a store that holds the key in the clear and the token nowhere at all', () => {
+    const serialisedStore = JSON.stringify([...store.entries()])
 
-		expect(serialisedStore).toContain(KEY)
-		expect(serialisedStore).not.toContain(TOKEN)
-		expect(serialisedStore).not.toContain(TOKEN_BODY)
-		// What is there instead, in both places the token would otherwise have been: its digest.
-		expect(serialisedStore).toContain(FIELD)
-	})
+    expect(serialisedStore).toContain(KEY)
+    expect(serialisedStore).not.toContain(TOKEN)
+    expect(serialisedStore).not.toContain(TOKEN_BODY)
+    // What is there instead, in both places the token would otherwise have been: its digest.
+    expect(serialisedStore).toContain(FIELD)
+  })
 
-	// And the digest is not the token, which is the reason `sessions` may publish it and `revokeSession`
-	// may take it back. The argument is written out on `ISessionRow`; this is it as an executable claim.
-	it('renders a session id that is a digest, not the credential it was derived from', async () => {
-		const result = await graphql({ schema, source: OPERATIONS[0][1], contextValue: ctx as never })
-		const [row] = (result.data as { sessions: Array<{ id: string }> }).sessions
+  // And the digest is not the token, which is the reason `sessions` may publish it and `revokeSession`
+  // may take it back. The argument is written out on `ISessionRow`; this is it as an executable claim.
+  it('renders a session id that is a digest, not the credential it was derived from', async () => {
+    const result = await graphql({ schema, source: OPERATIONS[0][1], contextValue: ctx as never })
+    const [row] = (result.data as { sessions: Array<{ id: string }> }).sessions
 
-		expect(row.id).toBe(FIELD)
-		expect(row.id).toHaveLength(64)
-		expect(row.id).toMatch(/^[0-9a-f]{64}$/)
-		expect(TOKEN).not.toContain(row.id)
-	})
+    expect(row.id).toBe(FIELD)
+    expect(row.id).toHaveLength(64)
+    expect(row.id).toMatch(/^[0-9a-f]{64}$/)
+    expect(TOKEN).not.toContain(row.id)
+  })
 })

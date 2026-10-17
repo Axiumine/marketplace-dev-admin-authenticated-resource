@@ -12,4 +12,4 @@
  * `instanceof` false while `code` is still 11000.
  */
 export const duplicateKey = (e: unknown): boolean =>
-	typeof e === 'object' && e !== null && 'code' in e && (e as { code?: unknown }).code === 11000
+  typeof e === 'object' && e !== null && 'code' in e && (e as { code?: unknown }).code === 11000

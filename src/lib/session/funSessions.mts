@@ -24,10 +24,10 @@ import { Tier } from '@axiumine/marketplace-common/others/Tier'
  * is assembled from the session hash rather than from anything the request carried.
  */
 export interface ISessionRow {
-	id: string
-	tier: Tier
-	mintedAt: string
-	familyId: string
+  id: string
+  tier: Tier
+  mintedAt: string
+  familyId: string
 }
 
 /**
@@ -55,19 +55,19 @@ export interface ISessionRow {
  * a table an admin cannot click safely.
  */
 export async function funSessions(tier: Tier, accountId: string): Promise<ISessionRow[]> {
-	const fields = Object.keys((await redisClient.hGetAll(sessionIndexKey(tier, accountId))) as Record<string, string>)
+  const fields = Object.keys((await redisClient.hGetAll(sessionIndexKey(tier, accountId))) as Record<string, string>)
 
-	const rows = await Promise.all(
-		fields.map(async (field) => {
-			const session = (await redisClient.hGetAll(sessionKeyFromIndexField(field))) as unknown as Partial<IRefreshData>
+  const rows = await Promise.all(
+    fields.map(async (field) => {
+      const session = (await redisClient.hGetAll(sessionKeyFromIndexField(field))) as unknown as Partial<IRefreshData>
 
-			return typeof session.familyId === 'undefined'
-				? undefined
-				: { id: field, tier: session.tier as Tier, mintedAt: session.originalLogin as string, familyId: session.familyId }
-		})
-	)
+      return typeof session.familyId === 'undefined'
+        ? undefined
+        : { id: field, tier: session.tier as Tier, mintedAt: session.originalLogin as string, familyId: session.familyId }
+    })
+  )
 
-	return rows
-		.filter((row): row is ISessionRow => typeof row !== 'undefined')
-		.sort((a, b) => Number(b.mintedAt) - Number(a.mintedAt) || a.id.localeCompare(b.id))
+  return rows
+    .filter((row): row is ISessionRow => typeof row !== 'undefined')
+    .sort((a, b) => Number(b.mintedAt) - Number(a.mintedAt) || a.id.localeCompare(b.id))
 }

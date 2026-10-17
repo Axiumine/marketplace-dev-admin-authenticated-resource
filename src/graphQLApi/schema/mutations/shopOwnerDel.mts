@@ -6,7 +6,7 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull } from 'graphql
 import { Types } from 'mongoose'
 
 interface IArgs {
-	_id: Types.ObjectId
+  _id: Types.ObjectId
 }
 
 /**
@@ -27,19 +27,19 @@ interface IArgs {
  * matched, and an id that names no open account has no sessions to end.
  */
 export const shopOwnerDel = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'deletes a shopOwner',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) }
-	},
-	async resolve(_: unknown, args: IArgs, ctx: IContextAdminAuthenticatedResource) {
-		try {
-			await funShopOwnerDelete(args._id, ctx.state.user._id)
-			await endEveryShopOwnerSession(args._id)
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'deletes a shopOwner',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) }
+  },
+  async resolve(_: unknown, args: IArgs, ctx: IContextAdminAuthenticatedResource) {
+    try {
+      await funShopOwnerDelete(args._id, ctx.state.user._id)
+      await endEveryShopOwnerSession(args._id)
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

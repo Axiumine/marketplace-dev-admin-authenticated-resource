@@ -18,39 +18,39 @@ import { GraphQLBoolean, GraphQLID, GraphQLNonNull, GraphQLObjectType, GraphQLSt
  * before the extraction.
  */
 export const GraphQLCompany = new GraphQLObjectType({
-	name: 'GraphQLCompany',
-	fields: () => ({
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		idShopOwner: { type: new GraphQLNonNull(GraphQLID) },
-		legalName: { type: new GraphQLNonNull(GraphQLString) },
-		vatNumber: { type: new GraphQLNonNull(GraphQLString) },
-		taxCode: { type: GraphQLString },
-		contactPerson: { type: new GraphQLNonNull(GraphQLString) },
-		administrator: { type: new GraphQLNonNull(GraphQLString) },
-		uniqueCode: { type: GraphQLString },
-		certifiedEmail: { type: new GraphQLNonNull(GraphQLString) },
-		address: { type: new GraphQLNonNull(GraphQLCompanyAddress) },
-		// The path of the uploaded registryExtract, not the document. Required, and capped at 1000 characters by
-		// the collection — it was the one unbounded string on the embedded shape.
-		registryExtract: { type: new GraphQLNonNull(GraphQLString) },
-		// The shop listing, added 2026-08-04 with the catalogue. A company IS the shop here — there is no
-		// shop collection and will not be one — so the storefront's heading, URL and body text have nowhere
-		// else to live.
-		//
-		// `publicName` is the trading name over the door, and is not `legalName`: a registered legal name
-		// carries the legal form ("… Ltd") and is the wrong string on a customer-facing card.
-		//
-		// The three are nullable because the collection made them optional — `collMod` cannot re-validate
-		// documents already stored, and no slug can be derived from a registered legal name without inventing one. What
-		// keeps them from being permanently blank is the collection's `$expr`: `published: true` is refused
-		// unless `slug` and `publicName` are both strings.
-		publicName: { type: GraphQLString },
-		slug: { type: GraphQLString },
-		description: { type: GraphQLString },
-		// The only one of the four that is `required` in the collection, and so NonNull here: the three-step
-		// widen → backfill → narrow the migration paid for means every stored document has it.
-		published: { type: new GraphQLNonNull(GraphQLBoolean) }
-	})
+  name: 'GraphQLCompany',
+  fields: () => ({
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    idShopOwner: { type: new GraphQLNonNull(GraphQLID) },
+    legalName: { type: new GraphQLNonNull(GraphQLString) },
+    vatNumber: { type: new GraphQLNonNull(GraphQLString) },
+    taxCode: { type: GraphQLString },
+    contactPerson: { type: new GraphQLNonNull(GraphQLString) },
+    administrator: { type: new GraphQLNonNull(GraphQLString) },
+    uniqueCode: { type: GraphQLString },
+    certifiedEmail: { type: new GraphQLNonNull(GraphQLString) },
+    address: { type: new GraphQLNonNull(GraphQLCompanyAddress) },
+    // The path of the uploaded registryExtract, not the document. Required, and capped at 1000 characters by
+    // the collection — it was the one unbounded string on the embedded shape.
+    registryExtract: { type: new GraphQLNonNull(GraphQLString) },
+    // The shop listing, added 2026-08-04 with the catalogue. A company IS the shop here — there is no
+    // shop collection and will not be one — so the storefront's heading, URL and body text have nowhere
+    // else to live.
+    //
+    // `publicName` is the trading name over the door, and is not `legalName`: a registered legal name
+    // carries the legal form ("… Ltd") and is the wrong string on a customer-facing card.
+    //
+    // The three are nullable because the collection made them optional — `collMod` cannot re-validate
+    // documents already stored, and no slug can be derived from a registered legal name without inventing one. What
+    // keeps them from being permanently blank is the collection's `$expr`: `published: true` is refused
+    // unless `slug` and `publicName` are both strings.
+    publicName: { type: GraphQLString },
+    slug: { type: GraphQLString },
+    description: { type: GraphQLString },
+    // The only one of the four that is `required` in the collection, and so NonNull here: the three-step
+    // widen → backfill → narrow the migration paid for means every stored document has it.
+    published: { type: new GraphQLNonNull(GraphQLBoolean) }
+  })
 })
 
 /**
@@ -63,16 +63,16 @@ export const GraphQLCompany = new GraphQLObjectType({
  * is the platform's answer to keeping the four address fields identical.
  */
 const GraphQLCompanyAddress = new GraphQLObjectType({
-	name: 'GraphQLCompanyAddress',
-	fields: () => ({
-		...GraphQLBaseAddressFrag,
-		position: { type: new GraphQLNonNull(GraphQLCompanyPosition) }
-	})
+  name: 'GraphQLCompanyAddress',
+  fields: () => ({
+    ...GraphQLBaseAddressFrag,
+    position: { type: new GraphQLNonNull(GraphQLCompanyPosition) }
+  })
 })
 
 const GraphQLCompanyPosition = new GraphQLObjectType({
-	name: 'GraphQLCompanyPosition',
-	fields: () => ({
-		...GraphQLPositionFrag
-	})
+  name: 'GraphQLCompanyPosition',
+  fields: () => ({
+    ...GraphQLPositionFrag
+  })
 })

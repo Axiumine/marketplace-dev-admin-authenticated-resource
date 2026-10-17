@@ -3,14 +3,14 @@ import { GraphQLAdminInfoAfterLogin } from '@ptypes/GraphQLAdminInfoAfterLogin.m
 import { GraphQLNonNull } from 'graphql'
 
 export const infoAdminAfterLogin = {
-	description: 'Info after login',
-	type: new GraphQLNonNull(GraphQLAdminInfoAfterLogin),
-	async resolve(_: unknown, {}, ctx: IContextAdminAuthenticatedResource) {
-		const user = ctx.state.user
+  description: 'Info after login',
+  type: new GraphQLNonNull(GraphQLAdminInfoAfterLogin),
+  async resolve(_: unknown, {}, ctx: IContextAdminAuthenticatedResource) {
+    const user = ctx.state.user
 
-		return {
-			_id: user._id,
-			email: user.email
-		}
-	}
+    return {
+      _id: user._id,
+      email: user.email
+    }
+  }
 }

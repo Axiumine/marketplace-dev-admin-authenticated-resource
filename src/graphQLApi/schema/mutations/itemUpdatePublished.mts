@@ -4,8 +4,8 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull } from 'graphql
 import { Types } from 'mongoose'
 
 interface IArgs {
-	_id: Types.ObjectId
-	published: boolean
+  _id: Types.ObjectId
+  published: boolean
 }
 
 /**
@@ -18,19 +18,19 @@ interface IArgs {
  * `funItemUpdatePublished`.
  */
 export const itemUpdatePublished = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'publishes or unpublishes an item',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		published: { type: new GraphQLNonNull(GraphQLBoolean) }
-	},
-	async resolve(_: unknown, args: IArgs) {
-		try {
-			await funItemUpdatePublished(args._id, args.published)
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'publishes or unpublishes an item',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    published: { type: new GraphQLNonNull(GraphQLBoolean) }
+  },
+  async resolve(_: unknown, args: IArgs) {
+    try {
+      await funItemUpdatePublished(args._id, args.published)
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

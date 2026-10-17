@@ -4,7 +4,7 @@ import { GraphQLID, GraphQLList, GraphQLNonNull } from 'graphql'
 import { trusted, Types } from 'mongoose'
 
 interface IArgs {
-	idCompany: Types.ObjectId
+  idCompany: Types.ObjectId
 }
 
 /**
@@ -16,12 +16,12 @@ interface IArgs {
  * cannot act before the owner publishes.
  */
 export const companyItems = {
-	type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLItem))),
-	description: 'Get the items of a company',
-	args: {
-		idCompany: { type: new GraphQLNonNull(GraphQLID) }
-	},
-	async resolve(_: unknown, args: IArgs) {
-		return Item.find({ idCompany: args.idCompany, deleted: trusted({ $exists: false }) }).lean()
-	}
+  type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLItem))),
+  description: 'Get the items of a company',
+  args: {
+    idCompany: { type: new GraphQLNonNull(GraphQLID) }
+  },
+  async resolve(_: unknown, args: IArgs) {
+    return Item.find({ idCompany: args.idCompany, deleted: trusted({ $exists: false }) }).lean()
+  }
 }

@@ -41,8 +41,8 @@ export const SHOP_OWNERS_TBL_MAX_SEARCH_LENGTH = 100
  * legible only here — this service holds the data key, the shop-owner services do not.
  */
 export const SHOP_OWNERS_TBL_SELECTION =
-	'_id registeredAt login.email waitApprov disabled disabledBy disabledReason deleted ' +
-	'personalData.firstName personalData.lastName personalData.address'
+  '_id registeredAt login.email waitApprov disabled disabledBy disabledReason deleted ' +
+  'personalData.firstName personalData.lastName personalData.address'
 
 /**
  * GraphQL enum name → the Mongo paths to sort by, in order. `_id` is appended to every one of these
@@ -54,10 +54,10 @@ export const SHOP_OWNERS_TBL_SELECTION =
  * blocking in-memory sort those indexes exist to prevent.
  */
 const SORT_PATHS = {
-	REGISTERED_AT: ['registeredAt'],
-	FIRST_NAME: ['personalData.firstName'],
-	LAST_NAME: ['personalData.lastName', 'personalData.firstName'],
-	CITY: ['personalData.address.city']
+  REGISTERED_AT: ['registeredAt'],
+  FIRST_NAME: ['personalData.firstName'],
+  LAST_NAME: ['personalData.lastName', 'personalData.firstName'],
+  CITY: ['personalData.address.city']
 } as const
 
 const SORT_ORDERS = { ASC: 1, DESC: -1 } as const
@@ -69,18 +69,18 @@ export type ShopOwnersTblSortDirection = keyof typeof SORT_ORDERS
 const SEARCHABLE_PATHS = ['personalData.firstName', 'personalData.lastName', 'personalData.address.city']
 
 export interface IShopOwnersActiveTblArgs {
-	offset: number
-	limit: number
-	disabled: boolean
-	deleted: boolean
-	search?: string | null
-	sortBy: ShopOwnersTblSortField
-	sortDir: ShopOwnersTblSortDirection
+  offset: number
+  limit: number
+  disabled: boolean
+  deleted: boolean
+  search?: string | null
+  sortBy: ShopOwnersTblSortField
+  sortDir: ShopOwnersTblSortDirection
 }
 
 export interface IShopOwnersActiveTblPage {
-	items: unknown[]
-	total: number
+  items: unknown[]
+  total: number
 }
 
 /**
@@ -92,7 +92,7 @@ export interface IShopOwnersActiveTblPage {
  * literal, which is linear in the length of the field.
  */
 function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
@@ -105,7 +105,7 @@ function escapeRegExp(value: string): string {
  * bounding the work per document; the index question is answered in the migration's comments.
  */
 function prefixRegExp(term: string): RegExp {
-	return new RegExp(`^${escapeRegExp(term)}`, 'i')
+  return new RegExp(`^${escapeRegExp(term)}`, 'i')
 }
 
 /**
@@ -116,21 +116,21 @@ function prefixRegExp(term: string): RegExp {
  * the `$or` out of the filter entirely, so the no-search case stays a pure indexed query.
  */
 function normaliseSearch(search?: string | null): string | undefined {
-	if (search === undefined || search === null) {
-		return undefined
-	}
+  if (search === undefined || search === null) {
+    return undefined
+  }
 
-	const term = search.trim()
+  const term = search.trim()
 
-	if (term.length === 0) {
-		return undefined
-	}
+  if (term.length === 0) {
+    return undefined
+  }
 
-	if (term.length > SHOP_OWNERS_TBL_MAX_SEARCH_LENGTH) {
-		throwErrorWrongUserInput(`search must be at most ${SHOP_OWNERS_TBL_MAX_SEARCH_LENGTH} characters`)
-	}
+  if (term.length > SHOP_OWNERS_TBL_MAX_SEARCH_LENGTH) {
+    throwErrorWrongUserInput(`search must be at most ${SHOP_OWNERS_TBL_MAX_SEARCH_LENGTH} characters`)
+  }
 
-	return term
+  return term
 }
 
 /**
@@ -141,17 +141,17 @@ function normaliseSearch(search?: string | null): string | undefined {
  * last pages of a big result set unreachable.
  */
 function assertPaging(offset: number, limit: number): void {
-	if (offset < 0) {
-		throwErrorWrongUserInput('offset must be 0 or greater')
-	}
+  if (offset < 0) {
+    throwErrorWrongUserInput('offset must be 0 or greater')
+  }
 
-	if (limit < 1) {
-		throwErrorWrongUserInput('limit must be 1 or greater')
-	}
+  if (limit < 1) {
+    throwErrorWrongUserInput('limit must be 1 or greater')
+  }
 
-	if (limit > SHOP_OWNERS_TBL_MAX_LIMIT) {
-		throwErrorWrongUserInput(`limit must be at most ${SHOP_OWNERS_TBL_MAX_LIMIT}`)
-	}
+  if (limit > SHOP_OWNERS_TBL_MAX_LIMIT) {
+    throwErrorWrongUserInput(`limit must be at most ${SHOP_OWNERS_TBL_MAX_LIMIT}`)
+  }
 }
 
 /**
@@ -164,16 +164,16 @@ function assertPaging(offset: number, limit: number): void {
  * document can show up on two pages while another is skipped.
  */
 function buildSort(sortBy: ShopOwnersTblSortField, sortDir: ShopOwnersTblSortDirection): Record<string, 1 | -1> {
-	const order = SORT_ORDERS[sortDir]
-	const sort: Record<string, 1 | -1> = {}
+  const order = SORT_ORDERS[sortDir]
+  const sort: Record<string, 1 | -1> = {}
 
-	for (const path of SORT_PATHS[sortBy]) {
-		sort[path] = order
-	}
+  for (const path of SORT_PATHS[sortBy]) {
+    sort[path] = order
+  }
 
-	sort._id = order
+  sort._id = order
 
-	return sort
+  return sort
 }
 
 /**
@@ -185,11 +185,11 @@ function buildSort(sortBy: ShopOwnersTblSortField, sortDir: ShopOwnersTblSortDir
  * RegExp values it finds there carry no `$` keys of their own.
  */
 function buildFilter(args: IShopOwnersActiveTblArgs, term: string | undefined): QueryFilter<IShopOwnerModel> {
-	return {
-		deleted: args.deleted ? trusted({ $exists: true }) : trusted({ $exists: false }),
-		disabled: args.disabled ? true : trusted({ $exists: false }),
-		...(term === undefined ? {} : { $or: SEARCHABLE_PATHS.map((path) => ({ [path]: prefixRegExp(term) })) })
-	}
+  return {
+    deleted: args.deleted ? trusted({ $exists: true }) : trusted({ $exists: false }),
+    disabled: args.disabled ? true : trusted({ $exists: false }),
+    ...(term === undefined ? {} : { $or: SEARCHABLE_PATHS.map((path) => ({ [path]: prefixRegExp(term) })) })
+  }
 }
 
 /**
@@ -199,19 +199,19 @@ function buildFilter(args: IShopOwnersActiveTblArgs, term: string | undefined): 
  * — so awaiting them in sequence would add the count's latency to every request for nothing.
  */
 export default async function shopOwnersActiveTblDb(args: IShopOwnersActiveTblArgs): Promise<IShopOwnersActiveTblPage> {
-	assertPaging(args.offset, args.limit)
+  assertPaging(args.offset, args.limit)
 
-	const filter = buildFilter(args, normaliseSearch(args.search))
+  const filter = buildFilter(args, normaliseSearch(args.search))
 
-	const [items, total] = await Promise.all([
-		ShopOwner.find(filter)
-			.select(SHOP_OWNERS_TBL_SELECTION)
-			.sort(buildSort(args.sortBy, args.sortDir))
-			.skip(args.offset)
-			.limit(args.limit)
-			.lean(),
-		ShopOwner.countDocuments(filter)
-	])
+  const [items, total] = await Promise.all([
+    ShopOwner.find(filter)
+      .select(SHOP_OWNERS_TBL_SELECTION)
+      .sort(buildSort(args.sortBy, args.sortDir))
+      .skip(args.offset)
+      .limit(args.limit)
+      .lean(),
+    ShopOwner.countDocuments(filter)
+  ])
 
-	return { items, total }
+  return { items, total }
 }

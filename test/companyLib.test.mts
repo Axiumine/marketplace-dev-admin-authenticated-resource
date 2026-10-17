@@ -14,33 +14,33 @@ const shopOwnerFindOneAndUpdate = vi.fn()
  * handed exactly once — a real retry is not needed by anything this file asserts.
  */
 const { endSession, session, startSession, withTransaction } = vi.hoisted(() => {
-	const endSessionFn = vi.fn()
-	const withTransactionFn = vi.fn(async (work: () => Promise<void>) => await work())
-	const sessionObj = { withTransaction: withTransactionFn, endSession: endSessionFn }
+  const endSessionFn = vi.fn()
+  const withTransactionFn = vi.fn(async (work: () => Promise<void>) => await work())
+  const sessionObj = { withTransaction: withTransactionFn, endSession: endSessionFn }
 
-	return {
-		endSession: endSessionFn,
-		session: sessionObj,
-		startSession: vi.fn(async () => sessionObj),
-		withTransaction: withTransactionFn
-	}
+  return {
+    endSession: endSessionFn,
+    session: sessionObj,
+    startSession: vi.fn(async () => sessionObj),
+    withTransaction: withTransactionFn
+  }
 })
 
 vi.mock('mongoose', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('mongoose')>()
+  const actual = await importOriginal<typeof import('mongoose')>()
 
-	return { ...actual, default: { ...actual.default, startSession } }
+  return { ...actual, default: { ...actual.default, startSession } }
 })
 
 // No `deleteOne`: since `company` gained its `deleted` field the delete is a `$set` like every other
 // one on this tier, and leaving the method on the mock would let a rewrite go back to a hard delete
 // without a single test noticing.
 vi.mock('@axiumine/marketplace-common/models/MongoDB/Company', () => ({
-	Company: { create, updateOne }
+  Company: { create, updateOne }
 }))
 
 vi.mock('@axiumine/marketplace-common/models/MongoDB/ShopOwner', () => ({
-	ShopOwner: { findOneAndUpdate: shopOwnerFindOneAndUpdate }
+  ShopOwner: { findOneAndUpdate: shopOwnerFindOneAndUpdate }
 }))
 
 const { duplicateKey } = await import('../src/lib/mongo/duplicateKey.mts')
@@ -53,50 +53,50 @@ const _id = new Types.ObjectId('507f1f77bcf86cd799439014')
 const idShopOwner = new Types.ObjectId('507f1f77bcf86cd799439013')
 
 const data = {
-	legalName: 'Marks Boutique Ltd',
-	vatNumber: '12345678901',
-	taxCode: '12345678901',
-	contactPerson: 'Mark Rivers',
-	administrator: 'Mark Rivers',
-	uniqueCode: 'ABC1234',
-	certifiedEmail: 'certified@boutique.test',
-	address: {
-		street: '9 Harbour Road',
-		postalCode: '02109',
-		city: 'Boston',
-		province: 'MA',
-		position: { type: 'Point', coordinates: [9.19, 45.46] }
-	},
-	registryExtract: 'registryExtract-2026'
+  legalName: 'Marks Boutique Ltd',
+  vatNumber: '12345678901',
+  taxCode: '12345678901',
+  contactPerson: 'Mark Rivers',
+  administrator: 'Mark Rivers',
+  uniqueCode: 'ABC1234',
+  certifiedEmail: 'certified@boutique.test',
+  address: {
+    street: '9 Harbour Road',
+    postalCode: '02109',
+    city: 'Boston',
+    province: 'MA',
+    position: { type: 'Point', coordinates: [9.19, 45.46] }
+  },
+  registryExtract: 'registryExtract-2026'
 } as never
 
 const duplicate = () => Object.assign(new Error('E11000 duplicate key error'), { code: 11000 })
 
 /** The chain ends in `.exec()`, as everywhere else on this tier. */
 function mockUpdateMatched(matchedCount: number) {
-	updateOne.mockReturnValueOnce({ exec: vi.fn().mockResolvedValue({ matchedCount, modifiedCount: 0 }) })
+  updateOne.mockReturnValueOnce({ exec: vi.fn().mockResolvedValue({ matchedCount, modifiedCount: 0 }) })
 }
 
 describe('duplicateKey', () => {
-	// Duck-typed on `code` rather than `instanceof MongoServerError`: a second copy of the mongodb
-	// driver under a transitive dependency makes the instanceof false while the code stays 11000, and
-	// the failure mode of getting that wrong is a duplicate key surfacing as a 500. It lives with the
-	// company tests because `company` is the only collection left carrying a unique index: `vatNumber_unique`
-	// and `certifiedEmail_unique` both live there.
-	it.each([
-		['the driver’s duplicate-key error', duplicate(), true],
-		['a plain object carrying the code', { code: 11000 }, true],
-		['another driver error', Object.assign(new Error('rete'), { code: 'ECONNRESET' }), false],
-		['a different numeric code', { code: 121 }, false],
-		['an error with no code at all', new Error('boom'), false],
-		['an empty object', {}, false],
-		['null', null, false],
-		['undefined', undefined, false],
-		['a string', 'E11000 duplicate key error', false],
-		['a number', 11000, false]
-	])('reads %s as %s', (_desc, value, expected) => {
-		expect(duplicateKey(value)).toBe(expected)
-	})
+  // Duck-typed on `code` rather than `instanceof MongoServerError`: a second copy of the mongodb
+  // driver under a transitive dependency makes the instanceof false while the code stays 11000, and
+  // the failure mode of getting that wrong is a duplicate key surfacing as a 500. It lives with the
+  // company tests because `company` is the only collection left carrying a unique index: `vatNumber_unique`
+  // and `certifiedEmail_unique` both live there.
+  it.each([
+    ['the driver’s duplicate-key error', duplicate(), true],
+    ['a plain object carrying the code', { code: 11000 }, true],
+    ['another driver error', Object.assign(new Error('rete'), { code: 'ECONNRESET' }), false],
+    ['a different numeric code', { code: 121 }, false],
+    ['an error with no code at all', new Error('boom'), false],
+    ['an empty object', {}, false],
+    ['null', null, false],
+    ['undefined', undefined, false],
+    ['a string', 'E11000 duplicate key error', false],
+    ['a number', 11000, false]
+  ])('reads %s as %s', (_desc, value, expected) => {
+    expect(duplicateKey(value)).toBe(expected)
+  })
 })
 
 /** The `.session(s).lean()` chain every write-based hold in this tier ends in. */
@@ -104,276 +104,276 @@ const sessioned = (tail: object) => ({ session: vi.fn().mockReturnValue(tail) })
 const finding = (doc: unknown) => sessioned({ lean: vi.fn().mockResolvedValue(doc) })
 
 describe('funCompanyAdd', () => {
-	beforeEach(() => {
-		startSession.mockClear()
-		withTransaction.mockClear()
-		endSession.mockClear()
-		create.mockReset().mockResolvedValue(undefined)
-		shopOwnerFindOneAndUpdate.mockReset().mockReturnValue(finding({ _id: idShopOwner }))
-	})
+  beforeEach(() => {
+    startSession.mockClear()
+    withTransaction.mockClear()
+    endSession.mockClear()
+    create.mockReset().mockResolvedValue(undefined)
+    shopOwnerFindOneAndUpdate.mockReset().mockReturnValue(finding({ _id: idShopOwner }))
+  })
 
-	it('writes the company under the owner, minting the id, inside the transaction', async () => {
-		await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
+  it('writes the company under the owner, minting the id, inside the transaction', async () => {
+    await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
 
-		const [[doc], options] = create.mock.calls[0]
-		expect(doc._id).toBeInstanceOf(Types.ObjectId)
-		expect(doc.idShopOwner).toBe(idShopOwner)
-		// Sorted, because the assertion sorts: the literal has to be in the same order or the comparison
-		// fails on ordering alone while the two sets are identical.
-		expect(Object.keys(doc).sort()).toEqual([
-			'_id',
-			'address',
-			'administrator',
-			'certifiedEmail',
-			'contactPerson',
-			'idShopOwner',
-			'legalName',
-			'published',
-			'registryExtract',
-			'taxCode',
-			'uniqueCode',
-			'vatNumber'
-		])
-		// ⚠️ The array form because it is the only one that carries options, and the session has to be
-		// one of them — a create outside the session commits on its own and outlives an abort of the
-		// transaction that checked the owner.
-		expect(options).toEqual({ session })
-	})
+    const [[doc], options] = create.mock.calls[0]
+    expect(doc._id).toBeInstanceOf(Types.ObjectId)
+    expect(doc.idShopOwner).toBe(idShopOwner)
+    // Sorted, because the assertion sorts: the literal has to be in the same order or the comparison
+    // fails on ordering alone while the two sets are identical.
+    expect(Object.keys(doc).sort()).toEqual([
+      '_id',
+      'address',
+      'administrator',
+      'certifiedEmail',
+      'contactPerson',
+      'idShopOwner',
+      'legalName',
+      'published',
+      'registryExtract',
+      'taxCode',
+      'uniqueCode',
+      'vatNumber'
+    ])
+    // ⚠️ The array form because it is the only one that carries options, and the session has to be
+    // one of them — a create outside the session commits on its own and outlives an abort of the
+    // transaction that checked the owner.
+    expect(options).toEqual({ session })
+  })
 
-	// ⚠️ Stamped here, never taken from the input: publishing is `companyUpdatePublished`, a second call
-	// the admin makes on purpose. `false` is also the only value the collection would accept from a
-	// shop this new — its `$expr` refuses `published: true` without a stored `slug` and `publicName`,
-	// both optional on the card.
-	it('stamps the new company as unpublished', async () => {
-		await funCompanyAdd(idShopOwner, data)
+  // ⚠️ Stamped here, never taken from the input: publishing is `companyUpdatePublished`, a second call
+  // the admin makes on purpose. `false` is also the only value the collection would accept from a
+  // shop this new — its `$expr` refuses `published: true` without a stored `slug` and `publicName`,
+  // both optional on the card.
+  it('stamps the new company as unpublished', async () => {
+    await funCompanyAdd(idShopOwner, data)
 
-		expect(create.mock.calls[0][0][0].published).toBe(false)
-	})
+    expect(create.mock.calls[0][0][0].published).toBe(false)
+  })
 
-	// Every marketplace-common model declares `_id` without a default, which switches auto-generation
-	// off, so an id minted once at module load would work exactly once.
-	it('mints a distinct id for every company', async () => {
-		await funCompanyAdd(idShopOwner, data)
-		await funCompanyAdd(idShopOwner, data)
+  // Every marketplace-common model declares `_id` without a default, which switches auto-generation
+  // off, so an id minted once at module load would work exactly once.
+  it('mints a distinct id for every company', async () => {
+    await funCompanyAdd(idShopOwner, data)
+    await funCompanyAdd(idShopOwner, data)
 
-		expect(create.mock.calls[0][0][0]._id).not.toEqual(create.mock.calls[1][0][0]._id)
-	})
+    expect(create.mock.calls[0][0][0]._id).not.toEqual(create.mock.calls[1][0][0]._id)
+  })
 
-	// ⚠️ The check that stops an orphan: `shopOwnerCompanies` lists by owner, so a company under an
-	// shopOwner that does not exist is reachable only through the same wrong id that created it.
-	it('refuses to create a company under an shopOwner that does not exist', async () => {
-		shopOwnerFindOneAndUpdate.mockReturnValueOnce(finding(null))
+  // ⚠️ The check that stops an orphan: `shopOwnerCompanies` lists by owner, so a company under an
+  // shopOwner that does not exist is reachable only through the same wrong id that created it.
+  it('refuses to create a company under an shopOwner that does not exist', async () => {
+    shopOwnerFindOneAndUpdate.mockReturnValueOnce(finding(null))
 
-		expect(await rejection(funCompanyAdd(idShopOwner, data))).toEqual({
-			message: 'Oops',
-			http: { status: 404 },
-			description: 'shopOwner not found'
-		})
-		expect(create).not.toHaveBeenCalled()
-	})
+    expect(await rejection(funCompanyAdd(idShopOwner, data))).toEqual({
+      message: 'Oops',
+      http: { status: 404 },
+      description: 'shopOwner not found'
+    })
+    expect(create).not.toHaveBeenCalled()
+  })
 
-	/*
-	 * ⚠️ **The B49 fix.** The read is a write, mirroring `throwIfParentNotTopLevel`: `funShopOwnerDelete`
-	 * writes this exact document (`ShopOwner.updateOne({ _id, deleted: … }, …)`) inside its own
-	 * transaction, so the `$inc` here puts both transactions on one document. Without it, a snapshot-
-	 * isolated read and a concurrent `shopOwnerDel` can each see a consistent snapshot and both commit —
-	 * write skew — leaving a live company under a soft-deleted owner. Projecting `_id` alone, like
-	 * `throwIfParentNotTopLevel`'s one field: this asks one question, and pulling the whole owner
-	 * document to answer it would put personal data on the wire for nothing.
-	 */
-	it('re-checks the owner alive with a write, inside the transaction, excluding the soft-deleted', async () => {
-		await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
+  /*
+   * ⚠️ **The B49 fix.** The read is a write, mirroring `throwIfParentNotTopLevel`: `funShopOwnerDelete`
+   * writes this exact document (`ShopOwner.updateOne({ _id, deleted: … }, …)`) inside its own
+   * transaction, so the `$inc` here puts both transactions on one document. Without it, a snapshot-
+   * isolated read and a concurrent `shopOwnerDel` can each see a consistent snapshot and both commit —
+   * write skew — leaving a live company under a soft-deleted owner. Projecting `_id` alone, like
+   * `throwIfParentNotTopLevel`'s one field: this asks one question, and pulling the whole owner
+   * document to answer it would put personal data on the wire for nothing.
+   */
+  it('re-checks the owner alive with a write, inside the transaction, excluding the soft-deleted', async () => {
+    await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
 
-		expect(shopOwnerFindOneAndUpdate).toHaveBeenCalledExactlyOnceWith(
-			{ _id: idShopOwner, deleted: trusted({ $exists: false }) },
-			{ $inc: { __v: 1 } },
-			{ projection: { _id: 1 } }
-		)
-	})
+    expect(shopOwnerFindOneAndUpdate).toHaveBeenCalledExactlyOnceWith(
+      { _id: idShopOwner, deleted: trusted({ $exists: false }) },
+      { $inc: { __v: 1 } },
+      { projection: { _id: 1 } }
+    )
+  })
 
-	// ⚠️ Inside the transaction, not before it — a snapshot taken outside it is a snapshot the create
-	// never shares, which is the window the transaction exists to close.
-	it('holds the owner inside the transaction, before the create', async () => {
-		withTransaction.mockImplementationOnce(async (work) => {
-			expect(shopOwnerFindOneAndUpdate).not.toHaveBeenCalled()
+  // ⚠️ Inside the transaction, not before it — a snapshot taken outside it is a snapshot the create
+  // never shares, which is the window the transaction exists to close.
+  it('holds the owner inside the transaction, before the create', async () => {
+    withTransaction.mockImplementationOnce(async (work) => {
+      expect(shopOwnerFindOneAndUpdate).not.toHaveBeenCalled()
 
-			await work()
-		})
+      await work()
+    })
 
-		await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
+    await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
 
-		expect(shopOwnerFindOneAndUpdate).toHaveBeenCalledOnce()
-		expect(create).toHaveBeenCalledOnce()
-	})
+    expect(shopOwnerFindOneAndUpdate).toHaveBeenCalledOnce()
+    expect(create).toHaveBeenCalledOnce()
+  })
 
-	// ⚠️ The `_id` is minted once, outside the callback, for the same reason `funItemCategoryAdd` mints
-	// its own that way: a retry that re-mints would create a second document for one request the moment
-	// two admins race a create under one owner.
-	it('re-uses one _id when the transaction is retried', async () => {
-		withTransaction.mockImplementationOnce(async (work) => {
-			await work()
-			await work()
-		})
+  // ⚠️ The `_id` is minted once, outside the callback, for the same reason `funItemCategoryAdd` mints
+  // its own that way: a retry that re-mints would create a second document for one request the moment
+  // two admins race a create under one owner.
+  it('re-uses one _id when the transaction is retried', async () => {
+    withTransaction.mockImplementationOnce(async (work) => {
+      await work()
+      await work()
+    })
 
-		await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
+    await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
 
-		const ids = create.mock.calls.map(([[doc]]) => String(doc._id))
-		expect(ids).toHaveLength(2)
-		expect(ids[0]).toBe(ids[1])
-	})
+    const ids = create.mock.calls.map(([[doc]]) => String(doc._id))
+    expect(ids).toHaveLength(2)
+    expect(ids[0]).toBe(ids[1])
+  })
 
-	// Both `vatNumber_unique` and `certifiedEmail_unique` can fire, the driver's error does not say which, and guessing
-	// would send the admin to the wrong box. Caught outside `withTransaction`: a duplicate key carries no
-	// transient label, so the transaction aborts and the error re-throws to here untouched.
-	it('turns a unique-index violation into a 409 naming both candidates', async () => {
-		create.mockRejectedValueOnce(duplicate())
+  // Both `vatNumber_unique` and `certifiedEmail_unique` can fire, the driver's error does not say which, and guessing
+  // would send the admin to the wrong box. Caught outside `withTransaction`: a duplicate key carries no
+  // transient label, so the transaction aborts and the error re-throws to here untouched.
+  it('turns a unique-index violation into a 409 naming both candidates', async () => {
+    create.mockRejectedValueOnce(duplicate())
 
-		expect(await rejection(funCompanyAdd(idShopOwner, data))).toEqual({
-			message: 'Conflict',
-			http: { status: 409 },
-			description: 'VAT number or certified email already registered by another company'
-		})
-	})
+    expect(await rejection(funCompanyAdd(idShopOwner, data))).toEqual({
+      message: 'Conflict',
+      http: { status: 409 },
+      description: 'VAT number or certified email already registered by another company'
+    })
+  })
 
-	it('rethrows any other driver error untouched', async () => {
-		const broken = Object.assign(new Error('validation fallita'), { code: 121 })
-		create.mockRejectedValueOnce(broken)
+  it('rethrows any other driver error untouched', async () => {
+    const broken = Object.assign(new Error('validation fallita'), { code: 121 })
+    create.mockRejectedValueOnce(broken)
 
-		await expect(funCompanyAdd(idShopOwner, data)).rejects.toBe(broken)
-	})
+    await expect(funCompanyAdd(idShopOwner, data)).rejects.toBe(broken)
+  })
 
-	// The session opens once and ends once, on both the success path and the failure path — a session
-	// left open on a thrown duplicate key holds a server-side slot until the server times it out.
-	it('opens one session and ends it, even when the work throws', async () => {
-		await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
+  // The session opens once and ends once, on both the success path and the failure path — a session
+  // left open on a thrown duplicate key holds a server-side slot until the server times it out.
+  it('opens one session and ends it, even when the work throws', async () => {
+    await expect(funCompanyAdd(idShopOwner, data)).resolves.toBeUndefined()
 
-		expect(startSession).toHaveBeenCalledOnce()
-		expect(withTransaction).toHaveBeenCalledOnce()
-		expect(endSession).toHaveBeenCalledOnce()
+    expect(startSession).toHaveBeenCalledOnce()
+    expect(withTransaction).toHaveBeenCalledOnce()
+    expect(endSession).toHaveBeenCalledOnce()
 
-		create.mockRejectedValueOnce(duplicate())
+    create.mockRejectedValueOnce(duplicate())
 
-		await expect(rejection(funCompanyAdd(idShopOwner, data))).resolves.toBeDefined()
-		expect(endSession).toHaveBeenCalledTimes(2)
-	})
+    await expect(rejection(funCompanyAdd(idShopOwner, data))).resolves.toBeDefined()
+    expect(endSession).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('funCompanyUpdate', () => {
-	beforeEach(() => updateOne.mockReset())
+  beforeEach(() => updateOne.mockReset())
 
-	it('replaces the company’s fields in a single write', async () => {
-		mockUpdateMatched(1)
+  it('replaces the company’s fields in a single write', async () => {
+    mockUpdateMatched(1)
 
-		await expect(funCompanyUpdate(_id, data)).resolves.toBeUndefined()
+    await expect(funCompanyUpdate(_id, data)).resolves.toBeUndefined()
 
-		// One `$set`, and `idShopOwner` is not in it — it is not in `ICompanyValidata` either, which is
-		// what keeps a company from being reassigned by editing its card.
-		expect(updateOne).toHaveBeenCalledExactlyOnceWith({ _id }, { $set: data })
-	})
+    // One `$set`, and `idShopOwner` is not in it — it is not in `ICompanyValidata` either, which is
+    // what keeps a company from being reassigned by editing its card.
+    expect(updateOne).toHaveBeenCalledExactlyOnceWith({ _id }, { $set: data })
+  })
 
-	it('turns a unique-index violation into a 409 naming both candidates', async () => {
-		updateOne.mockReturnValueOnce({ exec: vi.fn().mockRejectedValue(duplicate()) })
+  it('turns a unique-index violation into a 409 naming both candidates', async () => {
+    updateOne.mockReturnValueOnce({ exec: vi.fn().mockRejectedValue(duplicate()) })
 
-		expect(await rejection(funCompanyUpdate(_id, data))).toEqual({
-			message: 'Conflict',
-			http: { status: 409 },
-			description: 'VAT number or certified email already registered by another company'
-		})
-	})
+    expect(await rejection(funCompanyUpdate(_id, data))).toEqual({
+      message: 'Conflict',
+      http: { status: 409 },
+      description: 'VAT number or certified email already registered by another company'
+    })
+  })
 
-	it('rethrows any other driver error untouched', async () => {
-		const broken = Object.assign(new Error('validation fallita'), { code: 121 })
-		updateOne.mockReturnValueOnce({ exec: vi.fn().mockRejectedValue(broken) })
+  it('rethrows any other driver error untouched', async () => {
+    const broken = Object.assign(new Error('validation fallita'), { code: 121 })
+    updateOne.mockReturnValueOnce({ exec: vi.fn().mockRejectedValue(broken) })
 
-		await expect(funCompanyUpdate(_id, data)).rejects.toBe(broken)
-	})
+    await expect(funCompanyUpdate(_id, data)).rejects.toBe(broken)
+  })
 
-	// Saving a card unchanged still matched, and that is a success — the convention every write on this
-	// tier follows.
-	it('accepts a write that changed nothing, as long as the company exists', async () => {
-		mockUpdateMatched(1)
+  // Saving a card unchanged still matched, and that is a success — the convention every write on this
+  // tier follows.
+  it('accepts a write that changed nothing, as long as the company exists', async () => {
+    mockUpdateMatched(1)
 
-		await expect(funCompanyUpdate(_id, data)).resolves.toBeUndefined()
-	})
+    await expect(funCompanyUpdate(_id, data)).resolves.toBeUndefined()
+  })
 
-	it('raises a 404 when no company carries that id', async () => {
-		mockUpdateMatched(0)
+  it('raises a 404 when no company carries that id', async () => {
+    mockUpdateMatched(0)
 
-		expect(await rejection(funCompanyUpdate(_id, data))).toEqual({
-			message: 'Oops',
-			http: { status: 404 },
-			description: 'company not found'
-		})
-	})
+    expect(await rejection(funCompanyUpdate(_id, data))).toEqual({
+      message: 'Oops',
+      http: { status: 404 },
+      description: 'company not found'
+    })
+  })
 })
 
 describe('funCompanyUpdatePublished', () => {
-	beforeEach(() => updateOne.mockReset())
+  beforeEach(() => updateOne.mockReset())
 
-	// One flag, one filter, and the filter is the id alone: the admin moderates every shop on the
-	// platform, so there is no owner to scope this by. ⚠️ `false`, never `$unset` — `published` is in the
-	// collection's `required` array, so unsetting it fails the write.
-	it.each([
-		['publishes', true],
-		['unpublishes', false]
-	])('%s a company, writing the flag as a boolean', async (_label, published) => {
-		mockUpdateMatched(1)
+  // One flag, one filter, and the filter is the id alone: the admin moderates every shop on the
+  // platform, so there is no owner to scope this by. ⚠️ `false`, never `$unset` — `published` is in the
+  // collection's `required` array, so unsetting it fails the write.
+  it.each([
+    ['publishes', true],
+    ['unpublishes', false]
+  ])('%s a company, writing the flag as a boolean', async (_label, published) => {
+    mockUpdateMatched(1)
 
-		await expect(funCompanyUpdatePublished(_id, published)).resolves.toBeUndefined()
+    await expect(funCompanyUpdatePublished(_id, published)).resolves.toBeUndefined()
 
-		const [filter, update] = updateOne.mock.calls[0]
-		expect(updateOne).toHaveBeenCalledOnce()
-		expect(filter).toEqual({ _id })
-		expect(update).toEqual({ $set: { published } })
-	})
+    const [filter, update] = updateOne.mock.calls[0]
+    expect(updateOne).toHaveBeenCalledOnce()
+    expect(filter).toEqual({ _id })
+    expect(update).toEqual({ $set: { published } })
+  })
 
-	// `matchedCount`, not `modifiedCount`: publishing something already published matches one document and
-	// changes none, and that is the state the admin asked for.
-	it('accepts a write that changed nothing, as long as the company exists', async () => {
-		mockUpdateMatched(1)
+  // `matchedCount`, not `modifiedCount`: publishing something already published matches one document and
+  // changes none, and that is the state the admin asked for.
+  it('accepts a write that changed nothing, as long as the company exists', async () => {
+    mockUpdateMatched(1)
 
-		await expect(funCompanyUpdatePublished(_id, true)).resolves.toBeUndefined()
-	})
+    await expect(funCompanyUpdatePublished(_id, true)).resolves.toBeUndefined()
+  })
 
-	it('raises a 404 when no company carries that id', async () => {
-		mockUpdateMatched(0)
+  it('raises a 404 when no company carries that id', async () => {
+    mockUpdateMatched(0)
 
-		expect(await rejection(funCompanyUpdatePublished(_id, true))).toEqual({
-			message: 'Oops',
-			http: { status: 404 },
-			description: 'company not found'
-		})
-	})
+    expect(await rejection(funCompanyUpdatePublished(_id, true))).toEqual({
+      message: 'Oops',
+      http: { status: 404 },
+      description: 'company not found'
+    })
+  })
 })
 
 describe('funCompanyDelete', () => {
-	beforeEach(() => updateOne.mockReset())
+  beforeEach(() => updateOne.mockReset())
 
-	// A soft delete, like every other delete on this tier since `company` gained the field: the document
-	// stays and `deleted` gets a numeric timestamp, cast to the schema's Date path by mongoose. Nothing else is
-	// touched — `$set` names one field and the filter is the id alone.
-	it('stamps deleted and touches nothing else', async () => {
-		mockUpdateMatched(1)
+  // A soft delete, like every other delete on this tier since `company` gained the field: the document
+  // stays and `deleted` gets a numeric timestamp, cast to the schema's Date path by mongoose. Nothing else is
+  // touched — `$set` names one field and the filter is the id alone.
+  it('stamps deleted and touches nothing else', async () => {
+    mockUpdateMatched(1)
 
-		await expect(funCompanyDelete(_id)).resolves.toBeUndefined()
+    await expect(funCompanyDelete(_id)).resolves.toBeUndefined()
 
-		const [filter, update] = updateOne.mock.calls[0]
-		expect(updateOne).toHaveBeenCalledOnce()
-		expect(filter).toEqual({ _id })
-		expect(Object.keys(update)).toEqual(['$set'])
-		expect(Object.keys(update.$set)).toEqual(['deleted'])
-		expect(typeof update.$set.deleted).toBe('number')
-	})
+    const [filter, update] = updateOne.mock.calls[0]
+    expect(updateOne).toHaveBeenCalledOnce()
+    expect(filter).toEqual({ _id })
+    expect(Object.keys(update)).toEqual(['$set'])
+    expect(Object.keys(update.$set)).toEqual(['deleted'])
+    expect(typeof update.$set.deleted).toBe('number')
+  })
 
-	// `matchedCount`, not `modifiedCount`: 0 matched is a stale Delete button naming a company already gone,
-	// while re-deleting one that is already stamped still matched and is the state the admin asked for.
-	it('raises a 404 when no company carries that id', async () => {
-		mockUpdateMatched(0)
+  // `matchedCount`, not `modifiedCount`: 0 matched is a stale Delete button naming a company already gone,
+  // while re-deleting one that is already stamped still matched and is the state the admin asked for.
+  it('raises a 404 when no company carries that id', async () => {
+    mockUpdateMatched(0)
 
-		expect(await rejection(funCompanyDelete(_id))).toEqual({
-			message: 'Oops',
-			http: { status: 404 },
-			description: 'company not found'
-		})
-	})
+    expect(await rejection(funCompanyDelete(_id))).toEqual({
+      message: 'Oops',
+      http: { status: 404 },
+      description: 'company not found'
+    })
+  })
 })

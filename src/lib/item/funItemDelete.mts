@@ -18,7 +18,7 @@ import { Types } from 'mongoose'
  * for, and the item is invisible to every read path either way.
  */
 export async function funItemDelete(_id: Types.ObjectId) {
-	const ret = await Item.updateOne({ _id: _id }, { $set: { deleted: Date.now() } }).exec()
+  const ret = await Item.updateOne({ _id: _id }, { $set: { deleted: Date.now() } }).exec()
 
-	if (ret.matchedCount !== 1) throwNotFoundError('item not found')
+  if (ret.matchedCount !== 1) throwNotFoundError('item not found')
 }

@@ -28,18 +28,18 @@ import { GraphQLBoolean, GraphQLInt, GraphQLNonNull } from 'graphql'
  * reaching a hidden account by naming its state rather than by it being greyed in place.
  */
 export const usersActiveTbl = {
-	type: new GraphQLNonNull(GraphQLUsersActiveTblPage),
-	description: 'Get users for the table',
-	args: {
-		offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-		limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: USERS_TBL_DEFAULT_LIMIT },
-		disabled: { type: new GraphQLNonNull(GraphQLBoolean), defaultValue: false },
-		deleted: { type: new GraphQLNonNull(GraphQLBoolean), defaultValue: false },
-		emailVerified: { type: GraphQLBoolean },
-		sortBy: { type: new GraphQLNonNull(GraphQLUsersTblSortField), defaultValue: 'REGISTERED_AT' },
-		sortDir: { type: new GraphQLNonNull(GraphQLSortDirection), defaultValue: 'DESC' }
-	},
-	async resolve(_: unknown, args: IUsersActiveTblArgs) {
-		return await usersActiveTblDb(args)
-	}
+  type: new GraphQLNonNull(GraphQLUsersActiveTblPage),
+  description: 'Get users for the table',
+  args: {
+    offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+    limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: USERS_TBL_DEFAULT_LIMIT },
+    disabled: { type: new GraphQLNonNull(GraphQLBoolean), defaultValue: false },
+    deleted: { type: new GraphQLNonNull(GraphQLBoolean), defaultValue: false },
+    emailVerified: { type: GraphQLBoolean },
+    sortBy: { type: new GraphQLNonNull(GraphQLUsersTblSortField), defaultValue: 'REGISTERED_AT' },
+    sortDir: { type: new GraphQLNonNull(GraphQLSortDirection), defaultValue: 'DESC' }
+  },
+  async resolve(_: unknown, args: IUsersActiveTblArgs) {
+    return await usersActiveTblDb(args)
+  }
 }

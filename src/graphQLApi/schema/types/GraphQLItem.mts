@@ -13,12 +13,12 @@ import { GraphQLBoolean, GraphQLID, GraphQLNonNull, GraphQLObjectType } from 'gr
  * tier: an admin reviewing a report needs to see the item whether or not the owner has it live.
  */
 export const GraphQLItem = new GraphQLObjectType({
-	name: 'GraphQLItem',
-	fields: () => ({
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		idCompany: { type: new GraphQLNonNull(GraphQLID) },
-		idCategory: { type: new GraphQLNonNull(GraphQLID) },
-		...GraphQLItemFrag,
-		published: { type: new GraphQLNonNull(GraphQLBoolean) }
-	})
+  name: 'GraphQLItem',
+  fields: () => ({
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    idCompany: { type: new GraphQLNonNull(GraphQLID) },
+    idCategory: { type: new GraphQLNonNull(GraphQLID) },
+    ...GraphQLItemFrag,
+    published: { type: new GraphQLNonNull(GraphQLBoolean) }
+  })
 })

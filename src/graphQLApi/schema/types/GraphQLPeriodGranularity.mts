@@ -10,10 +10,10 @@ import { GraphQLEnumType } from 'graphql'
 // the shopOwners file would read as a shopOwners type that customers borrow. It is neither: it names
 // the two bucket widths the series library offers, which is a property of the library.
 export const GraphQLPeriodGranularity = new GraphQLEnumType({
-	name: 'GraphQLPeriodGranularity',
-	description: 'Width of the series buckets',
-	values: {
-		DAY: { description: 'One point per day' },
-		MONTH: { description: 'One point per month' }
-	}
+  name: 'GraphQLPeriodGranularity',
+  description: 'Width of the series buckets',
+  values: {
+    DAY: { description: 'One point per day' },
+    MONTH: { description: 'One point per month' }
+  }
 })

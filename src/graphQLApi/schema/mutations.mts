@@ -26,33 +26,33 @@ import { userDel } from './mutations/userDel.mjs'
 import { userUpdateStatus } from './mutations/userUpdateStatus.mjs'
 
 const MutationsApi = new GraphQLObjectType({
-	name: 'MutationsApi',
-	fields: {
-		adminUpdatePwd,
-		shopOwnerAdd,
-		shopOwnerDel,
-		shopOwnerUpdate,
-		shopOwnerUpdateEmail,
-		shopOwnerUpdateNote,
-		shopOwnerUpdatePreferences,
-		shopOwnerUpdateStatus,
-		userDel,
-		userUpdateStatus,
-		companyAdd,
-		companyDel,
-		companyUpdate,
-		companyUpdatePublished,
-		itemCategoryAdd,
-		itemCategoryDel,
-		itemCategoryUpdate,
-		itemDel,
-		itemUpdatePublished,
-		keygripRotate,
-		keygripRetire,
-		keygripResweep,
-		revokeSession,
-		revokeAllSessions
-	}
+  name: 'MutationsApi',
+  fields: {
+    adminUpdatePwd,
+    shopOwnerAdd,
+    shopOwnerDel,
+    shopOwnerUpdate,
+    shopOwnerUpdateEmail,
+    shopOwnerUpdateNote,
+    shopOwnerUpdatePreferences,
+    shopOwnerUpdateStatus,
+    userDel,
+    userUpdateStatus,
+    companyAdd,
+    companyDel,
+    companyUpdate,
+    companyUpdatePublished,
+    itemCategoryAdd,
+    itemCategoryDel,
+    itemCategoryUpdate,
+    itemDel,
+    itemUpdatePublished,
+    keygripRotate,
+    keygripRetire,
+    keygripResweep,
+    revokeSession,
+    revokeAllSessions
+  }
 })
 
 export default MutationsApi

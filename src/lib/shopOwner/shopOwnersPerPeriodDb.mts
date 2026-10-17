@@ -19,5 +19,5 @@ export type ShopOwnersPeriod = StatsPeriod
 export type IShopOwnersPerPeriod = IPerPeriod
 
 export default async function shopOwnersPerPeriodDb(period: ShopOwnersPeriod): Promise<IShopOwnersPerPeriod> {
-	return await registeredAtSeriesDb(ShopOwner, period)
+  return await registeredAtSeriesDb(ShopOwner, period)
 }

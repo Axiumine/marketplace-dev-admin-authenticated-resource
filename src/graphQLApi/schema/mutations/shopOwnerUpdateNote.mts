@@ -5,8 +5,8 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull, GraphQLString 
 import { Types } from 'mongoose'
 
 interface IArgs {
-	_id: Types.ObjectId
-	notes: string
+  _id: Types.ObjectId
+  notes: string
 }
 
 /**
@@ -21,21 +21,21 @@ interface IArgs {
  * argument would give "leave it alone" and "remove it" the same wire value.
  */
 export const shopOwnerUpdateNote = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'updates the internal note about the shopOwner',
-	args: {
-		_id: { type: new GraphQLNonNull(GraphQLID) },
-		notes: { type: new GraphQLNonNull(GraphQLString) }
-	},
-	async resolve(_: unknown, args: IArgs) {
-		try {
-			// Inside the try like every sibling: `throwErrorWrongUserInput` raises a GraphQLError and
-			// tryCatchRethrow passes those through with their own 400, un-Sentried.
-			await funShopOwnerUpdateNote(args._id, validateShopOwnerNote(args.notes))
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'updates the internal note about the shopOwner',
+  args: {
+    _id: { type: new GraphQLNonNull(GraphQLID) },
+    notes: { type: new GraphQLNonNull(GraphQLString) }
+  },
+  async resolve(_: unknown, args: IArgs) {
+    try {
+      // Inside the try like every sibling: `throwErrorWrongUserInput` raises a GraphQLError and
+      // tryCatchRethrow passes those through with their own 400, un-Sentried.
+      await funShopOwnerUpdateNote(args._id, validateShopOwnerNote(args.notes))
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

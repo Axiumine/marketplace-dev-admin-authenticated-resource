@@ -64,12 +64,12 @@ export const MIN_AGE = 18
  * and not an overflow, and a box holding four spaces is empty rather than four characters long.
  */
 export const requiredText = (value: string, field: string, max: number): string => {
-	const clean = value.trim()
+  const clean = value.trim()
 
-	if (clean.length === 0) throwErrorWrongUserInput(`${field}: field required`)
-	if (clean.length > max) throwErrorWrongUserInput(`${field}: max ${max} characters`)
+  if (clean.length === 0) throwErrorWrongUserInput(`${field}: field required`)
+  if (clean.length > max) throwErrorWrongUserInput(`${field}: max ${max} characters`)
 
-	return clean
+  return clean
 }
 
 /**
@@ -80,12 +80,12 @@ export const requiredText = (value: string, field: string, max: number): string 
  * cleared landline number takes an otherwise valid save down with it.
  */
 export const optionalText = (value: string | null | undefined, field: string, max: number): string | undefined => {
-	const clean = (value ?? '').trim()
+  const clean = (value ?? '').trim()
 
-	if (clean.length === 0) return undefined
-	if (clean.length > max) throwErrorWrongUserInput(`${field}: max ${max} characters`)
+  if (clean.length === 0) return undefined
+  if (clean.length > max) throwErrorWrongUserInput(`${field}: max ${max} characters`)
 
-	return clean
+  return clean
 }
 
 /**
@@ -95,11 +95,11 @@ export const optionalText = (value: string | null | undefined, field: string, ma
  * empty string fails the pattern and gets the same 400 with a message that says what was expected.
  */
 export const textWithFormat = (value: string, field: string, shape: RegExp, expected: string): string => {
-	const clean = value.trim()
+  const clean = value.trim()
 
-	if (!shape.test(clean)) throwErrorWrongUserInput(`${field}: ${expected}`)
+  if (!shape.test(clean)) throwErrorWrongUserInput(`${field}: ${expected}`)
 
-	return clean
+  return clean
 }
 
 /**
@@ -115,27 +115,27 @@ export const textWithFormat = (value: string, field: string, shape: RegExp, expe
  * the `$set`, not present as an empty string that fails `minLength: 11`.
  */
 export const optionalTextExactLength = (value: string | null | undefined, field: string, length: number): string | undefined => {
-	const clean = (value ?? '').trim()
+  const clean = (value ?? '').trim()
 
-	if (clean.length === 0) return undefined
-	if (clean.length !== length) throwErrorWrongUserInput(`${field}: exactly ${length} characters`)
+  if (clean.length === 0) return undefined
+  if (clean.length !== length) throwErrorWrongUserInput(`${field}: exactly ${length} characters`)
 
-	return clean
+  return clean
 }
 
 /** As above, for a field that may be left blank — `company.uniqueCode` is the only one. */
 export const optionalTextWithFormat = (
-	value: string | null | undefined,
-	field: string,
-	shape: RegExp,
-	expected: string
+  value: string | null | undefined,
+  field: string,
+  shape: RegExp,
+  expected: string
 ): string | undefined => {
-	const clean = (value ?? '').trim()
+  const clean = (value ?? '').trim()
 
-	if (clean.length === 0) return undefined
-	if (!shape.test(clean)) throwErrorWrongUserInput(`${field}: ${expected}`)
+  if (clean.length === 0) return undefined
+  if (!shape.test(clean)) throwErrorWrongUserInput(`${field}: ${expected}`)
 
-	return clean
+  return clean
 }
 
 /**
@@ -147,22 +147,22 @@ export const optionalTextWithFormat = (
  * has been shared.
  */
 export const requiredSlug = (value: string, field: string, max: number): string => {
-	const clean = requiredText(value, field, max)
+  const clean = requiredText(value, field, max)
 
-	if (clean.length < MIN_SLUG) throwErrorWrongUserInput(`${field}: min ${MIN_SLUG} characters`)
+  if (clean.length < MIN_SLUG) throwErrorWrongUserInput(`${field}: min ${MIN_SLUG} characters`)
 
-	return textWithFormat(clean, field, SHAPE_SLUG, 'lowercase letters, digits and single hyphens only')
+  return textWithFormat(clean, field, SHAPE_SLUG, 'lowercase letters, digits and single hyphens only')
 }
 
 /** As above, for a slug that may be left blank — `company.slug` is the only one. */
 export const optionalSlug = (value: string | null | undefined, field: string, max: number): string | undefined => {
-	const clean = optionalText(value, field, max)
+  const clean = optionalText(value, field, max)
 
-	return clean === undefined ? undefined : requiredSlug(clean, field, max)
+  return clean === undefined ? undefined : requiredSlug(clean, field, max)
 }
 
 export const requiredEmail = (value: string, field: string): string =>
-	textWithFormat(requiredText(value, field, MAX_EMAIL), field, SHAPE_EMAIL, 'invalid email address')
+  textWithFormat(requiredText(value, field, MAX_EMAIL), field, SHAPE_EMAIL, 'invalid email address')
 
 /**
  * The latest birth date that is already `MIN_AGE` years old on `today`.
@@ -176,12 +176,12 @@ export const requiredEmail = (value: string, field: string): string =>
  * steps back to the last day of the intended month instead.
  */
 const limitBirth = (today: Date): Date => {
-	const month = today.getUTCMonth()
-	const limit = new Date(Date.UTC(today.getUTCFullYear() - MIN_AGE, month, today.getUTCDate()))
+  const month = today.getUTCMonth()
+  const limit = new Date(Date.UTC(today.getUTCFullYear() - MIN_AGE, month, today.getUTCDate()))
 
-	if (limit.getUTCMonth() !== month) limit.setUTCDate(0)
+  if (limit.getUTCMonth() !== month) limit.setUTCDate(0)
 
-	return limit
+  return limit
 }
 
 /**
@@ -191,13 +191,13 @@ const limitBirth = (today: Date): Date => {
  * without freezing the clock. The boundary is inclusive: someone turning 18 today is 18 today.
  */
 export const birthDate = (date: Date, field: string, today: Date): Date => {
-	if (Number.isNaN(date.getTime())) throwErrorWrongUserInput(`${field}: invalid date`)
+  if (Number.isNaN(date.getTime())) throwErrorWrongUserInput(`${field}: invalid date`)
 
-	if (date.getTime() > limitBirth(today).getTime()) {
-		throwErrorWrongUserInput(`${field}: the shopOwner must be of age (at least ${MIN_AGE})`)
-	}
+  if (date.getTime() > limitBirth(today).getTime()) {
+    throwErrorWrongUserInput(`${field}: the shopOwner must be of age (at least ${MIN_AGE})`)
+  }
 
-	return date
+  return date
 }
 
 /**
@@ -214,14 +214,14 @@ export const birthDate = (date: Date, field: string, today: Date): Date => {
  * only correct when called from one place is worth less than the comparison costs.
  */
 export const coordinate = (coordinates: readonly number[], field: string): number[] => {
-	if (coordinates.length !== 2) {
-		throwErrorWrongUserInput(`${field}: exactly 2 coordinates are required [longitude, latitude]`)
-	}
+  if (coordinates.length !== 2) {
+    throwErrorWrongUserInput(`${field}: exactly 2 coordinates are required [longitude, latitude]`)
+  }
 
-	const [lng, lat] = coordinates as [number, number]
+  const [lng, lat] = coordinates as [number, number]
 
-	if (!Number.isFinite(lng) || lng < -180 || lng > 180) throwErrorWrongUserInput(`${field}: longitude outside -180..180`)
-	if (!Number.isFinite(lat) || lat < -90 || lat > 90) throwErrorWrongUserInput(`${field}: latitude outside -90..90`)
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) throwErrorWrongUserInput(`${field}: longitude outside -180..180`)
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) throwErrorWrongUserInput(`${field}: latitude outside -90..90`)
 
-	return [lng, lat]
+  return [lng, lat]
 }

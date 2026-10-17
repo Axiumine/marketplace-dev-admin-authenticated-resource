@@ -40,28 +40,28 @@ import mongoose, { Types } from 'mongoose'
  * which aborts it — there is nothing to keep when the document the save names does not exist.
  */
 export async function funItemCategoryUpdate(_id: Types.ObjectId, data: IItemCategoryValidated) {
-	const { idParent, ...rest } = data
-	const set = idParent === undefined ? rest : { ...rest, idParent }
-	const unset = idParent === undefined ? { idParent: 1 } : {}
+  const { idParent, ...rest } = data
+  const set = idParent === undefined ? rest : { ...rest, idParent }
+  const unset = idParent === undefined ? { idParent: 1 } : {}
 
-	const session = await mongoose.startSession()
+  const session = await mongoose.startSession()
 
-	try {
-		await session.withTransaction(async () => {
-			if (data.idParent !== undefined) {
-				await throwIfParentNotTopLevel(data.idParent, session, _id)
-				await throwIfHasChildren(_id, session)
-			}
+  try {
+    await session.withTransaction(async () => {
+      if (data.idParent !== undefined) {
+        await throwIfParentNotTopLevel(data.idParent, session, _id)
+        await throwIfHasChildren(_id, session)
+      }
 
-			const ret = await ItemCategory.updateOne({ _id: _id }, { $set: set, $unset: unset }).session(session).exec()
+      const ret = await ItemCategory.updateOne({ _id: _id }, { $set: set, $unset: unset }).session(session).exec()
 
-			if (ret.matchedCount !== 1) throwNotFoundError('category not found')
-		})
-	} catch (e) {
-		if (duplicateKey(e)) throwAlreadyTakenError('slug already used by another category')
+      if (ret.matchedCount !== 1) throwNotFoundError('category not found')
+    })
+  } catch (e) {
+    if (duplicateKey(e)) throwAlreadyTakenError('slug already used by another category')
 
-		throw e
-	} finally {
-		await session.endSession()
-	}
+    throw e
+  } finally {
+    await session.endSession()
+  }
 }

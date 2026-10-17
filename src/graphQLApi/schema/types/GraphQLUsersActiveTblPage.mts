@@ -6,9 +6,9 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'grap
 // arguments. The unfiltered headline count is a different question, answered by `usersStats`, which
 // counts every account ever registered and deliberately disagrees with `total` under every filter.
 export const GraphQLUsersActiveTblPage = new GraphQLObjectType({
-	name: 'GraphQLUsersActiveTblPage',
-	fields: () => ({
-		items: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLUserActiveTbl))) },
-		total: { type: new GraphQLNonNull(GraphQLInt) }
-	})
+  name: 'GraphQLUsersActiveTblPage',
+  fields: () => ({
+    items: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLUserActiveTbl))) },
+    total: { type: new GraphQLNonNull(GraphQLInt) }
+  })
 })

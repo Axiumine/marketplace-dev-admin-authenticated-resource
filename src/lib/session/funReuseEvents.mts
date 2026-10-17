@@ -25,7 +25,7 @@ import { Tier } from '@axiumine/marketplace-common/others/Tier'
  * is the ordinary case and renders as an empty table rather than as an error.
  */
 export async function funReuseEvents(tier: Tier, accountId: string): Promise<IReuseEvent[]> {
-	const lines = await redisClient.lRange(reuseEventsKey(tier, accountId), 0, REUSE_EVENTS_MAX - 1)
+  const lines = await redisClient.lRange(reuseEventsKey(tier, accountId), 0, REUSE_EVENTS_MAX - 1)
 
-	return lines.map((line) => JSON.parse(line) as IReuseEvent)
+  return lines.map((line) => JSON.parse(line) as IReuseEvent)
 }

@@ -16,11 +16,11 @@ import { start } from '../../src/index.mts'
  * this sits beside the suites without becoming one.
  */
 export async function bootServer(): Promise<{ base: string; httpServer: Server }> {
-	const server = await start()
-	if (!server) throw new Error('server failed to start against the real Redis cluster / MongoDB / clamd')
-	const { httpServer } = server
-	const address = httpServer.address() as AddressInfo | null
-	if (!address || typeof address === 'string') throw new Error('no TCP address on the booted server')
+  const server = await start()
+  if (!server) throw new Error('server failed to start against the real Redis cluster / MongoDB / clamd')
+  const { httpServer } = server
+  const address = httpServer.address() as AddressInfo | null
+  if (!address || typeof address === 'string') throw new Error('no TCP address on the booted server')
 
-	return { base: `http://127.0.0.1:${address.port}`, httpServer }
+  return { base: `http://127.0.0.1:${address.port}`, httpServer }
 }

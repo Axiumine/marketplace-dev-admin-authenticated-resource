@@ -17,73 +17,73 @@ const { disconnectAllDatabases } = await import('../src/lib/db/disconnectAllData
 let exit: ReturnType<typeof vi.spyOn>
 
 describe('disconnectAllDatabases', () => {
-	beforeEach(() => {
-		RedisDisconnect.mockReset().mockResolvedValue(undefined)
-		MongoDBDisconnect.mockReset().mockResolvedValue(undefined)
-		captureMessage.mockReset()
-		captureException.mockReset()
-		flush.mockReset().mockResolvedValue(true)
-		exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
-	})
+  beforeEach(() => {
+    RedisDisconnect.mockReset().mockResolvedValue(undefined)
+    MongoDBDisconnect.mockReset().mockResolvedValue(undefined)
+    captureMessage.mockReset()
+    captureException.mockReset()
+    flush.mockReset().mockResolvedValue(true)
+    exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+  })
 
-	afterEach(() => {
-		vi.restoreAllMocks()
-		vi.useRealTimers()
-	})
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
 
-	it('disconnects both datasources, flushes Sentry, and exits with 0 by default', async () => {
-		await disconnectAllDatabases()
+  it('disconnects both datasources, flushes Sentry, and exits with 0 by default', async () => {
+    await disconnectAllDatabases()
 
-		expect(RedisDisconnect).toHaveBeenCalledTimes(1)
-		expect(MongoDBDisconnect).toHaveBeenCalledTimes(1)
-		expect(captureMessage).toHaveBeenCalledWith('All databases disconnected successfully', 'info')
-		// ⚠️ B14: the capture above is worthless if the process exits before the SDK gets to send it —
-		// flush() has to run, and it has to run before exit() does.
-		expect(flush).toHaveBeenCalledExactlyOnceWith(2000)
-		expect(flush.mock.invocationCallOrder[0]).toBeLessThan(exit.mock.invocationCallOrder[0] as number)
-		expect(exit).toHaveBeenCalledExactlyOnceWith(0)
-	})
+    expect(RedisDisconnect).toHaveBeenCalledTimes(1)
+    expect(MongoDBDisconnect).toHaveBeenCalledTimes(1)
+    expect(captureMessage).toHaveBeenCalledWith('All databases disconnected successfully', 'info')
+    // ⚠️ B14: the capture above is worthless if the process exits before the SDK gets to send it —
+    // flush() has to run, and it has to run before exit() does.
+    expect(flush).toHaveBeenCalledExactlyOnceWith(2000)
+    expect(flush.mock.invocationCallOrder[0]).toBeLessThan(exit.mock.invocationCallOrder[0] as number)
+    expect(exit).toHaveBeenCalledExactlyOnceWith(0)
+  })
 
-	it('propagates the requested exit code', async () => {
-		await disconnectAllDatabases(3)
+  it('propagates the requested exit code', async () => {
+    await disconnectAllDatabases(3)
 
-		expect(exit).toHaveBeenCalledExactlyOnceWith(3)
-	})
+    expect(exit).toHaveBeenCalledExactlyOnceWith(3)
+  })
 
-	it('exits with 1 and reports to Sentry if Redis fails to disconnect', async () => {
-		RedisDisconnect.mockRejectedValueOnce(new Error('redis down'))
+  it('exits with 1 and reports to Sentry if Redis fails to disconnect', async () => {
+    RedisDisconnect.mockRejectedValueOnce(new Error('redis down'))
 
-		await disconnectAllDatabases()
+    await disconnectAllDatabases()
 
-		expect(captureMessage).not.toHaveBeenCalled()
-		expect(captureException).toHaveBeenCalledWith(expect.any(Error), {
-			extra: { detail: 'Error during database disconnection' }
-		})
-		expect(flush).toHaveBeenCalledExactlyOnceWith(2000)
-		expect(flush.mock.invocationCallOrder[0]).toBeLessThan(exit.mock.invocationCallOrder[0] as number)
-		expect(exit).toHaveBeenCalledExactlyOnceWith(1)
-	})
+    expect(captureMessage).not.toHaveBeenCalled()
+    expect(captureException).toHaveBeenCalledWith(expect.any(Error), {
+      extra: { detail: 'Error during database disconnection' }
+    })
+    expect(flush).toHaveBeenCalledExactlyOnceWith(2000)
+    expect(flush.mock.invocationCallOrder[0]).toBeLessThan(exit.mock.invocationCallOrder[0] as number)
+    expect(exit).toHaveBeenCalledExactlyOnceWith(1)
+  })
 
-	it('exits with 1 and reports to Sentry if MongoDB fails to disconnect', async () => {
-		MongoDBDisconnect.mockRejectedValueOnce(new Error('mongo down'))
+  it('exits with 1 and reports to Sentry if MongoDB fails to disconnect', async () => {
+    MongoDBDisconnect.mockRejectedValueOnce(new Error('mongo down'))
 
-		await disconnectAllDatabases()
+    await disconnectAllDatabases()
 
-		expect(captureMessage).not.toHaveBeenCalled()
-		expect(captureException).toHaveBeenCalledTimes(1)
-		expect(exit).toHaveBeenCalledExactlyOnceWith(1)
-	})
+    expect(captureMessage).not.toHaveBeenCalled()
+    expect(captureException).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledExactlyOnceWith(1)
+  })
 
-	it('exits with 1 if the disconnection exceeds the 5s timeout', async () => {
-		vi.useFakeTimers()
-		RedisDisconnect.mockReturnValueOnce(new Promise(() => {})) // never resolves
+  it('exits with 1 if the disconnection exceeds the 5s timeout', async () => {
+    vi.useFakeTimers()
+    RedisDisconnect.mockReturnValueOnce(new Promise(() => {})) // never resolves
 
-		const pending = disconnectAllDatabases()
-		await vi.advanceTimersByTimeAsync(5000)
-		await pending
+    const pending = disconnectAllDatabases()
+    await vi.advanceTimersByTimeAsync(5000)
+    await pending
 
-		expect(captureException).toHaveBeenCalledTimes(1)
-		expect(captureException.mock.calls[0][0]).toMatchObject({ message: 'Database disconnection timeout' })
-		expect(exit).toHaveBeenCalledExactlyOnceWith(1)
-	})
+    expect(captureException).toHaveBeenCalledTimes(1)
+    expect(captureException.mock.calls[0][0]).toMatchObject({ message: 'Database disconnection timeout' })
+    expect(exit).toHaveBeenCalledExactlyOnceWith(1)
+  })
 })

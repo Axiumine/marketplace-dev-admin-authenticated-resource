@@ -4,12 +4,12 @@ import { Types } from 'mongoose'
 
 /** One object rather than three positional arguments, for the reason `IShopOwnerStatus` gives. */
 export interface IUserStatus {
-	_id: Types.ObjectId
-	disabled: boolean
-	/** The admin making the change — `ctx.state.user._id`, never anything from the request body. */
-	adminId: Types.ObjectId
-	/** Present exactly when `disabled` is true; `validateDisabledReason` is what guarantees that. */
-	disabledReason?: string
+  _id: Types.ObjectId
+  disabled: boolean
+  /** The admin making the change — `ctx.state.user._id`, never anything from the request body. */
+  adminId: Types.ObjectId
+  /** Present exactly when `disabled` is true; `validateDisabledReason` is what guarantees that. */
+  disabledReason?: string
 }
 
 /**
@@ -49,13 +49,13 @@ export interface IUserStatus {
  * the value it already held is still the state the admin asked for and not an error.
  */
 export async function funUserUpdateStatus({ _id, disabled, adminId, disabledReason }: IUserStatus) {
-	// `$set` and `$unset` are never both present here — one flag, one branch — so no
-	// "Updating the path 'disabled' would create a conflict" is possible.
-	const update = disabled
-		? { $set: { disabled: true, disabledBy: adminId, disabledReason: disabledReason } }
-		: { $unset: { disabled: 1, disabledBy: 1, disabledReason: 1 } }
+  // `$set` and `$unset` are never both present here — one flag, one branch — so no
+  // "Updating the path 'disabled' would create a conflict" is possible.
+  const update = disabled
+    ? { $set: { disabled: true, disabledBy: adminId, disabledReason: disabledReason } }
+    : { $unset: { disabled: 1, disabledBy: 1, disabledReason: 1 } }
 
-	const ret = await User.updateOne({ _id: _id }, update).exec()
+  const ret = await User.updateOne({ _id: _id }, update).exec()
 
-	if (ret.matchedCount !== 1) throwNotFoundError('user not found')
+  if (ret.matchedCount !== 1) throwNotFoundError('user not found')
 }

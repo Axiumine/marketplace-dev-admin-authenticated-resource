@@ -45,21 +45,21 @@ import { ClientSession, trusted, Types } from 'mongoose'
  * comes from the resolver's own argument, so the two are equal in value while being different objects.
  */
 export async function throwIfParentNotTopLevel(idParent: Types.ObjectId, session: ClientSession, _id?: Types.ObjectId) {
-	if (String(_id) === String(idParent)) {
-		throwErrorWrongUserInput('itemCategory.idParent: a category cannot be its own parent')
-	}
+  if (String(_id) === String(idParent)) {
+    throwErrorWrongUserInput('itemCategory.idParent: a category cannot be its own parent')
+  }
 
-	const parent = await ItemCategory.findOneAndUpdate(
-		{ _id: idParent, deleted: trusted({ $exists: false }) },
-		{ $inc: { __v: 1 } },
-		{ projection: { idParent: 1 } }
-	)
-		.session(session)
-		.lean()
+  const parent = await ItemCategory.findOneAndUpdate(
+    { _id: idParent, deleted: trusted({ $exists: false }) },
+    { $inc: { __v: 1 } },
+    { projection: { idParent: 1 } }
+  )
+    .session(session)
+    .lean()
 
-	if (parent === null) throwNotFoundError('parent category not found')
+  if (parent === null) throwNotFoundError('parent category not found')
 
-	if (parent.idParent !== undefined) {
-		throwErrorWrongUserInput('itemCategory.idParent: the taxonomy is two levels deep — a subcategory cannot have children')
-	}
+  if (parent.idParent !== undefined) {
+    throwErrorWrongUserInput('itemCategory.idParent: the taxonomy is two levels deep — a subcategory cannot have children')
+  }
 }

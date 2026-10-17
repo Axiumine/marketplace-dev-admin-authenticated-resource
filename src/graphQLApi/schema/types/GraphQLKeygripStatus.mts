@@ -27,12 +27,12 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
  * the demotion age is the console's call; this field answers what it always answered.
  */
 export const GraphQLKeygripKeyInfo = new GraphQLObjectType({
-	name: 'GraphQLKeygripKeyInfo',
-	fields: () => ({
-		id: { type: new GraphQLNonNull(GraphQLString) },
-		createdAt: { type: new GraphQLNonNull(GraphQLString) },
-		ageDays: { type: new GraphQLNonNull(GraphQLInt) }
-	})
+  name: 'GraphQLKeygripKeyInfo',
+  fields: () => ({
+    id: { type: new GraphQLNonNull(GraphQLString) },
+    createdAt: { type: new GraphQLNonNull(GraphQLString) },
+    ageDays: { type: new GraphQLNonNull(GraphQLInt) }
+  })
 })
 
 /*
@@ -45,24 +45,24 @@ export const GraphQLKeygripKeyInfo = new GraphQLObjectType({
  * and behind.
  */
 export const GraphQLKeygripHolder = new GraphQLObjectType({
-	name: 'GraphQLKeygripHolder',
-	fields: () => ({
-		service: { type: new GraphQLNonNull(GraphQLString) },
-		fingerprint: { type: new GraphQLNonNull(GraphQLString) },
-		lastSeen: { type: new GraphQLNonNull(GraphQLString) },
-		current: { type: new GraphQLNonNull(GraphQLBoolean) }
-	})
+  name: 'GraphQLKeygripHolder',
+  fields: () => ({
+    service: { type: new GraphQLNonNull(GraphQLString) },
+    fingerprint: { type: new GraphQLNonNull(GraphQLString) },
+    lastSeen: { type: new GraphQLNonNull(GraphQLString) },
+    current: { type: new GraphQLNonNull(GraphQLBoolean) }
+  })
 })
 
 // The whole answer. `fingerprint` is the record's own, which is what every holder row is compared
 // against, and `version` is what a rotation bumps — together they are how an admin tells two records
 // apart without seeing either.
 export const GraphQLKeygripStatus = new GraphQLObjectType({
-	name: 'GraphQLKeygripStatus',
-	fields: () => ({
-		version: { type: new GraphQLNonNull(GraphQLInt) },
-		fingerprint: { type: new GraphQLNonNull(GraphQLString) },
-		keys: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLKeygripKeyInfo))) },
-		holders: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLKeygripHolder))) }
-	})
+  name: 'GraphQLKeygripStatus',
+  fields: () => ({
+    version: { type: new GraphQLNonNull(GraphQLInt) },
+    fingerprint: { type: new GraphQLNonNull(GraphQLString) },
+    keys: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLKeygripKeyInfo))) },
+    holders: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLKeygripHolder))) }
+  })
 })

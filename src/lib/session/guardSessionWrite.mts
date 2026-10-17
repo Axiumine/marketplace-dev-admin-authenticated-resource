@@ -32,5 +32,5 @@ export const SESSION_WRITES_PER_HOUR = 60
  * must not spend the allowance for the second.
  */
 export async function guardSessionWrite(operation: string, admin: string) {
-	await assertUnderRateLimit(redisClient, `session:${operation}`, admin, SESSION_WRITES_PER_HOUR, SESSION_WRITE_WINDOW_SECONDS)
+  await assertUnderRateLimit(redisClient, `session:${operation}`, admin, SESSION_WRITES_PER_HOUR, SESSION_WRITE_WINDOW_SECONDS)
 }

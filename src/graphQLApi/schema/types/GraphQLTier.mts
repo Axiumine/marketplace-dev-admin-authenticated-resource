@@ -13,6 +13,6 @@ import { GraphQLEnumType } from 'graphql'
  * otherwise be a successful query over an empty keyspace, which reads exactly like a clean account.
  */
 export const GraphQLTier = new GraphQLEnumType({
-	name: 'GraphQLTier',
-	values: Object.fromEntries(Object.values(TIER).map((tier) => [tier, { value: tier }]))
+  name: 'GraphQLTier',
+  values: Object.fromEntries(Object.values(TIER).map((tier) => [tier, { value: tier }]))
 })

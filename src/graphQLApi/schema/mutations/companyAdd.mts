@@ -6,8 +6,8 @@ import { GraphQLBoolean, GraphQLError, GraphQLID, GraphQLNonNull } from 'graphql
 import { Types } from 'mongoose'
 
 interface IArgs {
-	idShopOwner: Types.ObjectId
-	company: ICompanyInput
+  idShopOwner: Types.ObjectId
+  company: ICompanyInput
 }
 
 /**
@@ -20,19 +20,19 @@ interface IArgs {
  * `shopOwnerCompanies` after a save and has no use for the new id.
  */
 export const companyAdd = {
-	type: new GraphQLNonNull(GraphQLBoolean),
-	description: 'adds a company to a shopOwner',
-	args: {
-		idShopOwner: { type: new GraphQLNonNull(GraphQLID) },
-		company: { type: new GraphQLNonNull(GraphQLInputCompany) }
-	},
-	async resolve(_: unknown, args: IArgs) {
-		try {
-			await funCompanyAdd(args.idShopOwner, validateCompany(args.company))
-		} catch (e) {
-			tryCatchRethrow(e as GraphQLError | Error)
-		}
+  type: new GraphQLNonNull(GraphQLBoolean),
+  description: 'adds a company to a shopOwner',
+  args: {
+    idShopOwner: { type: new GraphQLNonNull(GraphQLID) },
+    company: { type: new GraphQLNonNull(GraphQLInputCompany) }
+  },
+  async resolve(_: unknown, args: IArgs) {
+    try {
+      await funCompanyAdd(args.idShopOwner, validateCompany(args.company))
+    } catch (e) {
+      tryCatchRethrow(e as GraphQLError | Error)
+    }
 
-		return true
-	}
+    return true
+  }
 }

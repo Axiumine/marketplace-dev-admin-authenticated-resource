@@ -21,21 +21,21 @@ import { Types } from 'mongoose'
  * it `string` and would reject a `null` for the whole write.
  */
 export async function funShopOwnerUpdatePreferences(
-	_id: Types.ObjectId,
-	rememberMe: boolean,
-	onboardingDone: boolean,
-	onboardingStep: string | undefined
+  _id: Types.ObjectId,
+  rememberMe: boolean,
+  onboardingDone: boolean,
+  onboardingStep: string | undefined
 ) {
-	const set: Record<string, boolean | string> = {
-		'login.rememberMe': rememberMe,
-		'login.onboardingDone': onboardingDone
-	}
-	const unset: Record<string, 1> = {}
+  const set: Record<string, boolean | string> = {
+    'login.rememberMe': rememberMe,
+    'login.onboardingDone': onboardingDone
+  }
+  const unset: Record<string, 1> = {}
 
-	if (onboardingStep === undefined) unset['login.onboardingStep'] = 1
-	else set['login.onboardingStep'] = onboardingStep
+  if (onboardingStep === undefined) unset['login.onboardingStep'] = 1
+  else set['login.onboardingStep'] = onboardingStep
 
-	const ret = await ShopOwner.updateOne({ _id: _id }, { $set: set, $unset: unset }).exec()
+  const ret = await ShopOwner.updateOne({ _id: _id }, { $set: set, $unset: unset }).exec()
 
-	if (ret.matchedCount !== 1) throwNotFoundError('shopOwner not found')
+  if (ret.matchedCount !== 1) throwNotFoundError('shopOwner not found')
 }

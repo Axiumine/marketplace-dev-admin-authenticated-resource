@@ -27,7 +27,7 @@ import { Types } from 'mongoose'
  * can act on. Same convention as every other write on this tier.
  */
 export async function funCompanyDelete(_id: Types.ObjectId) {
-	const ret = await Company.updateOne({ _id: _id }, { $set: { deleted: Date.now() } }).exec()
+  const ret = await Company.updateOne({ _id: _id }, { $set: { deleted: Date.now() } }).exec()
 
-	if (ret.matchedCount !== 1) throwNotFoundError('company not found')
+  if (ret.matchedCount !== 1) throwNotFoundError('company not found')
 }

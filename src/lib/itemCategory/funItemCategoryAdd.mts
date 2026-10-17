@@ -36,20 +36,20 @@ import mongoose, { Types } from 'mongoose'
  * carries no transient label, so the transaction is aborted and the error re-thrown to here untouched.
  */
 export async function funItemCategoryAdd(data: IItemCategoryValidated) {
-	const _id = new Types.ObjectId()
-	const session = await mongoose.startSession()
+  const _id = new Types.ObjectId()
+  const session = await mongoose.startSession()
 
-	try {
-		await session.withTransaction(async () => {
-			if (data.idParent !== undefined) await throwIfParentNotTopLevel(data.idParent, session)
+  try {
+    await session.withTransaction(async () => {
+      if (data.idParent !== undefined) await throwIfParentNotTopLevel(data.idParent, session)
 
-			await ItemCategory.create([{ _id, ...data }], { session })
-		})
-	} catch (e) {
-		if (duplicateKey(e)) throwAlreadyTakenError('slug already used by another category')
+      await ItemCategory.create([{ _id, ...data }], { session })
+    })
+  } catch (e) {
+    if (duplicateKey(e)) throwAlreadyTakenError('slug already used by another category')
 
-		throw e
-	} finally {
-		await session.endSession()
-	}
+    throw e
+  } finally {
+    await session.endSession()
+  }
 }

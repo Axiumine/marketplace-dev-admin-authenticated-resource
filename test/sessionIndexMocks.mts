@@ -19,11 +19,11 @@ type SessionIndexMocks = { hKeys: Mock; hGet: Mock; del: Mock; hDel: Mock }
  * suites without becoming one.
  */
 export function armSessionIndex({ hKeys, hGet, del, hDel }: SessionIndexMocks, redisKey: string, fields: string[]): void {
-	vi.stubEnv('REDIS_KEY', redisKey)
-	hKeys.mockReset().mockResolvedValue(fields)
-	hGet.mockReset().mockImplementation((key: string) => Promise.resolve(key.toUpperCase()))
-	del.mockReset().mockResolvedValue(1)
-	hDel.mockReset().mockResolvedValue(1)
+  vi.stubEnv('REDIS_KEY', redisKey)
+  hKeys.mockReset().mockResolvedValue(fields)
+  hGet.mockReset().mockImplementation((key: string) => Promise.resolve(key.toUpperCase()))
+  del.mockReset().mockResolvedValue(1)
+  hDel.mockReset().mockResolvedValue(1)
 }
 
 /** The `REDIS_KEY` prefix every revocation suite stubs — all nine services share one, in test as in life. */

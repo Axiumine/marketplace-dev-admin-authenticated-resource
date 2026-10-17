@@ -44,14 +44,14 @@ const K1_AGE_DAYS = 11
  * forks its workers after `globalSetup` returns, so they inherit whichever value it minted.
  */
 const itestKeygripEpoch = (): number => {
-	const stamped = process.env.ITEST_KEYGRIP_EPOCH
+  const stamped = process.env.ITEST_KEYGRIP_EPOCH
 
-	if (stamped !== undefined) return Number(stamped)
+  if (stamped !== undefined) return Number(stamped)
 
-	const minted = Date.now()
-	process.env.ITEST_KEYGRIP_EPOCH = String(minted)
+  const minted = Date.now()
+  process.env.ITEST_KEYGRIP_EPOCH = String(minted)
 
-	return minted
+  return minted
 }
 
 /**
@@ -69,20 +69,20 @@ const itestKeygripEpoch = (): number => {
  * after `globalSetup` has had a chance to mint it, not at whatever moment this module is first imported.
  */
 export const itestKeygripKeys = (): IKeygripKeyMaterial[] => {
-	const epoch = itestKeygripEpoch()
+  const epoch = itestKeygripEpoch()
 
-	return [
-		{
-			id: 'k2',
-			material: Buffer.alloc(64, 42).toString('base64'),
-			createdAt: new Date(epoch - K2_AGE_DAYS * DAY_MS).toISOString()
-		},
-		{
-			id: 'k1',
-			material: Buffer.alloc(64, 24).toString('base64'),
-			createdAt: new Date(epoch - K1_AGE_DAYS * DAY_MS).toISOString()
-		}
-	]
+  return [
+    {
+      id: 'k2',
+      material: Buffer.alloc(64, 42).toString('base64'),
+      createdAt: new Date(epoch - K2_AGE_DAYS * DAY_MS).toISOString()
+    },
+    {
+      id: 'k1',
+      material: Buffer.alloc(64, 24).toString('base64'),
+      createdAt: new Date(epoch - K1_AGE_DAYS * DAY_MS).toISOString()
+    }
+  ]
 }
 
 /**
@@ -105,21 +105,21 @@ export const itestKeygripKeys = (): IKeygripKeyMaterial[] => {
  * the three fields all came from this run.
  */
 export async function seedKeygrip(): Promise<void> {
-	const kek = randomBytes(32)
-	process.env.KEYGRIP_KEK = kek.toString('base64')
+  const kek = randomBytes(32)
+  process.env.KEYGRIP_KEK = kek.toString('base64')
 
-	await RedisConnect()
-	try {
-		const keys = itestKeygripKeys()
+  await RedisConnect()
+  try {
+    const keys = itestKeygripKeys()
 
-		await redisClient.del(`${ITEST_REDIS_KEY}keygrip`)
-		await redisClient.hSet(`${ITEST_REDIS_KEY}keygrip`, {
-			version: '1',
-			wrapped: wrapKeygripKeys(keys, 1, kek),
-			fp: keygripFingerprint(keys)
-		})
-	} finally {
-		// This process only provisions; every test file opens its own client.
-		await redisClient.close().catch(() => undefined)
-	}
+    await redisClient.del(`${ITEST_REDIS_KEY}keygrip`)
+    await redisClient.hSet(`${ITEST_REDIS_KEY}keygrip`, {
+      version: '1',
+      wrapped: wrapKeygripKeys(keys, 1, kek),
+      fp: keygripFingerprint(keys)
+    })
+  } finally {
+    // This process only provisions; every test file opens its own client.
+    await redisClient.close().catch(() => undefined)
+  }
 }
