@@ -21,7 +21,8 @@ const startRetentionSweeper = vi.fn()
 /** The NodeClam initClamScan() hands back — identity is all start() does with it, so it needs no behaviour. */
 const clamScanner = { getVersion: vi.fn() }
 
-vi.mock('@sentry/node', () => ({ captureException, captureMessage, flush }))
+// koa-utils >= 8 reads captureMessage and withScope off @sentry/node as soon as it loads, so the factory must export both.
+vi.mock('@sentry/node', () => ({ captureException, captureMessage, flush, withScope: vi.fn() }))
 // redisClient.hGetAll backs the auth path every request in the createServer block below travels —
 // everything else here only drives start()'s failure paths, which never reach hGetAll.
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ RedisConnect, redisClient: { hGetAll } }))

@@ -53,7 +53,8 @@ vi.mock('@lib/keygrip/funKeygripResweep.mjs', () => ({ funKeygripResweep }))
 // The `@lib/validate/*` modules are NOT mocked either, and that is the same decision one layer down:
 // the mutations' contract with them is that a bad field never reaches the database and a good one
 // arrives normalised, which a stub asserts nothing about.
-vi.mock('@sentry/node', () => ({ captureException }))
+// koa-utils >= 8 reads captureMessage and withScope off @sentry/node as soon as it loads, so the factory must export both.
+vi.mock('@sentry/node', () => ({ captureException, captureMessage: vi.fn(), withScope: vi.fn() }))
 
 const { adminUpdatePwd } = await import('../src/graphQLApi/schema/mutations/adminUpdatePwd.mts')
 const { keygripRotate } = await import('../src/graphQLApi/schema/mutations/keygripRotate.mts')

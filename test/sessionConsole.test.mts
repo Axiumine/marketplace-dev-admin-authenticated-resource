@@ -16,7 +16,8 @@ vi.mock('@lib/session/funRevokeAllSessions.mjs', () => ({ funRevokeAllSessions }
 // The lib layer is stubbed and covered for real in `sessionLib.test.mts`; what this file asserts is what
 // the *resolvers* pass down and what the schema lets back out. tryCatchRethrow is NOT mocked — only its
 // Sentry sink is, so a failure really travels through the wrapper each resolver puts around its lib.
-vi.mock('@sentry/node', () => ({ captureException }))
+// koa-utils >= 8 reads captureMessage and withScope off @sentry/node as soon as it loads, so the factory must export both.
+vi.mock('@sentry/node', () => ({ captureException, captureMessage: vi.fn(), withScope: vi.fn() }))
 // Pulled in transitively by the mutation context type chain; nothing here talks to Redis.
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ redisClient: {} }))
 

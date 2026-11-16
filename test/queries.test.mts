@@ -47,7 +47,8 @@ vi.mock('@lib/user/usersPerPeriodDb.mjs', () => ({ default: usersPerPeriodDb }))
 vi.mock('@lib/keygrip/funKeygripStatus.mjs', () => ({ funKeygripStatus }))
 // tryCatchRethrow is NOT mocked, as in mutations.test.mts — only its Sentry sink is, so a failure
 // really travels through the wrapper this resolver puts around the lib.
-vi.mock('@sentry/node', () => ({ captureException }))
+// koa-utils >= 8 reads captureMessage and withScope off @sentry/node as soon as it loads, so the factory must export both.
+vi.mock('@sentry/node', () => ({ captureException, captureMessage: vi.fn(), withScope: vi.fn() }))
 
 const { shopOwnerCompanies } = await import('../src/graphQLApi/schema/queries/shopOwnerCompanies.mts')
 const { shopOwnerById } = await import('../src/graphQLApi/schema/queries/shopOwnerById.mts')

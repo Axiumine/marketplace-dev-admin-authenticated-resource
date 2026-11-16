@@ -19,7 +19,8 @@ vi.mock('@lib/itemCategory/funItemCategoryUpdate.mjs', () => ({ funItemCategoryU
 // tryCatchRethrow and `@lib/validate/*` are NOT mocked, the same decision `mutations.test.mts` makes:
 // what these resolvers are for is that a bad field never reaches the lib and a driver failure arrives
 // as the right status. A stub asserts neither. Only Sentry is stopped from firing.
-vi.mock('@sentry/node', () => ({ captureException }))
+// koa-utils >= 8 reads captureMessage and withScope off @sentry/node as soon as it loads, so the factory must export both.
+vi.mock('@sentry/node', () => ({ captureException, captureMessage: vi.fn(), withScope: vi.fn() }))
 
 const { itemCategoryAdd } = await import('../src/graphQLApi/schema/mutations/itemCategoryAdd.mts')
 const { itemCategoryDel } = await import('../src/graphQLApi/schema/mutations/itemCategoryDel.mts')
