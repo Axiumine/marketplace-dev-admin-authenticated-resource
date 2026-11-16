@@ -43,7 +43,7 @@ vi.mock('@lib/retention/startRetentionSweeper.mjs', () => ({ startRetentionSweep
 // Spies on the real ApolloServerPluginDrainHttpServer (delegates to the actual implementation via
 // importOriginal, so every other test here still gets genuine drain behaviour) purely so the
 // "wires ApolloServerPluginDrainHttpServer" test below can assert it was actually called with the
-// server's own httpServer. Node's own http.Server#close() (v24: httpServerPreClose ->
+// server's own httpServer. Node's own http.Server#close() (v26: httpServerPreClose ->
 // closeIdleConnections) already destroys idle keep-alive sockets on its own — verified directly by
 // timing a bare server.close() with an open idle keep-alive connection and no plugin at all, which
 // closed in ~1ms — so racing gracefulShutdown() against a clock cannot tell the plugin's presence
@@ -652,7 +652,7 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
   })
 
   // Regression test for gracefulShutdown() itself: a real client left connected on a keep-alive
-  // socket must not make shutdown hang. On this Node version (v24) http.Server#close() already
+  // socket must not make shutdown hang. On this Node version (v26) http.Server#close() already
   // destroys idle keep-alive sockets on its own (httpServerPreClose -> closeIdleConnections,
   // verified directly by timing a bare close() against an open idle connection with no Apollo
   // plugin involved at all: ~1ms) — so this test cannot tell ApolloServerPluginDrainHttpServer's
