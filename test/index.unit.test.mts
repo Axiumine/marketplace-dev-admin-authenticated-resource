@@ -21,7 +21,8 @@ const startRetentionSweeper = vi.fn()
 /** The NodeClam initClamScan() hands back — identity is all start() does with it, so it needs no behaviour. */
 const clamScanner = { getVersion: vi.fn() }
 
-vi.mock('@sentry/node', () => ({ captureException, captureMessage, flush }))
+// koa-utils >= 8 reads captureMessage and withScope off @sentry/node as soon as it loads, so the factory must export both.
+vi.mock('@sentry/node', () => ({ captureException, captureMessage, flush, withScope: vi.fn() }))
 // redisClient.hGetAll backs the auth path every request in the createServer block below travels —
 // everything else here only drives start()'s failure paths, which never reach hGetAll.
 vi.mock('@axiumine/koa-utils/dataSources/Redis', () => ({ RedisConnect, redisClient: { hGetAll } }))
@@ -43,7 +44,7 @@ vi.mock('@lib/retention/startRetentionSweeper.mjs', () => ({ startRetentionSweep
 // Spies on the real ApolloServerPluginDrainHttpServer (delegates to the actual implementation via
 // importOriginal, so every other test here still gets genuine drain behaviour) purely so the
 // "wires ApolloServerPluginDrainHttpServer" test below can assert it was actually called with the
-// server's own httpServer. Node's own http.Server#close() (v24: httpServerPreClose ->
+// server's own httpServer. Node's own http.Server#close() (v26: httpServerPreClose ->
 // closeIdleConnections) already destroys idle keep-alive sockets on its own — verified directly by
 // timing a bare server.close() with an open idle keep-alive connection and no plugin at all, which
 // closed in ~1ms — so racing gracefulShutdown() against a clock cannot tell the plugin's presence
@@ -652,7 +653,7 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
   })
 
   // Regression test for gracefulShutdown() itself: a real client left connected on a keep-alive
-  // socket must not make shutdown hang. On this Node version (v24) http.Server#close() already
+  // socket must not make shutdown hang. On this Node version (v26) http.Server#close() already
   // destroys idle keep-alive sockets on its own (httpServerPreClose -> closeIdleConnections,
   // verified directly by timing a bare close() against an open idle connection with no Apollo
   // plugin involved at all: ~1ms) — so this test cannot tell ApolloServerPluginDrainHttpServer's
