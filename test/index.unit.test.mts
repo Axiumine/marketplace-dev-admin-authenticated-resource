@@ -628,6 +628,23 @@ describe('createServer (real Koa/Apollo assembly, no real datasource behind it)'
     expect(json.data?.__schema).toEqual({ queryType: { name: 'QueriesApi' }, mutationType: { name: 'MutationsApi' } })
   })
 
+  // graphql-upload is what turns a multipart body into a request Apollo can execute: koa-bodyparser
+  // leaves multipart alone. No operation here takes a file, so a plain query is what shows the wiring.
+  it('reads a multipart GraphQL request at ENDPOINT', async () => {
+    const form = new FormData()
+    form.set('operations', JSON.stringify({ query: '{ __typename }' }))
+    form.set('map', '{}')
+
+    const res = await fetch(`${base}${ENDPOINT}`, {
+      method: 'POST',
+      headers: { 'apollo-require-preflight': 'true', ...AUTHENTICATED },
+      body: form
+    })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ data: { __typename: 'QueriesApi' } })
+  })
+
   it('serves /health once the bearer gate is satisfied', async () => {
     const res = await fetch(`${base}/health`, { headers: AUTHENTICATED })
     const json = (await res.json()) as { status: string; timestamp: string }
