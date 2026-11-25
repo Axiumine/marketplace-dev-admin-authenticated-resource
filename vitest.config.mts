@@ -50,10 +50,13 @@ export default defineConfig({
     },
     projects: [
       {
+        extends: false,
         plugins: [nodeNextResolver],
         resolve: { dedupe: ['graphql'] },
         test: {
           name: 'unit',
+          // vitest 5 defaults clearMocks to true, which wipes calls a suite records at import time and then asserts.
+          clearMocks: false,
           include: ['test/*.test.mts'],
           server: { deps: { inline: inlineDeps } },
           // Caps how long a test's full name may be — the mutation gate selects tests by name,
@@ -68,10 +71,13 @@ export default defineConfig({
         }
       },
       {
+        extends: false,
         plugins: [nodeNextResolver],
         resolve: { dedupe: ['graphql'] },
         test: {
           name: 'integration',
+          // vitest 5 defaults clearMocks to true, which wipes calls a suite records at import time and then asserts.
+          clearMocks: false,
           include: ['test/integration/*.itest.mts'],
           server: { deps: { inline: inlineDeps } },
           // Caps how long a test's full name may be — the mutation gate selects tests by name,
